@@ -1,6 +1,6 @@
 /*
 
-    $Id: at76c651.c,v 1.24 2002/01/10 23:32:22 fnbrd Exp $
+    $Id: at76c651.c,v 1.24.2.1 2002/01/26 13:33:06 fnbrd Exp $
 
     AT76C651  - DVB demux driver (dbox-II-project)
 
@@ -23,6 +23,9 @@
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
     $Log: at76c651.c,v $
+    Revision 1.24.2.1  2002/01/26 13:33:06  fnbrd
+    Blind (d.h. ohne Compilationsversuch) an neue API angepasst. Mail mir mal bitte wer die Fehlermeldungen beim compilieren zu.
+
     Revision 1.24  2002/01/10 23:32:22  fnbrd
     Better debug output.
 
@@ -89,11 +92,14 @@
 #include <linux/poll.h>
 #include <linux/irq.h>
 #include <linux/i2c.h>
-#include <dbox/dvb.h>
+
+#include <dbox/dvb_frontend.h>
+#include <dbox/fp.h>
+//#include <dbox/dvb.h>
 
 #include <asm/8xx_immap.h>
 
-#include <dbox/ves.h>
+//#include <dbox/ves.h>
 
 #define DONT_USE_IRQ // Wir brauchen die IRQ-Routine nicht
 
@@ -380,7 +386,7 @@ static int tuner_set_freq(int freq)
     return -1;
 }
 
-//-------------------------------------------------------------------------
+//---------------------------------------------------------
 
 typedef struct at76c651 {
 //        int inversion;
@@ -618,6 +624,77 @@ static void inc_use (struct i2c_client *client)
 #endif
 }
 
+//-------------------------------------------------------------------------
+
+static int dvb_command(struct i2c_client *client, unsigned int cmd, void *arg)
+{
+  dprintk("AT76C651: dvb_command\n");
+
+	switch (cmd) 
+	{
+		
+	case FE_READ_STATUS:
+	{
+		FrontendStatus *status=(FrontendStatus *) arg;
+
+                u8 lock;
+                lock=readreg(client, 0x80); // Bits: FEC, CAR, EQU, TIM, AGC2, AGC1, ADC, PLL (PLL=0)
+
+		*status=0;
+
+		if (lock&0x08) // AGC2
+			*status|=FE_HAS_SIGNAL;
+		if (lock&0x40) // CAR
+			*status|=FE_HAS_CARRIER;
+		if (lock&20) // EQU
+			*status|=FE_HAS_SYNC;
+		if (lock&0x80) // FEC
+			*status|=FE_HAS_LOCK;
+		break;
+	}
+
+	case FE_WRITEREG:
+	{
+		u8 *msg = (u8 *) arg;
+		writereg(client, msg[0], msg[1]);
+		break;
+	}
+	case FE_INIT:
+	{
+		init(client);
+		break;
+	}
+	case FE_RESET:
+                at_restart();
+		break;
+
+	case FE_SET_FRONTEND:
+	{
+
+		FrontendParameters *param = (FrontendParameters *) arg;
+
+		SetQAM(client, param->u.qam.QAM);
+		SetSymbolrate(client, param->u.qam.SymbolRate);
+
+		break;
+	}
+
+	case FE_SETFREQ:
+	{
+		u32 freq=*(u32*)arg;
+                tuner_set_freq(freq);
+		break;
+	}
+
+	default:
+		return -1;
+	}
+	
+	return 0;
+} 
+
+//-------------------------------------------------------------------------
+
 static void dec_use (struct i2c_client *client)
 {
 #ifdef MODULE
@@ -732,6 +809,8 @@ static int detach_client(struct i2c_client *client)
         return 0;
 }
 
+#ifndef NIXTUN
+
 static void ves_init(void)
 {
   init(dclient);
@@ -792,6 +871,8 @@ static void ves_get_frontend(struct frontend *front)
 */
 }
 
+#endif // NIXTUN
+
 static int ves_get_unc_packet(u32 *uncp)
 {
 //  at76c651_t *ves = (at76c651_t*)dclient->data;
@@ -844,7 +925,7 @@ static void ves_interrupt(int irq, void *vdev, struct pt_regs * regs)
 int init_module(void) {
         int res;
 
-        dprintk("AT76C651: $Id: at76c651.c,v 1.24 2002/01/10 23:32:22 fnbrd Exp $\n");
+        dprintk("AT76C651: $Id: at76c651.c,v 1.24.2.1 2002/01/26 13:33:06 fnbrd Exp $\n");
         if ((res = i2c_add_driver(&dvbt_driver)))
         {
                 printk("AT76C651: Driver registration failed, module not inserted.\n");
