@@ -129,7 +129,7 @@ void lcd_console_new_line()
 
 void lcd_console_scroll_down( int i )
 {
-	static unsigned char d[LCD_BUFFER_SIZE+LCD_COLS];
+	unsigned char d[LCD_BUFFER_SIZE+LCD_COLS];
 
 	lcd_read_dram(d);
 	memset( d+LCD_BUFFER_SIZE, 0x00, LCD_COLS );
