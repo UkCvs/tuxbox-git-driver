@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_dmx.c,v 1.196 2003/11/24 09:53:01 obi Exp $
+ * $Id: avia_gt_dmx.c,v 1.193.2.1 2003/11/27 14:04:37 kerlimann Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -37,9 +37,8 @@
 #include <linux/interrupt.h>
 #include <asm/uaccess.h>
 
-#include "demux.h"
-#include "dvb_demux.h"
-
+#include "../dvb-core/demux.h"
+#include "../dvb-core/dvb_demux.h"
 #include "avia_av.h"
 #include "avia_gt.h"
 #include "avia_gt_dmx.h"
@@ -57,7 +56,6 @@ static volatile u16 *riscram;
 static volatile u16 *pst;
 static volatile u16 *ppct; 
 static char *ucode;
-static int hw_sections = 1;
 static int force_stc_reload;
 static sAviaGtDmxQueue queue_list[AVIA_GT_DMX_QUEUE_COUNT];
 static s8 section_filter_umap[32];
@@ -2011,7 +2009,10 @@ void avia_gt_dmx_set_ucode_info(void)
 	case 0x0014:
  		ucode_info.caps = (AVIA_GT_UCODE_CAP_ECD |
  			AVIA_GT_UCODE_CAP_PES |
- 			AVIA_GT_UCODE_CAP_SEC |
+//
+// just testing!
+// 			AVIA_GT_UCODE_CAP_SEC |
+//
  			AVIA_GT_UCODE_CAP_TS);
 		ucode_info.qid_offset = 1;
 		ucode_info.queue_mode_pes = 3;
@@ -2040,15 +2041,6 @@ void avia_gt_dmx_set_ucode_info(void)
 		ucode_info.queue_mode_pes = 3;
 		break;
 	}
-
-	if (!hw_sections)
-		ucode_info.caps &= ~AVIA_GT_UCODE_CAP_SEC;
-
-	if ((ucode_info.caps & AVIA_GT_UCODE_CAP_SEC) == AVIA_GT_UCODE_CAP_SEC)
-		printk(KERN_INFO "avia_gt_dmx: hw section filters enabled.\n");
-	else
-		printk(KERN_INFO "avia_gt_dmx: hw section filters disabled.\n");
-
 }
 
 struct avia_gt_ucode_info *avia_gt_dmx_get_ucode_info(void)
@@ -2063,7 +2055,7 @@ int __init avia_gt_dmx_init(void)
 	u32 queue_addr;
 	u8 queue_nr;
 
-	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.196 2003/11/24 09:53:01 obi Exp $\n");;
+	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.193.2.1 2003/11/27 14:04:37 kerlimann Exp $\n");;
 
 	gt_info = avia_gt_get_info();
 
@@ -2156,7 +2148,7 @@ int __init avia_gt_dmx_init(void)
 		q->info.bytes_avail = avia_gt_dmx_queue_get_bytes_avail;
 		q->info.bytes_free = avia_gt_dmx_queue_get_bytes_free;
 		q->info.size = avia_gt_dmx_queue_get_size;
-		q->info.crc32_be = avia_gt_dmx_queue_crc32;
+		q->info.crc32_le = avia_gt_dmx_queue_crc32;
 		q->info.get_buf1_ptr = avia_gt_dmx_queue_get_buf1_ptr;
 		q->info.get_buf2_ptr = avia_gt_dmx_queue_get_buf2_ptr;
 		q->info.get_buf1_size = avia_gt_dmx_queue_get_buf1_size;
@@ -2201,8 +2193,6 @@ MODULE_LICENSE("GPL");
 #endif
 MODULE_PARM(ucode, "s");
 MODULE_PARM_DESC(ucode, "path to risc microcode");
-MODULE_PARM(hw_sections, "i");
-MODULE_PARM_DESC(hw_sections, "hw_sections: 0=disabled, 1=enabled if possible (default)");
 
 EXPORT_SYMBOL(avia_gt_dmx_alloc_queue_audio);
 EXPORT_SYMBOL(avia_gt_dmx_alloc_queue_message);
