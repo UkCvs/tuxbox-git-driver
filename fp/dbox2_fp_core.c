@@ -41,6 +41,7 @@
 
 #include <linux/wait.h>
 #include <linux/interrupt.h>
+#include <linux/devfs_fs_kernel.h>
 
 #include <asm/8xx_immap.h>
 #include <asm/bitops.h>
@@ -54,7 +55,6 @@
 #include <dbox/fp.h>
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-#include <linux/devfs_fs_kernel.h>
 #ifndef CONFIG_DEVFS_FS
 #error no devfs
 #endif
@@ -664,6 +664,9 @@ static int __init fp_init(void)
 		printk("fp: unable to register device\n");
 		return -EIO;
 	}
+	devfs_mk_cdev(MKDEV(MISC_MAJOR,fp_dev.minor),
+		S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
+		"dbox/fp0");
 #else
 	devfs_handle = devfs_register(NULL, "dbox/fp0", DEVFS_FL_DEFAULT, 0, FP_MINOR,
 		S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
@@ -690,6 +693,7 @@ static int __init fp_init(void)
 static void __exit fp_exit(void)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	devfs_remove("dbox/fp0");
 	driver_unregister(&fp_dev_driver);
 	misc_deregister(&fp_dev);
 #else
