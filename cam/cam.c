@@ -249,7 +249,6 @@ static DECLARE_WORK(cam_work, cam_task, NULL);
 
 static irqreturn_t cam_interrupt(int irq, void *dev, struct pt_regs *regs)
 {
-printk("cam_irq\n");
 	schedule_work(&cam_work);
 	disable_irq(CAM_INTERRUPT);
 	return IRQ_HANDLED;
@@ -401,7 +400,7 @@ static struct device_driver cam_driver = {
 
 static int __init cam_init(void)
 {
-	printk(KERN_INFO "$Id: cam.c,v 1.30.2.1 2005/01/15 21:18:24 carjay Exp $\n");
+	printk(KERN_INFO "$Id: cam.c,v 1.30.2.2 2005/01/15 22:22:11 carjay Exp $\n");
 
 	return driver_register(&cam_driver);
 }
