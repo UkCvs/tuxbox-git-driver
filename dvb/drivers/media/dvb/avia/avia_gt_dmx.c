@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_dmx.c,v 1.210 2004/06/26 16:08:15 carjay Exp $
+ * $Id: avia_gt_dmx.c,v 1.210.2.1 2005/01/15 02:35:09 carjay Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -23,7 +23,10 @@
  *
  */
 
+#include <linux/version.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 #define __KERNEL_SYSCALLS__
+#endif
 
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -31,7 +34,11 @@
 #include <linux/bitops.h>
 #include <linux/sched.h>
 #include <linux/string.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#include <linux/workqueue.h>
+#else
 #include <linux/tqueue.h>
+#endif
 #include <linux/unistd.h>
 #include <linux/interrupt.h>
 #include <asm/uaccess.h>
@@ -47,9 +54,11 @@
 #include "avia_gt_ucode.h"
 
 static void avia_gt_dmx_bh_task(void *tl_data);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static struct workqueue_struct *dmx_workqueue;
+#endif
 static void avia_gt_pcr_irq(unsigned short irq);
 
-static int errno;
 static sAviaGtInfo *gt_info;
 static struct avia_gt_ucode_info *ucode_info;
 static struct avia_gt_dmx_queue *msgqueue;
@@ -181,9 +190,12 @@ static struct avia_gt_dmx_queue *avia_gt_dmx_alloc_queue(u8 queue_nr, AviaGtDmxQ
 	q->qim_mode = 0;
 	q->read_pos = 0;
 	q->write_pos = 0;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	PREPARE_WORK(&q->q_work, avia_gt_dmx_bh_task, &q->info.index);
+#else
 	q->task_struct.routine = avia_gt_dmx_bh_task;
 	q->task_struct.data = &q->info.index;
-
+#endif
 	avia_gt_dmx_queue_reset(queue_nr);
 	avia_gt_dmx_set_queue_irq(queue_nr, 0, 0);
 
@@ -293,7 +305,11 @@ void avia_gt_dmx_fake_queue_irq(u8 queue_nr)
 
 	q->irq_count++;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	queue_work(dmx_workqueue, &q->q_work);
+#else
 	schedule_task(&q->task_struct);
+#endif
 }
 
 static u32 avia_gt_dmx_queue_crc32(struct avia_gt_dmx_queue *queue, u32 count, u32 seed)
@@ -677,8 +693,12 @@ static void avia_gt_dmx_queue_irq(unsigned short irq)
 		q->irq_proc(&q->info, q->priv_data);
 	}
 	else if (q->cb_proc) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+		queue_work(dmx_workqueue, &q->q_work);
+#else
 		queue_task(&q->task_struct, &tq_immediate);
 		mark_bh(IMMEDIATE_BH);
+#endif
 	}
 }
 
@@ -809,7 +829,7 @@ static void avia_gt_dmx_bh_task(void *tl_data)
 	void *priv_data;
 	AviaGtDmxQueueProc *cb_proc;
 	u16 pid1 = 0xFFFF;
-	u16 pid2;
+	u16 pid2 = 0xFFFF;
 	u32 avail;
 	sAviaGtDmxQueue *q;
 	struct avia_gt_dmx_queue *queue_info;
@@ -1313,7 +1333,7 @@ int __init avia_gt_dmx_init(void)
 	u32 queue_addr;
 	u8 queue_nr;
 	
-	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.210 2004/06/26 16:08:15 carjay Exp $\n");;
+	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.210.2.1 2005/01/15 02:35:09 carjay Exp $\n");;
 
 	gt_info = avia_gt_get_info();
 	ucode_info = avia_gt_dmx_get_ucode_info();
@@ -1328,7 +1348,7 @@ int __init avia_gt_dmx_init(void)
 	
 	if (!hw_sections) 
 		risc_init.ucode_flags|=DISABLE_UCODE_SECTION_FILTERING;
-	
+
 	if ((result = avia_gt_dmx_risc_init(&risc_init)))
 		return result;
 
@@ -1380,6 +1400,15 @@ int __init avia_gt_dmx_init(void)
 		gtx_reg_16(AVI + 2) = 0xF;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	/* hey, being GPL finally paid off :S */
+	dmx_workqueue = create_workqueue("dmx_wq");
+	if (!dmx_workqueue){
+		printk(KERN_ERR "avia_gt_dmx: unable to create workqueue\n");
+		return -EIO;
+	}
+#endif
+	
 	memset(queue_list, 0, sizeof(queue_list));
 
 	queue_addr = AVIA_GT_MEM_DMX_OFFS;
@@ -1422,6 +1451,10 @@ int __init avia_gt_dmx_init(void)
 		q->info.flush = avia_gt_dmx_queue_flush;
 		q->info.put_data = avia_gt_dmx_queue_data_put;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+		INIT_WORK(&q->q_work,NULL,NULL);
+#endif
+
 		if (avia_gt_dmx_queue_is_system_queue(queue_nr))
 			avia_gt_dmx_system_queue_set_pos(queue_nr, 0, 0);
 
@@ -1442,6 +1475,9 @@ int __init avia_gt_dmx_init(void)
 
 void __exit avia_gt_dmx_exit(void)
 {
+	if (dmx_workqueue)
+		destroy_workqueue(dmx_workqueue);
+
 	if (msgqueue) avia_gt_dmx_free_queue(msgqueue->index);
 	avia_gt_dmx_risc_reset(0);
 }
@@ -1454,9 +1490,13 @@ MODULE_AUTHOR("Florian Schirmer <jolt@tuxbox.org>");
 MODULE_DESCRIPTION("AViA eNX/GTX demux driver");
 MODULE_LICENSE("GPL");
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+module_param(hw_sections, int, 0);
+#else
 MODULE_PARM(ucode, "s");
 MODULE_PARM_DESC(ucode, "path to risc microcode");
 MODULE_PARM(hw_sections, "i");
+#endif
 MODULE_PARM_DESC(hw_sections, "hw_sections: 0=disabled, 1=enabled if possible (default)");
 
 EXPORT_SYMBOL(avia_gt_dmx_alloc_queue_audio);

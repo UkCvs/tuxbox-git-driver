@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_core.c,v 1.48 2004/12/20 01:01:22 carjay Exp $
+ * $Id: avia_gt_core.c,v 1.48.2.1 2005/01/15 02:35:09 carjay Exp $
  *
  * AViA eNX/GTX core driver (dbox-II-project)
  *
@@ -25,15 +25,20 @@
 
 #include <linux/init.h>
 #include <linux/ioport.h>
-#include <linux/irq.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/string.h>
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#include <linux/device.h>
+#include <linux/interrupt.h>
+#else
+#include <linux/irq.h>
+#endif
 #include <asm/io.h>
 
 #include <tuxbox/info_dbox2.h>
-#include "dvb_functions.h"
 
 #include "avia_gt.h"
 #include "avia_gt_accel.h"
@@ -92,8 +97,11 @@ void avia_gt_free_irq(unsigned short irq)
 	gt_isr_proc_list[AVIA_GT_ISR_PROC_NR(AVIA_GT_IRQ_REG(irq), AVIA_GT_IRQ_BIT(irq))] = NULL;
 }
 
-static
-void avia_gt_irq(int irq, void *dev, struct pt_regs *regs)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static irqreturn_t avia_gt_irq(int irq, void *dev, struct pt_regs *regs)
+#else
+static void avia_gt_irq(int irq, void *dev, struct pt_regs *regs)
+#endif
 {
 	u8 irq_reg = 0;
 	u8 irq_bit = 0;
@@ -118,23 +126,37 @@ void avia_gt_irq(int irq, void *dev, struct pt_regs *regs)
 			}
 		}
 	}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	return IRQ_HANDLED;
+#endif
 }
 
 int avia_gt_wdt_thread(void)
 {
-	dvb_kernel_thread_setup ("avia_gt_wdt");
+	lock_kernel();
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,61)
+	daemonize("avia_gt_wdt");
+#else
+	daemonize();
+	strncpy(current->comm, "avia_gt_wdt", sizeof(current->comm));
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
+	reparent_to_init();
+#endif
+	sigfillset(&current->blocked);
+	unlock_kernel();
+
 	printk ("avia_av_core: Starting avia_gt_wdt thread.\n");
 	for(;;)
 	{
 
 		interruptible_sleep_on_timeout(&avia_gt_wdt_sleep, 200);
-
 		if((enx_reg_16(FIFO_PDCT)&0x7F) == 0x00) {
 		dprintk("avia_gt_wdt_thread: FIFO_PDCT = 0 ==> framer crashed .. restarting\n");
         		avia_gt_dmx_risc_reset(1);
 		}
 		if((enx_reg_16(FIFO_PDCT)&0x7F) == 0x7F) {
-		printk("avia_gt_wdt_thread: FIFO_PDCT = 127 ==> risc crashed .. restarting\n");
+		dprintk("avia_gt_wdt_thread: FIFO_PDCT = 127 ==> risc crashed .. restarting\n");
 		avia_gt_dmx_risc_reset(1);
 		}			
 
@@ -143,11 +165,16 @@ int avia_gt_wdt_thread(void)
 	return 0;
 }
 
-int __init avia_gt_init(void)
+static void avia_gt_unwind(void);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static int avia_gt_drv_probe(struct device *dev)
+#else
+static int __init avia_gt_init(void)
+#endif
 {
 	int result = 0;
-
-	printk(KERN_INFO "avia_gt_core: $Id: avia_gt_core.c,v 1.48 2004/12/20 01:01:22 carjay Exp $\n");
+	
+	printk(KERN_INFO "avia_gt_core: $Id: avia_gt_core.c,v 1.48.2.1 2005/01/15 02:35:09 carjay Exp $\n");
 
 	if (chip_type == -1) {
 		printk(KERN_INFO "avia_gt_core: autodetecting chip type... ");
@@ -177,12 +204,14 @@ int __init avia_gt_init(void)
 
 	if (!gt_info) {
 		printk(KERN_ERR "avia_gt_core: Could not allocate info memory!\n");
-		avia_gt_exit();
+		avia_gt_unwind();
 		return -ENOMEM;
 	}
 
 	memset(gt_info, 0, sizeof(sAviaGtInfo));
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	gt_info->dev = dev;
+#endif
 	gt_info->chip_type = chip_type;
 
 	if (avia_gt_chip(ENX)) {
@@ -190,7 +219,6 @@ int __init avia_gt_init(void)
 		gt_info->mem_size = ENX_MEM_SIZE;
 		gt_info->reg_addr_phys = ENX_REG_BASE;
 		gt_info->reg_size = ENX_REG_SIZE;
-
 		gt_info->irq = ENX_INTERRUPT;
 		gt_info->irq_lock = ENX_IRQ_LOCK;
 		gt_info->irq_drop = ENX_IRQ_DROP;
@@ -217,7 +245,6 @@ int __init avia_gt_init(void)
 		gt_info->mem_size = GTX_MEM_SIZE;
 		gt_info->reg_addr_phys = GTX_REG_BASE;
 		gt_info->reg_size = GTX_REG_SIZE;
-
 		gt_info->irq = GTX_INTERRUPT;
 		gt_info->irq_lock = GTX_IRQ_LOCK;
 		gt_info->irq_drop = GTX_IRQ_DROP;
@@ -244,7 +271,7 @@ int __init avia_gt_init(void)
 
 	if (!request_mem_region(gt_info->reg_addr_phys, gt_info->reg_size, "avia_gt_reg")) {
 		printk(KERN_ERR "avia_gt_core: Failed to request register space.\n");
-		avia_gt_exit();
+		avia_gt_unwind();
 		return -1;
 	}
 
@@ -252,7 +279,7 @@ int __init avia_gt_init(void)
 
 	if (!(gt_info->reg_addr = (unsigned char *)ioremap(gt_info->reg_addr_phys, gt_info->reg_size))) {
 		printk(KERN_ERR "avia_gt_core: Failed to remap register space.\n");
-		avia_gt_exit();
+		avia_gt_unwind();
 		return -1;
 	}
 
@@ -260,7 +287,7 @@ int __init avia_gt_init(void)
 
 	if (!request_mem_region(gt_info->mem_addr_phys, gt_info->mem_size, "avia_gt_mem")) {
 		printk(KERN_ERR "avia_gt_core: Failed to request memory space.\n");
-		avia_gt_exit();
+		avia_gt_unwind();
 		return -1;
 	}
 
@@ -268,7 +295,7 @@ int __init avia_gt_init(void)
 
 	if (!(gt_info->mem_addr = (unsigned char *)ioremap(gt_info->mem_addr_phys, gt_info->mem_size))) {
 		printk(KERN_ERR "avia_gt_core: Failed to remap memory space.\n");
-		avia_gt_exit();
+		avia_gt_unwind();
 		return -1;
 	}
 
@@ -278,7 +305,7 @@ int __init avia_gt_init(void)
 
 	if (result) {
 		printk(KERN_ERR "avia_gt_core: Could not allocate IRQ!\n");
-		avia_gt_exit();
+		avia_gt_unwind();
 		return -1;
 	}
 
@@ -294,7 +321,7 @@ int __init avia_gt_init(void)
 #if (!defined(MODULE)) || (defined(MODULE) && !defined(STANDALONE))
 	if (avia_gt_accel_init()) {
 		printk(KERN_ERR "avia_gt_core: avia_gt_accel_init failed\n");
-		avia_gt_exit();
+		avia_gt_unwind();
 		return -1;
 	}
 
@@ -303,7 +330,7 @@ int __init avia_gt_init(void)
 #if defined(CONFIG_AVIA_GT_DMX)
 	if (avia_gt_dmx_init()) {
 		printk(KERN_ERR "avia_gt_core: avia_gt_dmx_init failed\n");
-		avia_gt_exit();
+		avia_gt_unwind();
 		return -1;
 	}
 
@@ -313,7 +340,7 @@ int __init avia_gt_init(void)
 #if defined(CONFIG_AVIA_GT_GV)
 	if (avia_gt_gv_init()) {
 		printk(KERN_ERR "avia_gt_core: avia_gt_gv_init failed\n");
-		avia_gt_exit();
+		avia_gt_unwind();
 		return -1;
 	}
 
@@ -323,7 +350,7 @@ int __init avia_gt_init(void)
 #if defined(CONFIG_AVIA_GT_PCM)
 	if (avia_gt_pcm_init()) {
 		printk(KERN_ERR "avia_gt_core: avia_gt_pcm_init failed\n");
-		avia_gt_exit();
+		avia_gt_unwind();
 		return -1;
 	}
 
@@ -333,7 +360,7 @@ int __init avia_gt_init(void)
 #if defined(CONFIG_AVIA_GT_CAPTURE)
 	if (avia_gt_capture_init()) {
 		printk(KERN_ERR "avia_gt_core: avia_gt_capture_init failed\n");
-		avia_gt_exit();
+		avia_gt_unwind();
 		return -1;
 	}
 
@@ -341,7 +368,7 @@ int __init avia_gt_init(void)
 
 	if (avia_gt_pig_init()) {
 		printk(KERN_ERR "avia_gt_core: avia_gt_pig_init failed\n");
-		avia_gt_exit();
+		avia_gt_unwind();
 		return -1;
 	}
 
@@ -351,7 +378,7 @@ int __init avia_gt_init(void)
 #if defined(CONFIG_AVIA_GT_DMX)
 	if (avia_gt_vbi_init()) {
 		printk(KERN_ERR "avia_gt_core: avia_gt_vbi_init failed\n");
-		avia_gt_exit();
+		avia_gt_unwind();
 		return -1;
 	}
 	
@@ -372,7 +399,9 @@ int __init avia_gt_init(void)
 	return 0;
 }
 
-void avia_gt_exit(void)
+/* externalized so it can be called from both init
+	and exit functions */
+static void avia_gt_unwind(void)
 {
 #if (!defined(MODULE)) || (defined(MODULE) && !defined(STANDALONE))
 
@@ -439,14 +468,63 @@ void avia_gt_exit(void)
 		kfree(gt_info);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static int avia_gt_drv_remove(struct device *dev)
+#else
+static void avia_gt_exit(void)
+#endif
+{
+	avia_gt_unwind();
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	return 0;
+#endif
+}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+/* we support both devices,
+	but only one of them will get matched */
+static struct device_driver avia_gt_GTX_driver = {
+	.name	= "gtx",
+	.bus	= &platform_bus_type,
+	.probe 	= avia_gt_drv_probe,
+	.remove	= avia_gt_drv_remove
+};
+static struct device_driver avia_gt_eNX_driver = {
+	.name 	= "enx",
+	.bus	= &platform_bus_type,
+	.probe 	= avia_gt_drv_probe,
+	.remove	= avia_gt_drv_remove
+};
+
+static int __init avia_gt_init(void)
+{
+	int ret;
+	ret = driver_register(&avia_gt_GTX_driver);
+	if (!ret)
+		ret = driver_register(&avia_gt_eNX_driver);
+	return ret;
+}
+
+static void __exit avia_gt_exit(void)
+{
+	driver_unregister(&avia_gt_GTX_driver);
+	driver_unregister(&avia_gt_eNX_driver);
+}
+#endif
+
 module_init(avia_gt_init);
 module_exit(avia_gt_exit);
 
 MODULE_AUTHOR("Florian Schirmer <jolt@tuxbox.org>");
 MODULE_DESCRIPTION("AViA eNX/GTX driver");
 MODULE_LICENSE("GPL");
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+module_param(chip_type, int, 0);
+module_param(no_watchdog, int, 0);
+#else
 MODULE_PARM(chip_type, "i");
 MODULE_PARM(no_watchdog, "i");
+#endif
 MODULE_PARM_DESC(chip_type, "-1: autodetect, 0: eNX, 1: GTX");
 MODULE_PARM_DESC(no_watchdog, "0: wd enabled, 1: wd disabled");
 

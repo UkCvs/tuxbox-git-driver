@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_core.c,v 1.98 2004/11/21 20:33:38 carjay Exp $
+ * $Id: avia_av_core.c,v 1.98.2.1 2005/01/15 02:35:09 carjay Exp $
  *
  * AViA 500/600 core driver (dbox-II-project)
  *
@@ -23,7 +23,10 @@
  *
  */
 
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 #define __KERNEL_SYSCALLS__
+#endif
 
 #include <linux/delay.h>
 #include <linux/init.h>
@@ -33,10 +36,16 @@
 #include <linux/unistd.h>
 #include <linux/vmalloc.h>
 #include <linux/wait.h>
-#include <asm/commproc.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#include <linux/device.h>
+#include <linux/firmware.h>
+#include <linux/interrupt.h>
+#else
 #include <asm/hardirq.h>
-#include <asm/io.h>
 #include <asm/irq.h>
+#endif
+#include <asm/commproc.h>
+#include <asm/io.h>
 #include <asm/uaccess.h>
 
 #include "avia_av.h"
@@ -45,7 +54,6 @@
 
 #include <dbox/fp.h>
 #include <tuxbox/info_dbox2.h>
-#include "dvb_functions.h"
 
 /* ---------------------------------------------------------------------- */
 
@@ -53,17 +61,30 @@ TUXBOX_INFO(dbox2_gt);
 
 static int tv_standard;
 static int no_watchdog;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 static char *firmware;
+#endif
 
-static int debug;
-#define dprintk if (debug) printk
+#ifdef AVIA_AV_DEBUG
+#define dprintk(fmt, args...) printk(fmt, ##args)
+#else
+#define dprintk(fmt, args...)
+#endif
 
 static volatile u8 *aviamem;
 static int aviarev;
 static int silirev;
 
 /* interrupt stuff */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static struct {
+	struct device *dev;
+	u32 dram_start;
+	int irq;
+} avia_info;
+#else
 #define AVIA_INTERRUPT		  SIU_IRQ4
+#endif
 static int dev;
 
 static spinlock_t avia_command_lock;
@@ -86,7 +107,6 @@ static u16 video_width;
 static u16 video_height;
 static u16 video_aspect_ratio;
 
-/* finally i got them */
 #define UX_MAGIC			0x00
 #define UX_NUM_SECTIONS			0x01
 #define UX_LENGTH_FILE			0x02
@@ -156,16 +176,14 @@ void avia_av_write(const u8 mode, u32 address, const u32 data)
 	spin_unlock_irq(&avia_register_lock);
 }
 
-inline
-void avia_av_imem_write(const u32 addr, const u32 data)
+inline void avia_av_imem_write(const u32 addr, const u32 data)
 {
 	avia_av_gbus_write(0x36, addr);
 	avia_av_gbus_write(0x34, data);
 }
 
 #if 0
-inline
-u32 avia_av_imem_read(const u32 addr)
+inline u32 avia_av_imem_read(const u32 addr)
 {
 	avia_av_gbus_write(0x3A, 0x0B);
 	avia_av_gbus_write(0x3B, addr);
@@ -177,8 +195,7 @@ u32 avia_av_imem_read(const u32 addr)
 
 /* ---------------------------------------------------------------------- */
 
-static
-void avia_av_gbus_initial(u32 *microcode)
+static void avia_av_gbus_initial(u32 *microcode)
 {
 	u32 *ptr = &microcode[UX_FIRST_SECTION_START + UX_SECTION_DATA_OFFSET + UX_SECTION_DATA_GBUS_TABLE];
 	u32 words = *ptr--, data, addr;
@@ -195,8 +212,7 @@ void avia_av_gbus_initial(u32 *microcode)
 
 /* ---------------------------------------------------------------------- */
 
-static
-void avia_av_gbus_final(u32 *microcode)
+static void avia_av_gbus_final(u32 *microcode)
 {
 	u32 *ptr = &microcode[UX_FIRST_SECTION_START + UX_SECTION_DATA_OFFSET + UX_SECTION_DATA_GBUS_TABLE];
 	u32 words = *ptr--, data, addr;
@@ -227,8 +243,7 @@ void avia_av_dram_memcpy32(u32 dst, u32 *src, int dwords)
 
 /* ---------------------------------------------------------------------- */
 
-static
-u32 avia_av_load_dram_image(u32 *microcode, const u32 section_start)
+static u32 avia_av_load_dram_image(u32 *microcode, const u32 section_start)
 {
 	u32 dst, *src, words, errors = 0;
 
@@ -252,8 +267,7 @@ u32 avia_av_load_dram_image(u32 *microcode, const u32 section_start)
 
 /* ---------------------------------------------------------------------- */
 
-static
-int avia_av_load_imem_image(u32 *microcode, const u32 data_start)
+static int avia_av_load_imem_image(u32 *microcode, const u32 data_start)
 {
 	u32 *src, i, words, errors = 0;
 
@@ -281,8 +295,7 @@ int avia_av_load_imem_image(u32 *microcode, const u32 data_start)
 
 /* ---------------------------------------------------------------------- */
 
-static
-int avia_av_load_microcode(u32 *microcode)
+static int avia_av_load_microcode(u32 *microcode)
 {
 	u32 num_sections = le32_to_cpu(microcode[UX_NUM_SECTIONS]);
 	u32 data_offset = UX_FIRST_SECTION_START;
@@ -305,8 +318,7 @@ int avia_av_load_microcode(u32 *microcode)
 
 /* ---------------------------------------------------------------------- */
 
-static
-int avia_av_wait(u32 reg, u32 val, u32 ms)
+static int avia_av_wait(u32 reg, u32 val, u32 ms)
 {
 	int tries = 10;
 
@@ -323,8 +335,7 @@ int avia_av_wait(u32 reg, u32 val, u32 ms)
 	return tries ? 0 : -1;
 }
 
-static
-void avia_av_htd_interrupt(void)
+static void avia_av_htd_interrupt(void)
 {
 	avia_av_gbus_write(0, avia_av_gbus_read(0) | (1 << 7));
 	avia_av_gbus_write(0, avia_av_gbus_read(0) | (1 << 6));
@@ -345,8 +356,11 @@ int avia_av_new_audio_config(void)
 	return 0;
 }
 
-static
-void avia_av_interrupt(int irq, void *vdev, struct pt_regs *regs)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static irqreturn_t avia_av_interrupt(int irq, void *vdev, struct pt_regs *regs)
+#else
+static void avia_av_interrupt(int irq, void *vdev, struct pt_regs *regs)
+#endif
 {
 	u32 status;
 	u32 mask;
@@ -466,6 +480,9 @@ void avia_av_interrupt(int irq, void *vdev, struct pt_regs *regs)
 	avia_av_dram_write(INT_STATUS, 0);
 
 	spin_unlock(&avia_command_lock);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	return IRQ_HANDLED;
+#endif
 }
 
 /* ---------------------------------------------------------------------- */
@@ -485,7 +502,7 @@ int avia_av_standby(const int state)
 		/* disable interrupts */
 		avia_av_dram_write(INT_MASK, 0);
 
-		free_irq(AVIA_INTERRUPT, &dev);
+		free_irq(avia_info.irq, &dev);
 
 		/* enable host access */
 		avia_av_gbus_write(0, 0x1000);
@@ -500,8 +517,7 @@ int avia_av_standby(const int state)
 
 /* ---------------------------------------------------------------------- */
 
-static
-u32 avia_cmd_status_get(const u32 status_addr, const u8 wait_for_completion)
+static u32 avia_cmd_status_get(const u32 status_addr, const u8 wait_for_completion)
 {
 	int waittime = 350;
 
@@ -529,10 +545,9 @@ u32 avia_cmd_status_get(const u32 status_addr, const u8 wait_for_completion)
 	return avia_av_dram_read(status_addr);
 }
 
-static
-u32 avia_cmd_status_get_addr(void)
+static u32 avia_cmd_status_get_addr(void)
 {
-	long timeout = jiffies + HZ * 2;
+	unsigned long timeout = jiffies + HZ * 2;
 
 	while ((!avia_av_dram_read(STATUS_ADDRESS)) && (time_before(jiffies, timeout)))
 		schedule();
@@ -629,23 +644,20 @@ void avia_av_set_stc(const u32 hi, const u32 lo)
 }
 
 /*
-static
-int wait_audio_sequence(void)
+static int wait_audio_sequence(void)
 {
 	while(avia_av_dram_read(AUDIO_SEQUENCE_ID));
 	return 0;
 }
 
-static
-int init_audio_sequence(void)
+static int init_audio_sequence(void)
 {
 	avia_av_dram_write(AUDIO_SEQUENCE_ID, 0);
 	avia_av_dram_write(NEW_AUDIO_SEQUENCE, 1);
 	return wait_audio_sequence();
 }
 
-static
-int new_audio_sequence(u32 val)
+static int new_audio_sequence(u32 val)
 {
 	avia_av_dram_write(AUDIO_SEQUENCE_ID, val);
 	avia_av_dram_write(NEW_AUDIO_SEQUENCE, 2);
@@ -653,8 +665,7 @@ int new_audio_sequence(u32 val)
 }
 */
 
-static
-void avia_av_audio_init(u16 rate)
+static void avia_av_audio_init(u16 rate)
 {
 	u32 val;
 
@@ -718,8 +729,7 @@ void avia_av_audio_init(u16 rate)
 
 /* ---------------------------------------------------------------------- */
 
-static
-void avia_av_set_default(void)
+static void avia_av_set_default(void)
 {
 	u32 val = 0;
 
@@ -810,8 +820,7 @@ void avia_av_set_default(void)
 
 /* ---------------------------------------------------------------------- */
 
-static
-int avia_av_set_ppc_siumcr(void)
+static int avia_av_set_ppc_siumcr(void)
 {
 	volatile immap_t *immap;
 	volatile sysconf8xx_t *sys_conf;
@@ -861,12 +870,12 @@ int avia_av_set_video_system(int video_system)
 	return 0;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 /* ---------------------------------------------------------------------- */
 /* shamelessly stolen from sound_firmware.c */
 static int errno;
 
-static
-int avia_av_firmware_read(const char *fn, char **fp)
+static int avia_av_firmware_read(const char *fn, char **fp)
 {
 	int fd = 0;
 	loff_t l = 0;
@@ -923,17 +932,26 @@ int avia_av_firmware_read(const char *fn, char **fp)
 }
 
 /* ---------------------------------------------------------------------- */
+#endif
 
 static int avia_av_init(void)
 {
-	u32 *microcode = NULL;
+	int ret;
 	u32 val = 0;
+	u32 *microcode = NULL;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 	mm_segment_t fs;
+#else
+	const char *firmwarename;
+	const struct firmware *fw;
+	const char *avia500firmware = "avia500.ux";
+	const char *avia600firmware = "avia600.ux";
+#endif
 	u32 irq_mask;
 
 	/* remap avia memory */
 	if (!aviamem)
-		aviamem = (unsigned char *)ioremap(0xA000000, 0x200);
+		aviamem = (unsigned char *)ioremap(avia_info.dram_start, 0x200);
 
 	if (!aviamem) {
 		printk(KERN_ERR "avia_av: failed to remap memory\n");
@@ -945,33 +963,51 @@ static int avia_av_init(void)
 	/* read revision */
 	aviarev = (avia_av_gbus_read(0) >> 16) & 3;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	/* request firmware */
+	if (avia_av_is500())
+		firmwarename = avia500firmware;
+	else
+		firmwarename = avia600firmware;
+	ret = request_firmware(&fw, firmwarename, avia_info.dev);
+	if (ret){
+		if (ret == -ENOENT){
+			printk(KERN_ERR "avia_av: could not load firmware, "
+						"file not found: %s, decoder will not work!\n", firmwarename);
+		}
+		return 0;
+	}
+	microcode = (u32*)fw->data;
+#else
 	fs = get_fs();
 	set_fs(get_ds());
 
 	/* read firmware */
 	if (avia_av_firmware_read(firmware, (char**) &microcode) == 0) {
-		printk("avia_av: microcode not found, setting up dummy\n");
+		printk(KERN_INFO "avia_av: microcode not found, setting up dummy\n");
 		set_fs(fs);
 		return 0;
 	}
 
 	set_fs(fs);
-
+#endif
 	/* set siumcr for interrupt */
 	if (avia_av_set_ppc_siumcr() < 0) {
+		ret = -EIO;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 		vfree(microcode);
-		iounmap((void*)aviamem);
-		aviamem = NULL;
-		return -EIO;
+#endif
+		goto out;
 	}
 
 	/* request avia interrupt */
-	if (request_irq(AVIA_INTERRUPT, avia_av_interrupt, 0, "avia", &dev) != 0) {
-		printk(KERN_ERR "AVIA: Failed to get interrupt.\n");
+	if (request_irq(avia_info.irq, avia_av_interrupt, 0, "avia", &dev) != 0) {
+		printk(KERN_ERR "avia_av: Failed to get interrupt.\n");
+		ret= -EIO;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 		vfree(microcode);
-		iounmap((void*)aviamem);
-		aviamem = NULL;
-		return -EIO;
+#endif
+		goto out;
 	}
 
 	/* init queue */
@@ -1062,7 +1098,11 @@ static int avia_av_init(void)
 	/* init_audio_sequence(); */
 	avia_av_gbus_final(microcode);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	release_firmware(fw);
+#else
 	vfree(microcode);
+#endif
 
 	/* set cpu running mode */
 	avia_av_gbus_write(0x39, 0x900000);
@@ -1088,18 +1128,14 @@ static int avia_av_init(void)
 	if (avia_av_wait(PROC_STATE, PROC_STATE_IDLE, 100) < 0) {
 		printk(KERN_ERR "avia_av: timeout waiting for decoder init to complete. (%08x)\n",
 				avia_av_dram_read(PROC_STATE));
-		iounmap((void *)aviamem);
-		aviamem = NULL;
-		free_irq(AVIA_INTERRUPT, &dev);
-		return -EIO;
+		ret=-EIO;
+		goto out_irq;
 	}
 
 	/* new audio config */
 	if (avia_av_new_audio_config() < 0) {
-		iounmap((void *)aviamem);
-		aviamem = NULL;
-		free_irq(AVIA_INTERRUPT, &dev);
-		return -EIO;
+		ret=-EIO;
+		goto out_irq;
 	}
 
 	avia_av_event_init();
@@ -1134,6 +1170,13 @@ static int avia_av_init(void)
 	sync_mode = AVIA_AV_SYNC_MODE_AV;
 
 	return 0;
+	/* start unwind block */
+out_irq:
+	free_irq(avia_info.irq, &dev);
+out:
+	iounmap((void*)aviamem);
+	aviamem = NULL;
+	return ret;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -1474,7 +1517,19 @@ int avia_av_wdt_thread(void)
 	int LAST_SUM_AUD_DECODED = 0;
 	int counter = 0;  
                         
-	dvb_kernel_thread_setup ("avia_av_wdt");
+	lock_kernel();
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,61)
+	daemonize("avia_av_wdt");
+#else
+	daemonize();
+	strncpy(current->comm, "avia_av_wdt", sizeof(current->comm));
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
+	reparent_to_init();
+#endif
+	sigfillset(&current->blocked);
+	unlock_kernel();
+	
 	printk ("avia_av_core: Starting avia_av_wdt thread.\n");
 	for(;;){
 		/* sleep till we got a wakeup signal */        
@@ -1507,28 +1562,60 @@ int avia_av_wdt_thread(void)
 }       
 
 /* ---------------------------------------------------------------------- */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static int avia_av_drv_probe(struct device *);
+static int avia_av_drv_remove(struct device *);
+static struct device_driver avia_av_driver = {
+	.name	= "avia",
+	.bus	= &platform_bus_type,
+	.probe	= avia_av_drv_probe,
+	.remove = avia_av_drv_remove,
+};
+#endif
 
-int __init avia_av_core_init(void)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static int avia_av_drv_probe(struct device *dev)
+#else
+static int __init avia_av_core_init(void)
+#endif
 {
 	int err;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	struct platform_device *pdev = to_platform_device(dev);
+	struct resource *res;
+	avia_info.dev = dev;
+	avia_info.irq = platform_get_irq(pdev,0);
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	
+	if ((!res)||(!avia_info.irq))
+		return -ENODEV;
+	
+	avia_info.dram_start = res->start;
+#endif
 
-	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98 2004/11/21 20:33:38 carjay Exp $\n");
+	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.1 2005/01/15 02:35:09 carjay Exp $\n");
 
-	if ((tv_standard < AVIA_AV_VIDEO_SYSTEM_PAL) ||
-		(tv_standard > AVIA_AV_VIDEO_SYSTEM_NTSC))
-		return -EINVAL;
-
-	if (!firmware)
-		return -EINVAL;
+	if (tv_standard != AVIA_AV_VIDEO_SYSTEM_PAL)
+		tv_standard = AVIA_AV_VIDEO_SYSTEM_NTSC;
 
 	sample_rate = 44100;
+	
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
+	if (!firmware)
+		return -EINVAL;
+#endif
+
 	if (!(err = avia_av_init()))
 		avia_av_proc_init();
 
 	return err;
 }
 
-void __exit avia_av_core_exit(void)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static int avia_av_drv_remove(struct device *dev)
+#else
+static void __exit avia_av_core_exit(void)
+#endif
 {
 	avia_av_proc_exit();
 
@@ -1536,7 +1623,23 @@ void __exit avia_av_core_exit(void)
 
 	if (aviamem)
 		iounmap((void *)aviamem);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	return 0;
+#endif
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static int __init avia_av_core_init(void)
+{
+	return driver_register(&avia_av_driver);
+}
+
+static void __exit avia_av_core_exit(void)
+{
+	driver_unregister(&avia_av_driver);
+}
+#endif
 
 module_init(avia_av_core_init);
 module_exit(avia_av_core_exit);
@@ -1544,11 +1647,14 @@ module_exit(avia_av_core_exit);
 MODULE_AUTHOR("Felix Domke <tmbinc@gmx.net>");
 MODULE_DESCRIPTION("AViA 500/600 driver");
 MODULE_LICENSE("GPL");
-MODULE_PARM(debug,"i");
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+module_param(tv_standard,int,0);
+module_param(no_watchdog,int,0);
+#else
 MODULE_PARM(tv_standard,"i");
 MODULE_PARM(firmware,"s");
 MODULE_PARM(no_watchdog,"i");
-MODULE_PARM_DESC(debug, "1: enable debug messages");
-MODULE_PARM_DESC(tv_standard, "0: PAL, 1: NTSC");
-MODULE_PARM_DESC(no_watchdog, "0: wd enabled, 1: wd disabled");
 MODULE_PARM_DESC(firmware, "path to microcode");
+#endif
+MODULE_PARM_DESC(tv_standard, "0: PAL, other: NTSC");
+MODULE_PARM_DESC(no_watchdog, "0: wd enabled, 1: wd disabled");

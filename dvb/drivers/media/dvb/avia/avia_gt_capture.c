@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_capture.c,v 1.32 2003/09/30 05:45:35 obi Exp $
+ * $Id: avia_gt_capture.c,v 1.32.4.1 2005/01/15 02:35:09 carjay Exp $
  * 
  * capture driver for eNX/GTX (dbox-II-project)
  *
@@ -32,7 +32,13 @@
 #include <linux/version.h>
 #include <linux/init.h>
 #include <linux/wait.h>
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#include <linux/fs.h>
+#include <linux/miscdevice.h>
+#else
 #include <linux/devfs_fs_kernel.h>
+#endif
 #include <asm/irq.h>
 #include <asm/io.h>
 #include <asm/8xx_immap.h>
@@ -44,8 +50,10 @@
 #include "avia_gt.h"
 #include "avia_gt_capture.h"
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 #ifndef CONFIG_DEVFS_FS
 #error no devfs
+#endif
 #endif
 
 static int capt_buf_addr = AVIA_GT_MEM_CAPTURE_OFFS;
@@ -68,7 +76,9 @@ static unsigned short output_width = 360;
 
 DECLARE_WAIT_QUEUE_HEAD(capture_wait);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 static devfs_handle_t devfs_handle;
+#endif
 
 static struct file_operations capture_fops = {
 	owner:	 THIS_MODULE,
@@ -83,16 +93,20 @@ static int capture_open(struct inode *inode, struct file *file)
 	if ( capture_busy )
 		return -EBUSY;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 	MOD_INC_USE_COUNT;
-
+#endif
+	
 	return 0;
 }
 
 static int capture_release(struct inode *inode, struct file *file)
 {
 	avia_gt_capture_stop();
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 	MOD_DEC_USE_COUNT;
-
+#endif
+	
 	return 0;
 }
 
@@ -284,9 +298,17 @@ void avia_gt_capture_reset(int reenable)
 		avia_gt_reg_set(RSTR0, VIDC, 0);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+struct miscdevice avia_gt_capture_device = {
+	.name 	= "dboxcapture",
+	.minor	= MISC_DYNAMIC_MINOR,
+	.fops 	= &capture_fops,
+};
+#endif
+
 int __init avia_gt_capture_init(void)
 {
-	printk(KERN_INFO "avia_gt_capture: $Id: avia_gt_capture.c,v 1.32 2003/09/30 05:45:35 obi Exp $\n");
+	printk(KERN_INFO "avia_gt_capture: $Id: avia_gt_capture.c,v 1.32.4.1 2005/01/15 02:35:09 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
@@ -295,12 +317,19 @@ int __init avia_gt_capture_init(void)
 		return -EIO;
 	}
  
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	if (misc_register(&avia_gt_capture_device)<0){
+		printk("avia_gt_capture: unable to register device\n");
+		return -EIO;
+	}
+#else
 	devfs_handle = devfs_register(NULL, "dbox/capture0", DEVFS_FL_DEFAULT, 0, 0,	// <-- last 0 is the minor
 					S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
 					&capture_fops, NULL);
 
 	if (!devfs_handle)
 		return -EIO;
+#endif
 
 	avia_gt_capture_reset(1);
 
@@ -326,7 +355,11 @@ int __init avia_gt_capture_init(void)
 
 void __exit avia_gt_capture_exit(void)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	misc_deregister(&avia_gt_capture_device);
+#else
 	devfs_unregister(devfs_handle);
+#endif
 	avia_gt_capture_stop();
 	avia_gt_capture_reset(0);
 }

@@ -499,6 +499,7 @@ typedef struct {
 	unsigned Reserved1		: 2;
 
 } sENX_REG_GMR1;
+#define sENX_REG_GMR2 sENX_REG_GMR1
 
 typedef struct {
 
@@ -520,7 +521,7 @@ typedef struct {
 
 typedef struct {
 
-	unsigned IPP			: 5;
+	unsigned IPS			: 5;
 	unsigned Reserved1		: 1;
 	unsigned XSZ			: 10;
 	unsigned Reserved2		: 6;
@@ -876,6 +877,23 @@ typedef struct {
 	unsigned F			: 1;
 
 } sENX_REG_VLC;
+
+typedef struct {
+
+	unsigned GD: 2;
+	unsigned DD: 2;
+	unsigned ED: 2;
+	unsigned Width: 10;
+
+} sENX_REG_VHT;
+
+typedef struct {
+
+	unsigned VBI: 5;
+	unsigned Reserved1: 1;
+	unsigned Lines: 10;
+
+} sENX_REG_VLT;
 
 typedef struct {
 

@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_lirc.c,v 1.14 2003/09/30 05:45:35 obi Exp $
+ * $Id: avia_gt_lirc.c,v 1.14.4.1 2005/01/15 02:35:09 carjay Exp $
  *
  * lirc ir driver for AViA eNX/GTX (dbox-II-project)
  *
@@ -23,7 +23,12 @@
  *
  */
 
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#include <linux/miscdevice.h>
+#else
 #include <linux/devfs_fs_kernel.h>
+#endif
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -33,11 +38,13 @@
 #include "avia_gt_ir.h"
 #include <dbox/lirc.h>
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 #ifndef CONFIG_DEVFS_FS
 #error no devfs
 #endif
-
 static devfs_handle_t devfs_handle;
+#endif
+
 static lirc_t pulse_buffer[AVIA_GT_IR_MAX_PULSE_COUNT * 2];
 
 static int avia_gt_lirc_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
@@ -240,20 +247,40 @@ static struct file_operations avia_gt_lirc_fops = {
 	.write = avia_gt_lirc_write,
 };
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static struct miscdevice avia_gt_lirc_device = {
+	.name 	= "lirc",
+	.minor	= MISC_DYNAMIC_MINOR,
+	.fops	= &avia_gt_lirc_fops
+};
+#endif
+
+
 static int __init avia_gt_lirc_init(void)
 {
-	printk(KERN_INFO "avia_gt_lirc: $Id: avia_gt_lirc.c,v 1.14 2003/09/30 05:45:35 obi Exp $\n");
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	int ret;
+#endif
+	printk(KERN_INFO "avia_gt_lirc: $Id: avia_gt_lirc.c,v 1.14.4.1 2005/01/15 02:35:09 carjay Exp $\n");
 
 	if (avia_gt_ir_init() < 0)
 		return -EIO;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	ret = misc_register(&avia_gt_lirc_device);
+	if (ret){
+		printk("avia_gt_lirc: unable to register device\n");
+		return -EIO;
+	}
+#else
 	devfs_handle = devfs_register(NULL, "lirc", DEVFS_FL_DEFAULT, 0, 0, S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH, &avia_gt_lirc_fops, NULL);
 
 	if (!devfs_handle) {
 		printk(KERN_ERR "avia_gt_lirc: devfs_register failed\n");
 		return -EIO;
 	}
-
+#endif
+	
 	avia_gt_ir_set_frequency(38000);
 	avia_gt_ir_set_duty_cycle(33);
 
@@ -262,7 +289,11 @@ static int __init avia_gt_lirc_init(void)
 
 static void __exit avia_gt_lirc_exit(void)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	misc_deregister(&avia_gt_lirc_device);
+#else
 	devfs_unregister (devfs_handle);
+#endif
 	avia_gt_ir_exit();
 }
 

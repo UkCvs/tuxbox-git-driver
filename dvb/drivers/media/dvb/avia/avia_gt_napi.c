@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_napi.c,v 1.203 2005/01/05 05:49:56 carjay Exp $
+ * $Id: avia_gt_napi.c,v 1.203.2.1 2005/01/15 02:35:09 carjay Exp $
  * 
  * AViA GTX/eNX demux dvb api driver (dbox-II-project)
  *
@@ -141,16 +141,20 @@ static void avia_gt_napi_queue_callback_section(struct avia_gt_dmx_queue *queue,
 	u16 section_length;
 	u32 chunk1;
 	u8 neq;
-	u8 xor;
 	u32 i;
 	u32 compare_len;
 	u8 copied;
 	u32 crc;
-	u32 flags;
+	unsigned long flags;
 	int need_crc = 0;
 
 	spin_lock_irqsave(&section_lock, flags);
 
+	if (!dvbdmxfeed->filter){	/* filter is gone */
+		queue->get_data(queue, NULL, queue->bytes_avail(queue), 0);
+		return;
+	}
+	
 	for (dvbdmxfilter = dvbdmxfeed->filter; dvbdmxfilter; dvbdmxfilter = dvbdmxfilter->next) {
 		if (dvbdmxfilter->feed->feed.sec.check_crc) {
 			need_crc = 1;
@@ -219,6 +223,7 @@ static void avia_gt_napi_queue_callback_section(struct avia_gt_dmx_queue *queue,
 		}
 
 		for (dvbdmxfilter = dvbdmxfeed->filter; dvbdmxfilter; dvbdmxfilter = dvbdmxfilter->next) {
+			u8 xor=0;
 			if ((crc) && (dvbdmxfilter->feed->feed.sec.check_crc)) {
 				dprintk(KERN_ERR "avia_gt_napi: invalid crc %08x on pid %04x\n",
 					crc, dvbdmxfeed->pid);
@@ -826,7 +831,7 @@ static int __init avia_gt_napi_init(void)
 {
 	int result;
 
-	printk(KERN_INFO "avia_gt_napi: $Id: avia_gt_napi.c,v 1.203 2005/01/05 05:49:56 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_napi: $Id: avia_gt_napi.c,v 1.203.2.1 2005/01/15 02:35:09 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 

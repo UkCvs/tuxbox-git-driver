@@ -36,6 +36,9 @@
 
 #define AVIA_GT_DMX_SYSTEM_QUEUES		0xff	/* alias for video+audio+teletext queues */
 
+#include <linux/version.h>
+#include <linux/workqueue.h>
+
 #include "demux.h"
 
 struct avia_gt_dmx_queue {
@@ -69,7 +72,7 @@ typedef struct {
 	u32 mem_addr;
 	void *priv_data;
 	u32 qim_irq_count;
-	u32 qim_jiffies;
+	unsigned long qim_jiffies;
 	u32 read_pos;
 	u32 size;
 	u32 write_pos;
@@ -79,7 +82,11 @@ typedef struct {
 	u8 qim_mode;
 	u8 mode;
 	u8 running;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	struct work_struct q_work;
+#else
 	struct tq_struct task_struct;
+#endif
 } sAviaGtDmxQueue;
 
 struct avia_gt_dmx_queue *avia_gt_dmx_alloc_queue_audio(AviaGtDmxQueueProc *irq_proc, AviaGtDmxQueueProc *cb_proc, void *cb_data);

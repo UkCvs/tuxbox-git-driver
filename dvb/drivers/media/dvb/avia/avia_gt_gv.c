@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_gv.c,v 1.39 2004/08/28 16:44:56 carjay Exp $
+ * $Id: avia_gt_gv.c,v 1.39.2.1 2005/01/15 02:35:09 carjay Exp $
  *
  * AViA eNX/GTX graphic viewport driver (dbox-II-project)
  *
@@ -33,10 +33,13 @@
 #include "avia_gt_gv.h"
 #include "avia_gt_accel.h"
 
-static u16 input_height = 576;
-static u8 input_mode = AVIA_GT_GV_INPUT_MODE_RGB16;
 static sAviaGtInfo *gt_info;
+
+static u8 input_mode = AVIA_GT_GV_INPUT_MODE_ARGB1555;
 static u16 input_width = 720;
+static u16 input_height = 576;
+
+	// position of graphic viewport within the output video frame
 static u16 output_x;
 static u16 output_y;
 
@@ -45,7 +48,7 @@ void avia_gt_gv_set_stride(void);
 
 void avia_gt_gv_copyarea(u16 src_x, u16 src_y, u16 width, u16 height, u16 dst_x, u16 dst_y)
 {
-	u16 bpp = avia_gt_get_bpp();
+	u16 bpp = avia_gt_get_bpp()>>3;
 	u16 line;
 	u16 stride = avia_gt_gv_get_stride();
 
@@ -73,15 +76,16 @@ u8 avia_gt_get_bpp(void)
 {
 	switch (input_mode) {
 	case AVIA_GT_GV_INPUT_MODE_RGB4:
-		return 1;
-	case AVIA_GT_GV_INPUT_MODE_RGB8:
-		return 1;
-	case AVIA_GT_GV_INPUT_MODE_RGB16:
-		return 2;
-	case AVIA_GT_GV_INPUT_MODE_RGB32:
 		return 4;
+	case AVIA_GT_GV_INPUT_MODE_RGB8:
+		return 8;
+	case AVIA_GT_GV_INPUT_MODE_RGB565:
+	case AVIA_GT_GV_INPUT_MODE_ARGB1555:
+		return 16;
+	case AVIA_GT_GV_INPUT_MODE_ARGB:
+		return 32;
 	default:
-		return 2;
+		return 16;
 	}
 }
 
@@ -116,7 +120,7 @@ void avia_gt_gv_get_clut(u8 clut_nr, u32 *transparency, u32 *red, u32 *green, u3
 
 		if (val == TCR_COLOR) {
 			 if (transparency)
-				*transparency = 0xFFFF; /* transparent */
+				*transparency = 0xFFFF;
 			 if (red)
 				*red = 0;
 			 if (green)
@@ -125,8 +129,8 @@ void avia_gt_gv_get_clut(u8 clut_nr, u32 *transparency, u32 *red, u32 *green, u3
 				*blue = 0;
 		}
 		else {
-			if (transparency)
-				*transparency = 0x0000;	/* opaque */
+			 //if (transparency)
+				//*transparency = (val & 0x8000) ? BLEVEL : 0;
 			 if (red)
 				*red   = ((val & 0x7C00) >> 7) | ((val & 0x7C00) << 1);
 			 if (green)
@@ -214,7 +218,7 @@ void avia_gt_gv_get_blevel(u8* class0, u8* class1)
 
 void avia_gt_gv_set_clut(u8 clut_nr, u32 transparency, u32 red, u32 green, u32 blue)
 {
-	if (avia_gt_chip(ENX)) {
+	if (avia_gt_chip(ENX)) {	// ARGB8888-entry
 		transparency >>= 8;
 		red >>= 8;
 		green >>= 8;
@@ -226,7 +230,7 @@ void avia_gt_gv_set_clut(u8 clut_nr, u32 transparency, u32 red, u32 green, u32 b
 
 		enx_reg_32(CLUTD) = ((transparency << 24) | (red << 16) | (green << 8) | (blue));
 	}
-	else if (avia_gt_chip(GTX)) {
+	else if (avia_gt_chip(GTX)) {	// ARGB1555-entry
 
 		transparency >>= 8;
 		red >>= 11;
@@ -242,11 +246,7 @@ void avia_gt_gv_set_clut(u8 clut_nr, u32 transparency, u32 red, u32 green, u32 b
 			gtx_reg_16(CLTD) = TCR_COLOR;
 		}
 		else {
-			if (!transparency)
-				transparency = 1;
-			else
-				transparency = 0;
-
+			transparency=!transparency;
 			gtx_reg_16(CLTD) = (transparency << 15) | (red << 10) | (green << 5) | (blue);
 		}
 	}
@@ -254,19 +254,20 @@ void avia_gt_gv_set_clut(u8 clut_nr, u32 transparency, u32 red, u32 green, u32 b
 
 int avia_gt_gv_set_input_mode(u8 mode)
 {
-	printk(KERN_INFO "avia_gt_gv: set_input_mode (mode=%d)\n", mode);
+//	printk(KERN_INFO "avia_gt_gv: set_input_mode (mode=%d)\n", mode);
 
 	input_mode = mode;
 
 	// Since mode changed, we have to recalculate some stuff
 	avia_gt_gv_set_stride();
+	avia_gt_gv_set_viewport(0,0);
 
 	return 0;
 }
 
 int avia_gt_gv_set_input_size(u16 width, u16 height)
 {
-	printk(KERN_INFO "avia_gt_gv: set_input_size (width=%d, height=%d)\n", width, height);
+//	printk(KERN_INFO "avia_gt_gv: set_input_size (width=%d, height=%d)\n", width, height);
 
 	if (width == 720) {
 		if (avia_gt_chip(ENX)) {
@@ -280,17 +281,15 @@ int avia_gt_gv_set_input_size(u16 width, u16 height)
 	}
 	else if (width == 640) {
 		/*
-		 * F = 0
-		 * 1 would stretch 640x480 to 720x576
-		 * this allows seeing a full screen console on tv
+		 * F = 1, correct aspect ratio for NTSC resolutions
 		 */
 		if (avia_gt_chip(ENX)) {
 			enx_reg_set(GMR1, L, 0);
-			enx_reg_set(GMR1, F, 0);
+			enx_reg_set(GMR1, F, (height==480)?1:0);
 		}
 		else if (avia_gt_chip(GTX)) {
 			gtx_reg_set(GMR, L, 0);
-			gtx_reg_set(GMR, F, 0);
+			gtx_reg_set(GMR, F, (height==480)?1:0);
 		}
 	}
 	else if (width == 360) {
@@ -306,11 +305,11 @@ int avia_gt_gv_set_input_size(u16 width, u16 height)
 	else if (width == 320) {
 		if (avia_gt_chip(ENX)) {
 			enx_reg_set(GMR1, L, 1);
-			enx_reg_set(GMR1, F, 1);
+			enx_reg_set(GMR1, F, (height==240)?1:0);
 		}
 		else if (avia_gt_chip(GTX)) {
 			gtx_reg_set(GMR, L, 1);
-			gtx_reg_set(GMR, F, 1);
+			gtx_reg_set(GMR, F, (height==240)?1:0);
 		}
 	}
 	else {
@@ -339,15 +338,15 @@ int avia_gt_gv_set_input_size(u16 width, u16 height)
 	// Since width changed, we have to recalculate some stuff
 	avia_gt_gv_set_pos(output_x, output_y);
 	avia_gt_gv_set_stride();
-
+	avia_gt_gv_set_viewport(0,0);
 	return 0;
 }
 
 int avia_gt_gv_set_pos(u16 x, u16 y)
 {
 	u8 input_div = 0;
-
-#define BLANK_TIME		132
+// TODO: only valid for PAL
+#define BLANK_TIME_PAL		132
 #define ENX_VID_PIPEDELAY	16
 #define GTX_VID_PIPEDELAY	5
 #define GFX_PIPEDELAY		3
@@ -364,14 +363,14 @@ int avia_gt_gv_set_pos(u16 x, u16 y)
 		return -EINVAL;
 
 	if (avia_gt_chip(ENX)) {
-		enx_reg_set(GVP1, SPP, (((BLANK_TIME - ENX_VID_PIPEDELAY) + x) * 8) % input_div);
-		enx_reg_set(GVP1, XPOS, ((((BLANK_TIME - ENX_VID_PIPEDELAY) + x) * 8) / input_div) - GFX_PIPEDELAY);
+		enx_reg_set(GVP1, SPP, (((BLANK_TIME_PAL - ENX_VID_PIPEDELAY) + x) * 8) % input_div);
+		enx_reg_set(GVP1, XPOS, ((((BLANK_TIME_PAL - ENX_VID_PIPEDELAY) + x) * 8) / input_div) - GFX_PIPEDELAY);
 		enx_reg_set(GVP1, YPOS, 42 + y);
 	}
 	else if (avia_gt_chip(GTX)) {
-		gtx_reg_set(GVP, SPP, (((BLANK_TIME - GTX_VID_PIPEDELAY) + x) * 8) % input_div);
-		//gtx_reg_set(GVP, XPOS, ((((BLANK_TIME - GTX_VID_PIPEDELAY) + x) * 8) / input_div) - GFX_PIPEDELAY);
-		gtx_reg_set(GVP, XPOS, ((((BLANK_TIME - GTX_VID_PIPEDELAY - 55) + x) * 8) / input_div) - GFX_PIPEDELAY);	//FIXME
+		gtx_reg_set(GVP, SPP, (((BLANK_TIME_PAL - GTX_VID_PIPEDELAY) + x) * 8) % input_div);
+		//gtx_reg_set(GVP, XPOS, ((((BLANK_TIME_PAL - GTX_VID_PIPEDELAY) + x) * 8) / input_div) - GFX_PIPEDELAY);
+		gtx_reg_set(GVP, XPOS, ((((BLANK_TIME_PAL - GTX_VID_PIPEDELAY - 55) + x) * 8) / input_div) - GFX_PIPEDELAY);	//FIXME
 		gtx_reg_set(GVP, YPOS, 42 + y);
 	}
 
@@ -383,8 +382,10 @@ int avia_gt_gv_set_pos(u16 x, u16 y)
 
 void avia_gt_gv_set_size(u16 width, u16 height)
 {
+	if (height==240 || height==288) height<<=1;
+
 	if (avia_gt_chip(ENX)) {
-		enx_reg_set(GVSZ1, IPP, 0);
+		enx_reg_set(GVSZ1, IPS, 0);
 		enx_reg_set(GVSZ1, XSZ, width);
 		enx_reg_set(GVSZ1, YSZ, height);
 	}
@@ -395,12 +396,31 @@ void avia_gt_gv_set_size(u16 width, u16 height)
 	}
 }
 
+//	Manipulates the start address of the graphics viewport inside graphic viewport RAM,
+//		necessary for panning (double/triple buffering). Offset is in pixels.
+void avia_gt_gv_set_viewport(int xoffset, int yoffset){
+	if (xoffset<0 || yoffset<0) return;
+	// NB: by driver design, stride should always cover the same as input_width (thus also 32-bit aligned), 
+	// 	so we don't need to take it into account here
+	u32 bufferoff = (((yoffset*input_width)+xoffset)*avia_gt_get_bpp())>>3;
+	if (avia_gt_chip(ENX)){
+		// GVSA1 must be aligned to 32-bit so we have to compensate for the rest with IPS
+		enx_reg_set(GVSA1, Addr, (AVIA_GT_MEM_GV_OFFS + bufferoff)>>2);
+		enx_reg_set(GVSZ1, IPS, ((bufferoff&3)*avia_gt_get_bpp())>>3);
+	} else if (avia_gt_chip(GTX)){
+		gtx_reg_set(GVSA, Addr, (AVIA_GT_MEM_GV_OFFS + bufferoff)>>1);
+	}
+}
+
+// stride is always set to cover the same amount of pixels as input_width
+// NB: this would cause problems if input_width was not divisible by 32 resp. 16 bits
+//	which is fortunately impossible by driver design
 void avia_gt_gv_set_stride(void)
 {
 	if (avia_gt_chip(ENX))
-		enx_reg_set(GMR1, STRIDE, ((input_width * avia_gt_get_bpp()) + 3) >> 2);
+		enx_reg_set(GMR1, STRIDE, ((input_width * avia_gt_get_bpp()) + 3*8) >> 5);
 	else if (avia_gt_chip(GTX))
-		gtx_reg_set(GMR, STRIDE, ((input_width * avia_gt_get_bpp()) + 1) >> 1);
+		gtx_reg_set(GMR, STRIDE, ((input_width * avia_gt_get_bpp()) + 1*8) >> 4);
 }
 
 int avia_gt_gv_show(void)
@@ -408,33 +428,39 @@ int avia_gt_gv_show(void)
 	switch (input_mode) {
 	case AVIA_GT_GV_INPUT_MODE_OFF:
 		if (avia_gt_chip(ENX))
-			enx_reg_set(GMR1, GMD, 0x00);
+			enx_reg_set(GMR1, GMD, 0x00);	// graphics off
 		else if (avia_gt_chip(GTX))
 			gtx_reg_set(GMR, GMD, 0x00);
 		break;
 	case AVIA_GT_GV_INPUT_MODE_RGB4:
 		if (avia_gt_chip(ENX))
-			enx_reg_set(GMR1, GMD, 0x02);
+			enx_reg_set(GMR1, GMD, 0x02);	// dynamic CLUT4
 		else if (avia_gt_chip(GTX))
 			gtx_reg_set(GMR, GMD, 0x01);
 		break;
 	case AVIA_GT_GV_INPUT_MODE_RGB8:
 		if (avia_gt_chip(ENX))
-			enx_reg_set(GMR1, GMD, 0x06);
+			enx_reg_set(GMR1, GMD, 0x06);	// CLUT 8 (table: ARGB 8888)
 		else if (avia_gt_chip(GTX))
 			gtx_reg_set(GMR, GMD, 0x02);
 		break;
-	case AVIA_GT_GV_INPUT_MODE_RGB16:
+	case AVIA_GT_GV_INPUT_MODE_RGB565:
 		if (avia_gt_chip(ENX))
-			enx_reg_set(GMR1, GMD, 0x03);
+			enx_reg_set(GMR1, GMD, 0x04);	// RGB 565
+		else if (avia_gt_chip(GTX))
+			return -EINVAL;			// not supported
+		break;
+	case AVIA_GT_GV_INPUT_MODE_ARGB1555:
+		if (avia_gt_chip(ENX))
+			enx_reg_set(GMR1, GMD, 0x03);	// ARGB 1555/4444
 		else if (avia_gt_chip(GTX))
 			gtx_reg_set(GMR, GMD, 0x03);
 		break;
-	case AVIA_GT_GV_INPUT_MODE_RGB32:
+	case AVIA_GT_GV_INPUT_MODE_ARGB:
 		if (avia_gt_chip(ENX))
-			enx_reg_set(GMR1, GMD, 0x07);
+			enx_reg_set(GMR1, GMD, 0x07);	// ARGB8888
 		else if (avia_gt_chip(GTX))
-			return -EINVAL;
+			return -EINVAL;			// not supported
 		break;
 	default:
 		return -EINVAL;
@@ -445,7 +471,7 @@ int avia_gt_gv_show(void)
 
 int avia_gt_gv_init(void)
 {
-	printk(KERN_INFO "avia_gt_gv: $Id: avia_gt_gv.c,v 1.39 2004/08/28 16:44:56 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_gv: $Id: avia_gt_gv.c,v 1.39.2.1 2005/01/15 02:35:09 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
@@ -474,7 +500,7 @@ int avia_gt_gv_init(void)
 		udelay(1000);
 #endif /* WORKAROUND_MEMORY_TIMING */
 
-		//enx_reg_set(GMR1, P, 1);
+		enx_reg_set(GMR1, P, 0);
 		enx_reg_set(GMR1, S, 1);
 		enx_reg_set(GMR1, B, 0);
 		//enx_reg_set(GMR1, BANK, 1);
@@ -492,7 +518,7 @@ int avia_gt_gv_init(void)
 		udelay(1000);
 #endif /* WORKAROUND_MEMORY_TIMING */
 
-		// schwarzer consolen hintergrund nicht transpartent
+		// schwarzer consolen hintergrund nicht transparent
 		enx_reg_set(TCR1, E, 0x1);
 		enx_reg_set(TCR1, Red, 0xFF);
 		enx_reg_set(TCR1, Green, 0x00);
@@ -503,6 +529,10 @@ int avia_gt_gv_init(void)
 		enx_reg_set(TCR2, Red, 0xFF);
 		enx_reg_set(TCR2, Green, 0x00);
 		enx_reg_set(TCR2, Blue, 0x7F);
+
+		enx_reg_set(VHT, Width, 857);
+		enx_reg_set(VLT, VBI, 21); // NTSC = 18, PAL = 21
+		enx_reg_set(VLT, Lines, 623);
 
 #ifdef WORKAROUND_MEMORY_TIMING
 		udelay(1000);
@@ -586,5 +616,6 @@ EXPORT_SYMBOL(avia_gt_gv_set_input_mode);
 EXPORT_SYMBOL(avia_gt_gv_set_input_size);
 EXPORT_SYMBOL(avia_gt_gv_set_pos);
 EXPORT_SYMBOL(avia_gt_gv_set_size);
+EXPORT_SYMBOL(avia_gt_gv_set_viewport);
 EXPORT_SYMBOL(avia_gt_gv_hide);
 EXPORT_SYMBOL(avia_gt_gv_show);

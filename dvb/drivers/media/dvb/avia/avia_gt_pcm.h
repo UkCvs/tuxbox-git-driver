@@ -21,6 +21,7 @@
  *
  */
 
+#include <linux/poll.h>
 #include "avia_gt.h"
 
 #ifndef AVIA_GT_PCM_H

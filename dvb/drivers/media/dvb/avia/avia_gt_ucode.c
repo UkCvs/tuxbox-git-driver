@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_ucode.c,v 1.14 2004/06/24 00:26:58 carjay Exp $
+ * $Id: avia_gt_ucode.c,v 1.14.2.1 2005/01/15 02:35:09 carjay Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -24,16 +24,21 @@
  *
  */
 
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 #define __KERNEL_SYSCALLS__
+#endif
 
 #include <linux/kernel.h>
 #include <linux/bitops.h>
 #include <linux/sched.h>
 #include <linux/string.h>
 #include <linux/fcntl.h>
-#include <linux/tqueue.h>
 #include <linux/unistd.h>
-#include <linux/interrupt.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#include <linux/device.h>
+#include <linux/firmware.h>
+#endif
 #include <asm/uaccess.h>
 
 #include "demux.h"
@@ -47,9 +52,13 @@
 static sAviaGtInfo *gt_info;
 struct avia_gt_ucode_info ucode_info;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
+static int errno;	/* for the firmware load hack */
+static char *ucode;
+#endif
+
 static volatile sRISC_MEM_MAP *risc_mem_map;
 static volatile u16 *riscram;
-static char *ucode;
 /* all feeds */
 #define AVIA_GT_UCODE_MAXIMUM_FEED_NUMBER	32
 
@@ -208,7 +217,7 @@ static u8 prop_ucode_alloc_section_filter(void *f, sAviaGtSection *section)
 	sFilter_Parameter_Entry1 fpe1[MAX_SECTION_FILTERS];
 	sFilter_Parameter_Entry2 fpe2[MAX_SECTION_FILTERS];
 	sFilter_Parameter_Entry3 fpe3[MAX_SECTION_FILTERS];
-	u32 flags;
+	unsigned long flags;
 
 	/*
 	 * Copy and "normalize" the filters. The section-length cannot be filtered.
@@ -627,7 +636,7 @@ static int prop_ucode_set_pid_control_table(u8 idx, u8 queue_nr, u8 type, u8 for
 {
 	sPID_Parsing_Control_Entry ppc_entry;
 	u8 target_queue_nr;
-	u32 flags;
+	unsigned long flags;
 
 	if (queue_nr > AVIA_GT_DMX_QUEUE_COUNT) {
 		printk(KERN_CRIT "avia_gt_ucode: pid control table entry out of bounds (entry=%d)!\n", queue_nr);
@@ -670,7 +679,7 @@ static int prop_ucode_set_pid_control_table(u8 idx, u8 queue_nr, u8 type, u8 for
 static int prop_ucode_set_pid_table(u8 entry, u8 wait_pusi, u8 valid, u16 pid)
 {
 	sPID_Entry pid_entry;
-	u32 flags;
+	unsigned long flags;
 
 	if (entry > 31) {
 		printk(KERN_CRIT "avia_gt_ucode: pid search table entry out of bounds (entry=%d)!\n", entry);
@@ -693,7 +702,7 @@ static int prop_ucode_set_pid_table(u8 entry, u8 wait_pusi, u8 valid, u16 pid)
 
 static u8 prop_ucode_alloc_generic_feed(u8 queue_nr, u8 type, sAviaGtSection *section, u16 pid)
 {
-	u32 flags;
+	unsigned long flags;
 	u8 feed_idx=0;
 	local_irq_save(flags);
 	for (feed_idx=0;feed_idx<AVIA_GT_UCODE_MAXIMUM_FEED_NUMBER;feed_idx++){
@@ -812,7 +821,7 @@ static void prop_ucode_stop_queue_feeds(u8 queue_nr, u8 remove)
 
 static void prop_ucode_ecd_reset(void)
 {
-	u32 flags;
+	unsigned long flags;
 
 	local_irq_save(flags);
 	avia_gt_dmx_memset16(&riscram[DMX_CONTROL_WORDS_1], 0, 24);
@@ -824,7 +833,7 @@ static void prop_ucode_ecd_reset(void)
 static int prop_ucode_ecd_set_key(u8 index, u8 parity, const u8 *cw)
 {
 	u16 offset;
-	u32 flags;
+	unsigned long flags;
 
 	offset = DMX_CONTROL_WORDS_1 + ((index / 3) << 7) + ((index % 3) << 3) + ((parity ^ 1) << 2);
 
@@ -838,7 +847,7 @@ static int prop_ucode_ecd_set_key(u8 index, u8 parity, const u8 *cw)
 static int prop_ucode_ecd_set_pid(u8 index, u16 pid)
 {
 	u16 offset, control;
-	u32 flags;
+	unsigned long flags;
 
 	for (offset = 0; offset < 0x20; offset++) {
 		if ((pst[offset] & 0x1fff) == pid) {
@@ -861,7 +870,7 @@ void prop_ucode_handle_msgq(struct avia_gt_dmx_queue *queue, void *null)
 {
 	u8 cmd,byte;
 	u8 feedidx;
-	u32 flags;
+	unsigned long flags;
 	u32 bytes_avail = queue->bytes_avail(queue);
 
 	if (!bytes_avail) return;
@@ -904,7 +913,7 @@ void prop_ucode_handle_msgq(struct avia_gt_dmx_queue *queue, void *null)
 			ucode_info.start_feed(feedidx, 0);
 		}
 		local_irq_restore(flags);
-		dprintk (KERN_DEBUG "avia_gt_ucode: ccerr: pid 0x%04x in %d\n",ccerr.pid,feedidx);
+		dprintk (KERN_INFO "avia_gt_ucode: ccerr: pid 0x%04x in %d\n",ccerr.pid,feedidx);
 		return;}
 	
 	case DMX_MESSAGE_SECTION_COMPLETED: /* section finished, consume */
@@ -1005,7 +1014,7 @@ void avia_gt_dmx_set_ucode_info(u8 ucode_flags)
 	if (ucode_info.caps&AVIA_GT_UCODE_CAP_C_INTERFACE){
 		ucode_info.queue_mode[PES]=1;
 		ucode_info.queue_mode[SECTION]=3;
-		} else {
+	} else {
 		ucode_info.queue_mode[SECTION]=4;
 		ucode_info.init = prop_ucode_init;
 		ucode_info.alloc_feed = prop_ucode_alloc_feed;
@@ -1034,20 +1043,33 @@ struct avia_gt_ucode_info *avia_gt_dmx_get_ucode_info(void)
 }
 
 
-static
-void avia_gt_dmx_load_ucode(void)
+static void avia_gt_dmx_load_ucode(void)
 {
+	unsigned long flags;
+	u16 *ucode_buf = NULL;
 	int fd;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	int ret;
+	const struct firmware *fw;
+	unsigned long file_size;
+	if ((ret=request_firmware(&fw, "ucode.bin", gt_info->dev))){
+		printk(KERN_ERR "avia_gt_ucode: unable to load firmware, demux will not work!\n");
+		return;
+	}
+	if (fw->size > 2048){
+		printk(KERN_ERR "avia_gt_ucode: firmware too big: %d\n", fw->size);
+	} else {
+		ucode_buf = (u16 *)fw->data;
+		file_size = fw->size;
+#else
 	mm_segment_t fs;
 	u8 ucode_fs_buf[2048];
-	u16 *ucode_buf = NULL;
 	loff_t file_size;
-	u32 flags;
 
 	fs = get_fs();
 	set_fs(get_ds());
 
-	if ((ucode) && ((fd = open(ucode, 0, 0)) >= 0)) {
+	if (ucode && ((fd = open(ucode, 0, 0)) >= 0)) {
 		file_size = lseek(fd, 0, 2);
 		lseek(fd, 0, 0);
 
@@ -1058,15 +1080,17 @@ void avia_gt_dmx_load_ucode(void)
 		else
 			ucode_buf = (u16 *)ucode_fs_buf;
 		close(fd);
+#endif
 
 		/* the proprietary firmwares seem to include already set-up tables
 		    so better make sure there are no active feeds */
 		if ((ucode_buf) && (file_size >= 0x740))
 			for (fd = DMX_PID_SEARCH_TABLE; fd < DMX_PID_PARSING_CONTROL_TABLE; fd++)
 				ucode_buf[fd] = 0xdfff;
-		}
-
+	}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 	set_fs(fs);
+#endif
 
 	/* use internal ucode if loading failed for any reason */
 	if (!ucode_buf) {
@@ -1090,7 +1114,7 @@ void avia_gt_dmx_load_ucode(void)
 /* TODO: verify for GTX */ 
 void avia_gt_dmx_risc_reset(int reenable)
 {
-	u32 flags;
+	unsigned long flags;
 	local_irq_save(flags);
 	if (avia_gt_chip(ENX)) enx_reg_16 (EC) |= 2;
 	avia_gt_reg_set(RSTR0,TDMP, 1);

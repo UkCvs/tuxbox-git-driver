@@ -27,8 +27,9 @@
 #define AVIA_GT_GV_INPUT_MODE_OFF	0x00
 #define AVIA_GT_GV_INPUT_MODE_RGB4	0x01
 #define AVIA_GT_GV_INPUT_MODE_RGB8	0x02
-#define AVIA_GT_GV_INPUT_MODE_RGB16	0x03
-#define AVIA_GT_GV_INPUT_MODE_RGB32	0x04
+#define AVIA_GT_GV_INPUT_MODE_ARGB1555	0x03
+#define AVIA_GT_GV_INPUT_MODE_RGB565	0x04
+#define AVIA_GT_GV_INPUT_MODE_ARGB	0x05
 
 void avia_gt_gv_copyarea(u16 src_x, u16 src_y, u16 width, u16 height, u16 dst_x, u16 dst_y);
 void avia_gt_gv_cursor_hide(void);
@@ -44,6 +45,7 @@ int avia_gt_gv_set_input_mode(u8 mode);
 int avia_gt_gv_set_input_size(u16 width, u16 height);
 int avia_gt_gv_set_pos(u16 x, u16 y);
 void avia_gt_gv_set_size(u16 width, u16 height);
+void avia_gt_gv_set_viewport(int xoffset, int yoffset);
 int avia_gt_gv_show(void);
 
 extern int avia_gt_gv_init(void);

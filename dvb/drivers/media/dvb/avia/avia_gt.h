@@ -24,11 +24,12 @@
 #ifndef AVIA_GT_H
 #define AVIA_GT_H
 
+#include <linux/version.h>
 #include "avia_gt_config.h"
 #include "avia_gt_enx.h"
 #include "avia_gt_gtx.h"
 
-#ifdef DEBUG
+#ifdef AVIA_GT_DEBUG
 #define dprintk(fmt,args...) printk( fmt,## args)
 #else
 #define dprintk(...)
@@ -62,6 +63,9 @@ typedef struct {
 	u16 aq_rptr;
 	/* transport demux ram address */
 	u16 tdp_ram;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	struct device *dev;
+#endif
 } sAviaGtInfo;
 
 #define avia_gt_chip(CHIP) 		(gt_info->chip_type == AVIA_GT_CHIP_TYPE_## CHIP)
@@ -128,8 +132,8 @@ extern int avia_gt_alloc_irq(unsigned short irq, void (*isr_proc)(unsigned short
 extern void avia_gt_free_irq(unsigned short irq);
 extern sAviaGtInfo *avia_gt_get_info(void);
 
-extern int avia_gt_init(void);
-extern void avia_gt_exit(void);
+//extern int avia_gt_init(void);
+//extern void avia_gt_exit(void);
 
 #define avia_gt_readw(reg)						\
 ({									\
