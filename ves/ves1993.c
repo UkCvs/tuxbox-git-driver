@@ -1,5 +1,5 @@
 /* 
-  $Id: ves1993.c,v 1.25.2.1 2002/10/23 22:56:18 obi Exp $
+  $Id: ves1993.c,v 1.25.2.1.2.1 2003/03/25 13:01:36 alexw Exp $
 
 		VES1993	- Single Chip Satellite Channel Receiver driver module
 							 
@@ -20,6 +20,12 @@
 		Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
   $Log: ves1993.c,v $
+  Revision 1.25.2.1.2.1  2003/03/25 13:01:36  alexw
+  == rel_1_0_0
+
+  Revision 1.25.2.2  2003/02/20 00:41:28  ghostrider
+  merge FE_READ_SNR, FE_READ_SIGNAL_STRENGTH, FE_READ_BER, FE_READ_UNCORRECED_BLOCKS with head.... i hope in enigma now the signals bars are correct...
+
   Revision 1.25.2.1  2002/10/23 22:56:18  obi
   bugfixes
 
@@ -578,29 +584,26 @@ static int dvb_command(struct i2c_client *client, unsigned int cmd, void *arg)
 		*ber*=10;
 		break;
 	}
-	
 	case FE_READ_SIGNAL_STRENGTH:
 	{
-		s32 *signal=(s32 *) arg;
-
-		*signal=0xff-readreg(client,0x0b);
-		*signal=(*signal << 8) | *signal;
+		u8 signal = ~readreg(client,0x0b);
+		*((u16*) arg) = (signal << 8) | signal;
 		break;
 	}
 	case FE_READ_SNR:
 	{
-		s32 *snr=(s32 *) arg;
-
-		*snr=(readreg(client,0x1c)<<8);
-		*snr=(*snr << 8) | *snr;
+		u8 snr = ~readreg(client,0x1c);
+		*(u16*) arg = (snr << 8) | snr;
 		break;
 	}
 	case FE_READ_UNCORRECTED_BLOCKS:
 	{
-		u32 *ublocks=(u32 *) arg;
-		*ublocks=readreg(client, 0x18)&0x7F;
-		writereg(client, 0x18, 0);
-		writereg(client, 0x18, 0xFF);
+		*(u32*) arg = readreg(client, 0x18) & 0x7f;
+
+		if (*(u32*) arg == 0x7f)
+			*(u32*) arg = 0xffffffff;   /* counter overflow... */
+		writereg (client, 0x18, 0x00);  /* reset the counter */
+		writereg (client, 0x18, 0x80);  /* dto. */
 		break;
 	}
 	case FE_READ_AFC:

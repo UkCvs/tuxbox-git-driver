@@ -1,5 +1,5 @@
 /* 
- *   $Id: tda8044h.c,v 1.14 2002/08/26 16:29:10 obi Exp $
+ *   $Id: tda8044h.c,v 1.14.4.1 2003/03/25 13:01:36 alexw Exp $
  *   
  *   tda8044h.c - Philips TDA8044H (d-box 2 project) 
  *
@@ -23,6 +23,12 @@
  *
  *
  *   $Log: tda8044h.c,v $
+ *   Revision 1.14.4.1  2003/03/25 13:01:36  alexw
+ *   == rel_1_0_0
+ *
+ *   Revision 1.14.2.1  2003/02/20 00:41:28  ghostrider
+ *   merge FE_READ_SNR, FE_READ_SIGNAL_STRENGTH, FE_READ_BER, FE_READ_UNCORRECED_BLOCKS with head.... i hope in enigma now the signals bars are correct...
+ *
  *   Revision 1.14  2002/08/26 16:29:10  obi
  *   - added symbol rate calculation and anti-alias filter selection
  *   - divided set_sec into set_tone and set_voltage
@@ -80,7 +86,7 @@
  *   philips support (sat, tda8044h), ost/dvb.c fix to call demod->init() now.
  *
  *
- *   $Revision: 1.14 $
+ *   $Revision: 1.14.4.1 $
  *
  */
 
@@ -587,32 +593,28 @@ static int dvb_command(struct i2c_client *client, unsigned int cmd, void *arg)
 	}
 	case FE_READ_BER:
 	{
-		u32 * ber = (u32 *) arg;
-		*ber = (readreg(client, 0x0B)&0x1F)<<16;
-		*ber |= readreg(client, 0x0C)<<8;
-		*ber |= readreg(client, 0x0D);
-		/* scale to bit errors per 10^9 bits */
-		*ber *= 1953125 / (2 << (5 + fbcn));
+		*((u32*) arg) = readreg(client, 0x0d) |
+				(readreg(client, 0x0c) << 8) |
+				((readreg(client, 0x0b) & 0x1f) << 16);
 		break;
 	}
 	case FE_READ_SIGNAL_STRENGTH:
 	{
-		s32 * signal = (s32 *) arg;
-		*signal = 0xFF - readreg(client, 1);
-		*signal |= *signal << 8;	/* scale to max. 0xFFFF */
+		u8 gain = readreg(client, 0x01);
+		*((u16*) arg) = (gain << 8) | gain;
 		break;
 	}
 	case FE_READ_SNR:
 	{
-		s32 * snr = (s32 *) arg;
-		*snr = readreg(client, 8);
-		*snr |= *snr << 8;		/* scale to max. 0xFFFF */
+		u8 quality = readreg(client, 0x08);
+		*((u16*) arg) = (quality << 8) | quality;
 		break;
 	}
 	case FE_READ_UNCORRECTED_BLOCKS:
 	{
-		u32 *ublocks=(u32 *) arg;
-		*ublocks=readreg(client, 0xF);
+		*((u32*) arg) = readreg(client, 0x0f);
+		if (*((u32*) arg) == 0xff)
+			*((u32*) arg) = 0xffffffff;
 		break;
 	}
 	case  FE_READ_AFC:

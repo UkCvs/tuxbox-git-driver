@@ -1,5 +1,5 @@
 /* 
-   $Id: ves1893.c,v 1.28.2.1 2002/10/23 22:56:18 obi Exp $
+   $Id: ves1893.c,v 1.28.2.1.2.1 2003/03/25 13:01:36 alexw Exp $
 
     VES1893A - Single Chip Satellite Channel Receiver driver module
                used on the the Siemens DVB-S cards
@@ -22,6 +22,12 @@
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
     $Log: ves1893.c,v $
+    Revision 1.28.2.1.2.1  2003/03/25 13:01:36  alexw
+    == rel_1_0_0
+
+    Revision 1.28.2.2  2003/02/20 00:41:28  ghostrider
+    merge FE_READ_SNR, FE_READ_SIGNAL_STRENGTH, FE_READ_BER, FE_READ_UNCORRECED_BLOCKS with head.... i hope in enigma now the signals bars are correct...
+
     Revision 1.28.2.1  2002/10/23 22:56:18  obi
     bugfixes
 
@@ -462,7 +468,6 @@ static int dvb_command(struct i2c_client *client, unsigned int cmd, void *arg)
 	case FE_READ_BER:
 	{
 		u32 *ber=(u32 *) arg;
-
 		*ber = ves1893_readreg(client,0x15);
 		*ber|=(ves1893_readreg(client,0x16)<<8);
 		*ber|=((ves1893_readreg(client,0x17)&0x0F)<<16);
@@ -472,16 +477,16 @@ static int dvb_command(struct i2c_client *client, unsigned int cmd, void *arg)
 	case FE_READ_SIGNAL_STRENGTH:
 	{
 		u8 signal = ~ves1893_readreg(client,0x0b);
-		*(s32*)arg = (signal << 8) | signal;
+		*((u16*) arg) = (signal << 8) | signal;
 		break;
 	}
 	case FE_READ_SNR:
 	{
 		u8 snr = ~ves1893_readreg(client,0x1c);
-		*(s32*) arg = (snr << 8) | snr;
+		*(u16*) arg = (snr << 8) | snr;
 		break;
 	}
-	case FE_READ_UNCORRECTED_BLOCKS: 
+	case FE_READ_UNCORRECTED_BLOCKS:
 	{
 		*(u32*) arg = ves1893_readreg(client,0x18) & 0x7f;
 
