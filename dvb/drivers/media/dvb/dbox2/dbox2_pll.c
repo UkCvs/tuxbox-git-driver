@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_pll.c,v 1.1.2.1 2005/01/31 03:04:12 carjay Exp $
+ * $Id: dbox2_pll.c,v 1.1.2.2 2005/02/02 02:28:51 carjay Exp $
  *
  * Dbox2 PLL driver collection
  *
@@ -27,6 +27,14 @@
 #include <linux/kernel.h>
 #include <linux/i2c.h>
 
+#include "dbox2_pll.h"
+
+#ifdef DEBUG
+#define dprintk(fmt, args...)	printk(fmt,##args)
+#else
+#define dprintk(fmt, args...)
+#endif
+
 /*
 	PLLs are really a mess with the dbox2:
 	FEs:
@@ -35,6 +43,8 @@
 			TSA5059 I2C-bus (CPU)
 		- VES1893 (Nokia)
 			SP5668 SPI (FP)
+		- TDA8044 (Philips)
+			TSA5059 I2C-bus (CPU)
 
 	Cable:
 		- VES1820 (Nokia)
@@ -54,6 +64,14 @@
 #include <dvb-core/dvb_frontend.h>
 
 static struct i2c_adapter *adap;
+/*********************/
+/* generic functions */
+/*********************/
+
+static __inline__ u32 dbox2_pll_div(u32 a, u32 b)
+{
+	return (a + (b / 2)) / b;
+}
 
 /***************/
 /* generic I2c */
@@ -85,26 +103,74 @@ int dbox2_pll_i2c_write(int i2c_addr, char *buf, int len)
 /************/
 
 #define TSA5059_I2C_ADDR	(0xc0>>1)
-int dbox2_pll_tsa5059_set_freq (struct dvb_frontend *fe, struct dvb_frontend_parameters *p)
+
+int dbox2_pll_tsa5059_set_freq (struct pll_state *pll, struct dvb_frontend_parameters *p)
 {
+	u8 buf[4];
+	u32 ref=0;
+	u8 cp;
+	u8 pe;
+	u8 r=0;
+	int diff;
+	int i;
 	u32 freq = p->frequency;
-	u8 buf[2];
-	freq /= 1000;
-	buf[0] = (freq>>8) & 0x7f;
-	buf[1] = freq & 0xff;
+	u32 pll_clk = pll->clk;
+	
+	u16 ratio[]={
+		 2, 4, 8,16,32, 0, 0, 0,
+		24, 5,10,20,40, 0, 0, 0
+	};
+	
+ 	if (freq < 1100000)		/*  555uA */
+ 		cp = 2;
+ 	else if (freq < 1200000)	/*  260uA */
+		cp = 1;
+	else if (freq < 1600000)	/*  120uA */
+		cp = 0;
+	else if (freq < 1800000)	/*  260uA */
+		cp = 1;
+	else if (freq < 2000000)	/*  555uA */
+		cp = 2;
+	else				/* 1200uA */
+		cp = 3;
+
+	if (freq <= 2300000)
+		pe = 0;
+	else if (freq <= 2700000)
+		pe = 1;
+	else
+		return -EINVAL;
+
+	diff = INT_MAX;
+
+	/* allow 2000kHz - 100kHz */
+	for (i = 0; i < ARRAY_SIZE(ratio); i++) {
+		if (!ratio[i])
+			continue;
+		u32 cfreq = dbox2_pll_div(pll_clk, ratio[i]);
+		u32 tmpref = dbox2_pll_div((freq * 1000), (cfreq << pe));
+		int tmpdiff = (freq * 1000) - (tmpref * (cfreq << pe));
+
+		if (abs(tmpdiff) > abs(diff))
+			continue;
+
+		diff = tmpdiff;
+		ref = tmpref;
+		r = i;
+
+		if (diff == 0)
+			break;
+	}
+
+	dprintk("dbox2_pll: tsa5059: Ref: %d kHz ofreq: %d kHz diff: %d Hz ref: %d kHz\n",
+				((pll_clk/ratio[r]<<pe)/1000),freq,diff,ref*(pll_clk/ratio[r]<<pe)/1000);
+	
+	buf[0] = (ref >> 8) & 0x7f;
+	buf[1] = ref & 0xff;
+	buf[2] = 0x80 | ((ref >> 10) & 0x60) | (pe << 4) | r;
+	buf[3] = (cp << 6) | ((pll->tsa5059_xc&0x03)<<4);
+
 	return dbox2_pll_i2c_write(TSA5059_I2C_ADDR|1,buf,sizeof(buf));
-}
-
-int dbox2_pll_tsa5059_nokia_init (struct dvb_frontend *fe, struct dvb_frontend_parameters *p)
-{
-	char buf[]="\x06\x5c\x83\x60";
-	return dbox2_pll_i2c_write(TSA5059_I2C_ADDR|1,buf,4);
-}
-
-int dbox2_pll_tsa5059_sagem_init (struct dvb_frontend *fe, struct dvb_frontend_parameters *p)
-{
-	char buf[]="\x25\x70\x92\x40";
-	return dbox2_pll_i2c_write(TSA5059_I2C_ADDR|1,buf,4);
 }
 
 /******************/

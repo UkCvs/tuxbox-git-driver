@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_pll.h,v 1.1.2.1 2005/01/31 03:04:12 carjay Exp $
+ * $Id: dbox2_pll.h,v 1.1.2.2 2005/02/02 02:28:51 carjay Exp $
  *
  * Dbox2 PLL driver collection
  *
@@ -29,10 +29,12 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/i2c.h>
-
-int dbox2_pll_tsa5059_set_freq (struct dvb_frontend *fe, struct dvb_frontend_parameters *params);
-int dbox2_pll_tsa5059_nokia_init(struct dvb_frontend *fe);
-int dbox2_pll_tsa5059_sagem_init(struct dvb_frontend *fe);
+#include <dvb-core/dvb_frontend.h>
+struct pll_state {
+	u32 clk;
+	u8 tsa5059_xc;
+};
+int dbox2_pll_tsa5059_set_freq (struct pll_state *pll, struct dvb_frontend_parameters *params);
 int dbox2_pll_init(struct i2c_adapter *s);
 #endif
 #endif

@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_napi.c,v 1.1.2.1 2005/01/31 03:04:12 carjay Exp $
+ * $Id: dbox2_fp_napi.c,v 1.1.2.2 2005/02/02 02:28:51 carjay Exp $
  *
  * Copyright (C) 2002-2003 Andreas Oberritter <obi@tuxbox.org>
  *
@@ -30,6 +30,8 @@
 #include <dbox/dbox2_fp_tuner.h>
 #include <dvb-core/dvb_frontend.h>
 
+#include "dbox2_fp_napi.h"
+
 static struct dvb_adapter *dvb_adapter;
 
 static inline
@@ -43,7 +45,7 @@ u32 unsigned_round_div(u32 n, u32 d)
  * http://assets.zarlink.com/products/datasheets/zarlink_SP5659_MAY_02.pdf
  */
 
-int dbox2_fp_napi_qam_set_freq(struct dvb_frontend *fe, struct dvb_frontend_parameters *p)
+int dbox2_fp_napi_qam_set_freq(struct pll_state *pll, struct dvb_frontend_parameters *p)
 {
 	u32 freq = p->frequency;
 	u32 div;
@@ -78,7 +80,7 @@ int dbox2_fp_napi_qam_set_freq(struct dvb_frontend *fe, struct dvb_frontend_para
  * [16:00] divider ratio
  */
 
-int dbox2_fp_napi_qpsk_set_freq(struct dvb_frontend *fe, struct dvb_frontend_parameters *p)
+int dbox2_fp_napi_qpsk_set_freq(struct pll_state *pll, struct dvb_frontend_parameters *p)
 {
 	static const u32 sp5668_ratios[] =
 		{ 2000000, 1000000, 500000, 250000, 125000, 62500, 31250, 15625 };

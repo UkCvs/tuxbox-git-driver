@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_napi_core.c,v 1.1.2.3 2005/02/01 04:22:14 carjay Exp $
+ * $Id: dbox2_napi_core.c,v 1.1.2.4 2005/02/02 02:28:51 carjay Exp $
  *
  * Dbox2 DVB Adapter driver
  *
@@ -55,10 +55,12 @@ static struct dbox2_fe {
 	struct dvb_adapter *dvb_adap;
 	struct i2c_adapter *i2c_adap;
 	struct dvb_frontend *dvb_fe;
+	struct pll_state pll;
 	int (*pll_init)(struct dvb_frontend* fe);	/* pll-functions for current frontend */
-	int (*pll_set)(struct dvb_frontend* fe, struct dvb_frontend_parameters* params);
+	int (*pll_set)(struct pll_state* pll, struct dvb_frontend_parameters* params);
 	int (*fe_read_status)(struct dvb_frontend *, fe_status_t *);
 	void *fe_config;	/* type is different for each fe */
+	unsigned int irq;
 } fe_state;
 
 enum {
@@ -85,7 +87,7 @@ static int dbox2_napi_pll_init(struct dvb_frontend* fe)
 static int dbox2_napi_pll_set(struct dvb_frontend* fe, struct dvb_frontend_parameters* params)
 {
 	if (fe_state.pll_set)
-		return fe_state.pll_set(fe,params);
+		return fe_state.pll_set(&fe_state.pll,params);
 	else
 		return 0;
 }
@@ -147,22 +149,25 @@ static int dbox2_fe_setup_ves1x93(struct dbox2_fe *state, struct ves1x93_config 
 	state->dvb_fe = ves1x93_attach(cfg,state->i2c_adap);
 	if (!state->dvb_fe)
 		return -ENODEV;
+
 	dbox2_fp_napi_get_sec_ops(state->dvb_fe->ops);
 	/* 	ves1893 use SPI (through FP)
 		ves1993 uses I2C (through MPC) */
 	
 	if (!ves1x93_get_identity(&id)){
 		switch (id){
-			case 0xdc: /* VES1893A rev1 */
-			case 0xdd: /* VES1893A rev2 */
-			state->pll_set = dbox2_fp_napi_qam_set_freq;
+		case 0xdc: /* VES1893A rev1 */
+		case 0xdd: /* VES1893A rev2 */
+			state->pll_set = dbox2_fp_napi_qpsk_set_freq;
 			break;
-			case 0xde: /* VES1993 */
+		case 0xde: /* VES1993 */
 			state->pll_set = dbox2_pll_tsa5059_set_freq;
 			if (manuf_id == DBOX2_NAPI_NOKIA) {
-				state->pll_init = dbox2_pll_tsa5059_nokia_init;
+				state->pll.clk = 16000000;
+				state->pll.tsa5059_xc = 2;
 			} else if (manuf_id == DBOX2_NAPI_SAGEM) {
-				state->pll_init = dbox2_pll_tsa5059_sagem_init;
+				state->pll.clk = 4000000;
+				state->pll.tsa5059_xc = 0;
 			} else {
 				printk(KERN_WARNING "dbox2_napi: no pll_init for manufacturer %d\n",manuf_id);
 				return -ENODEV;
@@ -181,19 +186,19 @@ static int dbox2_fe_setup_ves1x93(struct dbox2_fe *state, struct ves1x93_config 
 /***************/
 
 int dbox2_probe_nokia_S_frontend(struct dbox2_fe *state){
-	struct ves1x93_config *Scfg = kmalloc(sizeof(struct ves1x93_config),GFP_KERNEL);
-	if (!Scfg)
+	struct ves1x93_config *cfg = kmalloc(sizeof(struct ves1x93_config),GFP_KERNEL);
+	if (!cfg)
 		return -ENOMEM;
-	Scfg->demod_address = 0x10>>1;
-	Scfg->xin = 96000000UL;
-	Scfg->invert_pwm = 0;
-	Scfg->pll_init = dbox2_napi_pll_init;
-	Scfg->pll_set = dbox2_napi_pll_set;
-	if (dbox2_fe_setup_ves1x93(state,Scfg)){
-		kfree(Scfg);
+	cfg->demod_address = 0x10>>1;
+	cfg->xin = 96000000UL;
+	cfg->invert_pwm = 0;
+	cfg->pll_init = dbox2_napi_pll_init;
+	cfg->pll_set = dbox2_napi_pll_set;
+	if (dbox2_fe_setup_ves1x93(state,cfg)){
+		kfree(cfg);
 		return -ENODEV;
 	}
-	state->fe_config = Scfg;
+	state->fe_config = cfg;
 	return 0;
 }
 
@@ -202,7 +207,25 @@ int dbox2_probe_nokia_C_frontend(struct dbox2_fe *state){
 }
 
 int dbox2_probe_philips_S_frontend(struct dbox2_fe *state){
-	return -ENODEV;
+	struct tda80xx_config *cfg = kmalloc(sizeof(struct tda80xx_config),GFP_KERNEL);
+	if (!cfg)
+		return -ENOMEM;
+	cfg->demod_address = 0xd0>>1;
+	cfg->irq = state->irq;
+	cfg->volt13setting = 0x3f;
+	cfg->volt18setting = 0xbf;
+	cfg->pll_init = dbox2_napi_pll_init;
+	cfg->pll_set = dbox2_napi_pll_set;
+	if ((state->dvb_fe = tda80xx_attach(cfg,state->i2c_adap))==0){
+		kfree(cfg);
+		return -ENODEV;
+	}
+	state->fe_config = cfg;
+	state->pll_init = NULL; 
+	state->pll_set = dbox2_pll_tsa5059_set_freq;
+	state->pll.clk = 4000000;
+	state->pll.tsa5059_xc = 0;
+	return 0;
 }
 
 int dbox2_probe_philips_C_frontend(struct dbox2_fe *state){
@@ -210,19 +233,19 @@ int dbox2_probe_philips_C_frontend(struct dbox2_fe *state){
 }
 
 int dbox2_probe_sagem_S_frontend(struct dbox2_fe *state){
-	struct ves1x93_config *Scfg = kmalloc(sizeof(struct ves1x93_config),GFP_KERNEL);
-	if (!Scfg)
+	struct ves1x93_config *cfg = kmalloc(sizeof(struct ves1x93_config),GFP_KERNEL);
+	if (!cfg)
 		return -ENOMEM;
-	Scfg->demod_address = 0x10>>1;
-	Scfg->xin = 92160000UL;
-	Scfg->invert_pwm = 1;
-	Scfg->pll_init = dbox2_napi_pll_init;
-	Scfg->pll_set = dbox2_napi_pll_set;
-	if (dbox2_fe_setup_ves1x93(state,Scfg)){
-		kfree(Scfg);
+	cfg->demod_address = 0x10>>1;
+	cfg->xin = 92160000UL;
+	cfg->invert_pwm = 1;
+	cfg->pll_init = dbox2_napi_pll_init;
+	cfg->pll_set = dbox2_napi_pll_set;
+	if (dbox2_fe_setup_ves1x93(state,cfg)){
+		kfree(cfg);
 		return -ENODEV;
 	}
-	state->fe_config = Scfg;
+	state->fe_config = cfg;
 	return 0;
 }
 
@@ -240,7 +263,8 @@ static int dbox2_fe_probe(struct device *dev)
 	int ret;
 	struct platform_device *pdev = to_platform_device(dev);
     manuf_id = (int)pdev->dev.platform_data;
-
+	fe_state.irq = platform_get_irq(pdev,0);
+	
     switch (manuf_id){
     case DBOX2_NAPI_NOKIA:
 		if (dbox2_probe_nokia_S_frontend(&fe_state) &&
@@ -307,7 +331,7 @@ static struct device_driver dbox2_fe_driver = {
 static int __init dbox2_napi_init(void)
 {
 	int res;
-	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.3 2005/02/01 04:22:14 carjay Exp $\n");
+	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.4 2005/02/02 02:28:51 carjay Exp $\n");
 
 	if ((res = dvb_register_adapter(&fe_state.dvb_adap, "C-Cube AViA GTX/eNX with AViA 500/600",THIS_MODULE))<0){
 		printk(KERN_ERR "dbox2_napi: error registering adapter\n");

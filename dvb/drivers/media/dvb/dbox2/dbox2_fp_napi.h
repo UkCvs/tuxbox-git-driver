@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_napi.h,v 1.1.2.1 2005/01/31 03:04:12 carjay Exp $
+ * $Id: dbox2_fp_napi.h,v 1.1.2.2 2005/02/02 02:28:51 carjay Exp $
  *
  * Copyright (C) 2005 Carsten Juttner <carjay@gmx.net>
  *
@@ -23,11 +23,12 @@
 #ifndef DBOX2_FP_NAPI_H
 #define DBOX2_FP_NAPI_H
 #include <dvb-core/dvb_frontend.h>
+#include "dbox2_pll.h"
 
 int dbox2_fp_napi_init(void);
 void dbox2_fp_napi_exit(void);
-int dbox2_fp_napi_qam_set_freq(struct dvb_frontend *fe, struct dvb_frontend_parameters *p);
-int dbox2_fp_napi_qpsk_set_freq(struct dvb_frontend *fe, struct dvb_frontend_parameters *p);
+int dbox2_fp_napi_qam_set_freq(struct pll_state *pll, struct dvb_frontend_parameters *p);
+int dbox2_fp_napi_qpsk_set_freq(struct pll_state *pll, struct dvb_frontend_parameters *p);
 int dbox2_fp_napi_get_sec_ops(struct dvb_frontend_ops *ops);
 
 #endif /* DBOX2_FP_NAPI_H */
