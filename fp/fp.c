@@ -21,6 +21,9 @@
  *
  *
  *   $Log: fp.c,v $
+ *   Revision 1.72.2.1  2002/10/22 20:20:43  Zwen
+ *   Nokia needs an additional read from address 0x2A for the wakeup to be cleared
+ *
  *   Revision 1.72  2002/10/09 16:51:00  Zwen
  *   - clear_wakeup fuer nokias implementiert
  *   - FP_IOCTL_CLEAR_WAKEUP entfernt, wird jetzt im module_init ausgefuehrt
@@ -237,7 +240,7 @@
  *   - some changes ...
  *
  *
- *   $Revision: 1.72 $
+ *   $Revision: 1.72.2.1 $
  *
  */
 
@@ -331,6 +334,7 @@ fp:
 #define FP_WAKEUP		0x11
 #define FP_WAKEUP_SAGEM		0x01
 #define FP_CLEAR_WAKEUP		0x20
+#define FP_CLEAR_WAKEUP_NOKIA	0x2A
 
 /* ---------------------------------------------------------------------- */
 
@@ -1809,7 +1813,8 @@ static int fp_clear_wakeup_timer()
 			return -1;
 	} else
 	{
-
+		if (fp_cmd(defdata->client, FP_CLEAR_WAKEUP_NOKIA, id, 2))
+			return -1;
 		if (fp_cmd(defdata->client, FP_CLEAR_WAKEUP, id, 2))
 			return -1;
 	}
