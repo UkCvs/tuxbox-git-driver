@@ -1,5 +1,5 @@
 /*
- * $Id: avs_core.c,v 1.27.2.1 2005/01/15 01:26:26 carjay Exp $
+ * $Id: avs_core.c,v 1.27.2.2 2005/01/26 03:34:46 carjay Exp $
  * 
  * audio/video switch core driver (dbox-II-project)
  *
@@ -39,6 +39,7 @@
 #include <linux/i2c.h>
 #include <linux/sound.h>
 #include <linux/soundcard.h>
+#include <linux/devfs_fs_kernel.h>
 
 #include <dbox/avs_core.h>
 #include <dbox/event.h>
@@ -53,7 +54,6 @@
 #include <linux/miscdevice.h>
 #include <linux/workqueue.h>
 #else
-#include <linux/devfs_fs_kernel.h>
 #ifndef CONFIG_DEVFS_FS
 #error no devfs
 #endif
@@ -126,7 +126,6 @@ struct s_avs *avs_data;
 
 #define AVS_EVENT_TIMER 1
 
-static spinlock_t avs_event_lock;
 static struct timer_list avs_event_timer;
 
 typedef struct avs_event_reg {
@@ -431,8 +430,6 @@ static void avs_event_task(void *data)
 	struct event_t event;
 	int state;
 
-	spin_lock_irq(&avs_event_lock);
-
 	reg = (struct avs_event_reg *) data;
 
 	if (reg) {
@@ -496,8 +493,6 @@ static void avs_event_task(void *data)
 	{
 		dprintk("[AVS]: event task error\n");
 	}
-
-	spin_unlock_irq(&avs_event_lock);
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
@@ -527,8 +522,6 @@ static int avs_event_init(void)
 
 	dprintk("[AVS]: event init\n");
 
-	spin_lock_irq(&avs_event_lock);
-
 	reg = (avs_event_reg*) kmalloc(sizeof(struct avs_event_reg), GFP_KERNEL);
 
 	if (!reg)
@@ -553,25 +546,19 @@ static int avs_event_init(void)
 	avs_event_timer.data     = (unsigned long) reg;
 
 	add_timer(&avs_event_timer);
-
-	spin_unlock_irq(&avs_event_lock);
-
 	return 0;
 }
 
 static void avs_event_cleanup(void)
 {
-	spin_lock_irq(&avs_event_lock);
-
 	dprintk("[AVS]: event cleanup\n");
 
+	del_timer_sync(&avs_event_timer);
 	if (avs_event_timer.data) {
 		kfree((char*) avs_event_timer.data);
 		avs_event_timer.data = 0;
 	}
 
-	del_timer(&avs_event_timer);
-	spin_unlock_irq(&avs_event_lock);
 }
 
 
@@ -658,6 +645,9 @@ int __init avs_core_init(void)
 		printk("avs: unable to register device\n");
 		return -EIO;
 	}
+	devfs_mk_cdev(MKDEV(MISC_MAJOR,avs_dev.minor),
+		S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
+		"dbox/avs0");
 #else
 	devfs_handle = devfs_register(NULL, "dbox/avs0", DEVFS_FL_DEFAULT, 0, 0,
 			S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
@@ -682,6 +672,7 @@ void __exit avs_core_exit(void)
 
 	i2c_del_driver(&avs_i2c_driver);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	devfs_remove("dbox/avs0");
 	misc_deregister(&avs_dev);
 #else
 	devfs_unregister(devfs_handle);
