@@ -1,5 +1,5 @@
 /*
- * $Id: saa7126_core.c,v 1.45.2.2 2005/01/25 23:05:06 carjay Exp $
+ * $Id: saa7126_core.c,v 1.45.2.3 2005/01/25 23:13:08 carjay Exp $
  * 
  * Philips SAA7126 digital video encoder
  *
@@ -599,7 +599,7 @@ static int saa7126_detach(struct i2c_client *client)
 	int ret;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 	struct saa7126 *encoder = (struct saa7126 *) i2c_get_clientdata(client);
-	devfs_remove("dbox2/saa%d",client->id);
+	devfs_remove("dbox/saa%d",client->id);
 	misc_deregister(encoder->mdev);
 	kfree(encoder->mdev);
 #else
