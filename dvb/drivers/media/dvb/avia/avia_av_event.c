@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_event.c,v 1.11 2003/10/26 16:32:51 obi Exp $
+ * $Id: avia_av_event.c,v 1.11.4.1 2005/01/21 21:23:38 carjay Exp $
  *   
  * AViA 500/600 event driver (dbox-II-project)
  *
@@ -72,7 +72,7 @@ static void avia_av_event_timer_function(unsigned long data)
 
 int avia_av_event_init(void)
 {
-	printk(KERN_INFO "avia_av_event: $Id: avia_av_event.c,v 1.11 2003/10/26 16:32:51 obi Exp $\n");
+	printk(KERN_INFO "avia_av_event: $Id: avia_av_event.c,v 1.11.4.1 2005/01/21 21:23:38 carjay Exp $\n");
 
 	event_delay = 0;
 
@@ -109,7 +109,8 @@ void avia_av_event_exit(void)
 #if defined(STANDALONE)
 module_init(avia_av_event_init);
 module_exit(avia_av_event_exit);
-
+EXPORT_SYMBOL(avia_av_event_init);
+EXPORT_SYMBOL(avia_av_event_exit);
 MODULE_AUTHOR("Florian Schirmer <jolt@tuxbox.org>");
 MODULE_DESCRIPTION("AViA 500/600 event driver");
 MODULE_LICENSE("GPL");

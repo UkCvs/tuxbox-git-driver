@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_proc.c,v 1.14 2004/01/21 20:02:29 carjay Exp $
+ * $Id: avia_av_proc.c,v 1.14.2.1 2005/01/21 21:23:38 carjay Exp $
  *
  * AViA 500/600 proc driver (dbox-II-project)
  *
@@ -106,7 +106,7 @@ int avia_av_proc_init(void)
 	struct proc_dir_entry *proc_bus_avia;
 	struct proc_dir_entry *proc_bus_avia_dram;
 
-	printk("avia_av_proc: $Id: avia_av_proc.c,v 1.14 2004/01/21 20:02:29 carjay Exp $\n");
+	printk("avia_av_proc: $Id: avia_av_proc.c,v 1.14.2.1 2005/01/21 21:23:38 carjay Exp $\n");
 
 	if (!proc_bus) {
 		printk("avia_av_proc: /proc/bus does not exist");
@@ -143,7 +143,8 @@ void avia_av_proc_exit(void)
 #if defined(STANDALONE)
 module_init(avia_av_proc_init);
 module_exit(avia_av_proc_exit);
-
+EXPORT_SYMBOL(avia_av_proc_init);
+EXPORT_SYMBOL(avia_av_proc_exit);
 MODULE_AUTHOR("Florian Schirmer <jolt@tuxbox.org>, Andreas Oberritter <obi@tuxbox.org>");
 MODULE_DESCRIPTION("AViA 500/600 proc interface");
 MODULE_LICENSE("GPL");
