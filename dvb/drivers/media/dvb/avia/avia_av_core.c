@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_core.c,v 1.98.2.4 2005/01/31 03:16:06 carjay Exp $
+ * $Id: avia_av_core.c,v 1.98.2.5 2005/01/31 20:04:09 carjay Exp $
  *
  * AViA 500/600 core driver (dbox-II-project)
  *
@@ -36,6 +36,7 @@
 #include <linux/unistd.h>
 #include <linux/vmalloc.h>
 #include <linux/wait.h>
+#include <linux/completion.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 #include <linux/device.h>
 #include <linux/firmware.h>
@@ -89,11 +90,25 @@ static struct {
 #endif
 static int dev;
 
+enum {
+	AVIA_WDT_VIDEO_ERR = 	0x1,
+	AVIA_WDT_AUDIO_ERR = 	0x2,
+	AVIA_WDT_SYSTEM_ERR = 	0x4,
+	AVIA_WDT_BUFFER_ERR = 	0x8,
+	AVIA_WDT_SHUTDOWN = 	0x80000000
+};
+struct wdt_state {
+	wait_queue_head_t wakeup_q;
+	u32 flags;
+	struct completion compl;
+	long pid;
+};
+static struct wdt_state *wdt;
+int avia_av_wdt_thread(void *);
+
 static spinlock_t avia_command_lock=SPIN_LOCK_UNLOCKED;
 static spinlock_t avia_register_lock=SPIN_LOCK_UNLOCKED;
 static wait_queue_head_t avia_cmd_wait;
-static wait_queue_head_t avia_av_wdt_sleep;
-static long kernel_thread_pid;
 static u8 bypass_mode;
 static u8 bypass_mode_changed;
 static u16 pid_audio;
@@ -382,16 +397,7 @@ static void avia_av_interrupt(int irq, void *vdev, struct pt_regs *regs)
 		dprintk(KERN_INFO "avia_av: IRQ_END_L\n");
 		wake_up_interruptible(&avia_cmd_wait);
 	}
-
-	/* Completed audio frame decoding */ 
-	if (!no_watchdog){
-		if (status & IRQ_INIT_AUDD) 
-			wake_up_interruptible(&avia_av_wdt_sleep);
-	/* Completed picture decoded */
-		if (status & IRQ_PIC_D) 
-			wake_up_interruptible(&avia_av_wdt_sleep);
-	}
-
+	
 	if (status & IRQ_SEQ_V) {
 		dprintk(KERN_DEBUG "avia_av: IRQ_SEQ_V\n");
 		u16 w = avia_av_dram_read(H_SIZE) & 0xffff;
@@ -472,12 +478,30 @@ static void avia_av_interrupt(int irq, void *vdev, struct pt_regs *regs)
 	avia_av_gbus_write(0, ((avia_av_gbus_read(0) & ~1) | 2));
 
 	/* clear flags */
+
 	if (status & IRQ_BUF_F)
 		avia_av_dram_write(BUFF_INT_SRC, 0);
 	if (status & IRQ_UND)
 		avia_av_dram_write(UND_INT_SRC, 0);
-	if (status & IRQ_ERR)
+
+	if (wdt && (status & (IRQ_BUF_F|IRQ_UND))){
+		wdt->flags |= AVIA_WDT_BUFFER_ERR;
+		wake_up_interruptible(&wdt->wakeup_q);
+	}
+
+	if (status & IRQ_ERR){
+		u32 src = avia_av_dram_read(ERR_INT_SRC) & 0x0f;
 		avia_av_dram_write(ERR_INT_SRC, 0);
+		if (wdt) {
+			if (src==1)
+				wdt->flags |= AVIA_WDT_VIDEO_ERR;
+			else if (src==2)
+				wdt->flags |= AVIA_WDT_AUDIO_ERR;
+			else if (src==3)
+				wdt->flags |= AVIA_WDT_SYSTEM_ERR;
+			wake_up_interruptible(&wdt->wakeup_q);
+		}
+	}
 
 	avia_av_dram_write(INT_STATUS, 0);
 
@@ -1023,12 +1047,17 @@ static int avia_av_init(void)
 
 	/* 	start avia_av_wdt_sleep kernel_thread if it's not already running
 		(and it is enabled) */
-	if (!kernel_thread_pid&&!no_watchdog){
-		/* init avia_av_wdt_sleep queue */
-		init_waitqueue_head(&avia_av_wdt_sleep);
-		kernel_thread_pid = kernel_thread ((int (*)(void *)) avia_av_wdt_thread, NULL, 0);
+	if (!wdt&&!no_watchdog){
+		wdt = (struct wdt_state*) kmalloc (sizeof(struct wdt_state),GFP_KERNEL);
+		if (!wdt)
+			return -ENOMEM;
+		memset(wdt,0,sizeof(struct wdt_state));
+
+		init_waitqueue_head(&wdt->wakeup_q);
+		init_completion(&wdt->compl);
+		wdt->pid = kernel_thread (avia_av_wdt_thread, wdt, 0);
 	}
-	
+
 	/* init spinlocks */
 	spin_lock_init(&avia_command_lock);
 	spin_lock_init(&avia_register_lock);
@@ -1130,7 +1159,7 @@ static int avia_av_init(void)
 	/* enable interrupts */
 	irq_mask = IRQ_AUD | IRQ_END_L | IRQ_END_C | IRQ_SEQ_V;
 	if (!no_watchdog)
-		irq_mask |= IRQ_INIT_AUDD;
+		irq_mask |= IRQ_BUF_F | IRQ_ERR;
 	avia_av_dram_write(INT_MASK, irq_mask);
 
 	if (avia_av_wait(PROC_STATE, PROC_STATE_IDLE, 100) < 0) {
@@ -1519,14 +1548,14 @@ void avia_av_get_video_size(u16 *width, u16 *height, u16 *ratio)
 	*ratio = avia_av_dram_read(ASPECT_RATIO) & 0xffff;
 }
 
-int avia_av_wdt_thread(void)
+int avia_av_wdt_thread(void *arg)
 {
 	int SUM_DECODED = 0;
 	int SUM_AUD_DECODED = 0;
 	int LAST_SUM_DECODED = 0;
 	int LAST_SUM_AUD_DECODED = 0;
-	int counter = 0;  
-                        
+	struct wdt_state *state = (struct wdt_state*) arg;
+	
 	lock_kernel();
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,61)
 	daemonize("avia_av_wdt");
@@ -1540,33 +1569,43 @@ int avia_av_wdt_thread(void)
 	sigfillset(&current->blocked);
 	unlock_kernel();
 	
-	printk ("avia_av_core: Starting avia_av_wdt thread.\n");
+	printk ("avia_av_core: decoder watchdog thread started.\n");
 	for(;;){
-		/* sleep till we got a wakeup signal */        
-		interruptible_sleep_on(&avia_av_wdt_sleep);
+		interruptible_sleep_on_timeout(&wdt->wakeup_q, 2*HZ);
 
-		if (counter >= 100) {		
-			if (avia_av_dram_read(PROC_STATE) == 0x04) {
-				if (play_state_video == AVIA_AV_PLAY_STATE_PLAYING) {
-					SUM_DECODED = avia_av_dram_read(N_DECODED);
-					if ((SUM_DECODED == 0x00) | (SUM_DECODED == LAST_SUM_DECODED)) {
-						printk("avia_av_wdt_thread: video decoding stopped ==> restart\n");
-						avia_av_cmd(SelectStream, 0x00, pid_video);
-					}
-					LAST_SUM_DECODED = SUM_DECODED;
-				}
-				if (play_state_audio == AVIA_AV_PLAY_STATE_PLAYING) {
-					SUM_AUD_DECODED = avia_av_dram_read(N_AUD_DECODED);
-					if ((SUM_AUD_DECODED == 0x00) | (SUM_AUD_DECODED == LAST_SUM_AUD_DECODED)) {
-						printk("avia_av_wdt_thread: audio decoding stopped ==> restart\n");
-						avia_av_cmd(SelectStream, 0x03 - bypass_mode, pid_audio);
-					}
-					LAST_SUM_AUD_DECODED = SUM_AUD_DECODED;
-				}
-			}
-			counter=0;
+		if (state->flags & AVIA_WDT_SHUTDOWN){
+			complete_all(&state->compl);
+			break;
 		}
-		counter++;
+
+		if (state->flags & AVIA_WDT_BUFFER_ERR){
+			dprintk("avia_av_wdt_thread: Buffer error\n");
+			state->flags &= ~AVIA_WDT_BUFFER_ERR;
+		} 
+		
+		if (state->flags & (AVIA_WDT_VIDEO_ERR|AVIA_WDT_AUDIO_ERR|AVIA_WDT_SYSTEM_ERR)){
+			dprintk("avia_av_wdt_thread: Stream error\n");
+			state->flags &= ~(AVIA_WDT_VIDEO_ERR|AVIA_WDT_AUDIO_ERR|AVIA_WDT_SYSTEM_ERR);
+		}
+	
+		if (avia_av_dram_read(PROC_STATE) == 0x04) {
+			if (play_state_video == AVIA_AV_PLAY_STATE_PLAYING) {
+				SUM_DECODED = avia_av_dram_read(N_DECODED);
+				if ((SUM_DECODED == 0x00) | (SUM_DECODED == LAST_SUM_DECODED)) {
+					dprintk("avia_av_wdt_thread: video decoding stopped ==> restart\n");
+					avia_av_cmd(SelectStream, 0x00, pid_video);
+				}
+				LAST_SUM_DECODED = SUM_DECODED;
+			}
+			if (play_state_audio == AVIA_AV_PLAY_STATE_PLAYING) {
+				SUM_AUD_DECODED = avia_av_dram_read(N_AUD_DECODED);
+				if ((SUM_AUD_DECODED == 0x00) | (SUM_AUD_DECODED == LAST_SUM_AUD_DECODED)) {
+					dprintk("avia_av_wdt_thread: audio decoding stopped ==> restart\n");
+					avia_av_cmd(SelectStream, 0x03 - bypass_mode, pid_audio);
+				}
+				LAST_SUM_AUD_DECODED = SUM_AUD_DECODED;
+			}
+		}
 	}
 	return 0;
 }       
@@ -1603,7 +1642,7 @@ static int __init avia_av_core_init(void)
 	avia_info.dram_start = res->start;
 #endif
 
-	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.4 2005/01/31 03:16:06 carjay Exp $\n");
+	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.5 2005/01/31 20:04:09 carjay Exp $\n");
 
 	if (tv_standard != AVIA_AV_VIDEO_SYSTEM_PAL)
 		tv_standard = AVIA_AV_VIDEO_SYSTEM_NTSC;
@@ -1637,6 +1676,14 @@ static void __exit avia_av_core_exit(void)
 
 	avia_av_standby(1);
 
+	if (wdt){
+		/* remove watchdog */
+		wdt->flags |= AVIA_WDT_SHUTDOWN;
+		wake_up_interruptible(&wdt->wakeup_q);
+		wait_for_completion(&wdt->compl);
+		kfree(wdt);
+		wdt=NULL;
+	}
 	if (aviamem)
 		iounmap((void *)aviamem);
 

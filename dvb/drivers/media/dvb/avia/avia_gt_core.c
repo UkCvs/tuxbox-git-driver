@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_core.c,v 1.48.2.2 2005/01/31 16:12:33 carjay Exp $
+ * $Id: avia_gt_core.c,v 1.48.2.3 2005/01/31 20:04:09 carjay Exp $
  *
  * AViA eNX/GTX core driver (dbox-II-project)
  *
@@ -44,6 +44,7 @@
 #include "avia_gt_accel.h"
 #include "avia_gt_dmx.h"
 #include "avia_gt_gv.h"
+#include "avia_gt_ir.h"
 #include "avia_gt_pcm.h"
 #include "avia_gt_capture.h"
 #include "avia_gt_pig.h"
@@ -53,10 +54,8 @@
 TUXBOX_INFO(dbox2_gt);
 
 static int chip_type = -1;
-static int no_watchdog;
 static int init_state;
 static sAviaGtInfo *gt_info;
-static wait_queue_head_t avia_gt_wdt_sleep;
 static void (* gt_isr_proc_list[128])(unsigned short irq);
 
 sAviaGtInfo *avia_gt_get_info(void)
@@ -131,40 +130,6 @@ static void avia_gt_irq(int irq, void *dev, struct pt_regs *regs)
 #endif
 }
 
-int avia_gt_wdt_thread(void)
-{
-	lock_kernel();
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,61)
-	daemonize("avia_gt_wdt");
-#else
-	daemonize();
-	strncpy(current->comm, "avia_gt_wdt", sizeof(current->comm));
-#endif
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-	reparent_to_init();
-#endif
-	sigfillset(&current->blocked);
-	unlock_kernel();
-
-	printk ("avia_gt_core: Starting avia_gt_wdt thread.\n");
-	for(;;)
-	{
-
-		interruptible_sleep_on_timeout(&avia_gt_wdt_sleep, 200);
-		if((enx_reg_16(FIFO_PDCT)&0x7F) == 0x00) {
-		dprintk("avia_gt_wdt_thread: FIFO_PDCT = 0 ==> framer crashed .. restarting\n");
-        		avia_gt_dmx_risc_reset(1);
-		}
-		if((enx_reg_16(FIFO_PDCT)&0x7F) == 0x7F) {
-		dprintk("avia_gt_wdt_thread: FIFO_PDCT = 127 ==> risc crashed .. restarting\n");
-		avia_gt_dmx_risc_reset(1);
-		}			
-
-        
-	}
-	return 0;
-}
-
 static void avia_gt_unwind(void);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 static int avia_gt_drv_probe(struct device *dev)
@@ -174,7 +139,7 @@ static int __init avia_gt_init(void)
 {
 	int result = 0;
 	
-	printk(KERN_INFO "avia_gt_core: $Id: avia_gt_core.c,v 1.48.2.2 2005/01/31 16:12:33 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_core: $Id: avia_gt_core.c,v 1.48.2.3 2005/01/31 20:04:09 carjay Exp $\n");
 
 	if (chip_type == -1) {
 		printk(KERN_INFO "avia_gt_core: autodetecting chip type... ");
@@ -385,15 +350,17 @@ static int __init avia_gt_init(void)
 	init_state = 14;
 #endif
 
+#if defined(CONFIG_AVIA_GT_IR)
+	if (avia_gt_ir_init()) {
+		printk(KERN_ERR "avia_gt_core: avia_gt_ir_init failed\n");
+		avia_gt_unwind();
+		return -1;
+	}
+	
+	init_state = 15;
+#endif
 #endif /* !STANDALONE */
 
-	/* if not disabled and it's an eNX start watchdog thread */
-	if (!no_watchdog){
-		init_waitqueue_head(&avia_gt_wdt_sleep);
-		if (avia_gt_chip(ENX))
-	        	/* start avia_av_wdt_sleep  kernel_thread */
-        		kernel_thread ((int (*)(void *)) avia_gt_wdt_thread, NULL, 0);
-	}
 	printk(KERN_NOTICE "avia_gt_core: Loaded AViA eNX/GTX driver\n");
 
 	return 0;
@@ -405,6 +372,11 @@ static void avia_gt_unwind(void)
 {
 #if (!defined(MODULE)) || (defined(MODULE) && !defined(STANDALONE))
 
+#if defined(CONFIG_AVIA_GT_IR)
+	if (init_state >= 15)
+		avia_gt_vbi_exit();
+#endif
+	
 #if defined(CONFIG_AVIA_GT_DMX)
 	if (init_state >= 14)
 		avia_gt_vbi_exit();
@@ -520,13 +492,10 @@ MODULE_DESCRIPTION("AViA eNX/GTX driver");
 MODULE_LICENSE("GPL");
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 module_param(chip_type, int, 0);
-module_param(no_watchdog, int, 0);
 #else
 MODULE_PARM(chip_type, "i");
-MODULE_PARM(no_watchdog, "i");
 #endif
 MODULE_PARM_DESC(chip_type, "-1: autodetect, 0: eNX, 1: GTX");
-MODULE_PARM_DESC(no_watchdog, "0: wd enabled, 1: wd disabled");
 
 EXPORT_SYMBOL(avia_gt_alloc_irq);
 EXPORT_SYMBOL(avia_gt_free_irq);

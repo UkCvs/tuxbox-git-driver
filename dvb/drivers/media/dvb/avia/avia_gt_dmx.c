@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_dmx.c,v 1.210.2.2 2005/01/31 03:16:06 carjay Exp $
+ * $Id: avia_gt_dmx.c,v 1.210.2.3 2005/01/31 20:04:09 carjay Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -34,6 +34,7 @@
 #include <linux/bitops.h>
 #include <linux/sched.h>
 #include <linux/string.h>
+#include <linux/completion.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 #include <linux/workqueue.h>
 #else
@@ -65,6 +66,18 @@ static struct avia_gt_dmx_queue *msgqueue;
 static int force_stc_reload;
 static sAviaGtDmxQueue queue_list[AVIA_GT_DMX_QUEUE_COUNT];
 static int hw_sections = 1;
+static int no_watchdog;
+
+enum {
+	AVIA_GT_WDT_SHUTDOWN = 0x8000000
+};
+struct wdt_state {
+	wait_queue_head_t wakeup_q;
+	struct completion compl;
+	long pid;
+	u32 flags;
+};
+static struct wdt_state *wdt;
 
 /* video, audio, teletext can be mapped to one "interested" user queue */
 static int queue_client[AVIA_GT_DMX_QUEUE_USER_START] = { -1, -1, -1 };
@@ -1325,6 +1338,44 @@ int avia_gt_dmx_queue_nr_get_bytes_free(u8 queue_nr)
 	return q->info.bytes_free(&q->info);
 }
 
+static int avia_gt_wdt_thread(void *arg)
+{
+	struct wdt_state *state = (struct wdt_state *)arg;
+	lock_kernel();
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,61)
+	daemonize("avia_gt_wdt");
+#else
+	daemonize();
+	strncpy(current->comm, "avia_gt_wdt", sizeof(current->comm));
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
+	reparent_to_init();
+#endif
+	sigfillset(&current->blocked);
+	unlock_kernel();
+
+	printk ("avia_gt_dmx: demux watchdog thread started.\n");
+	for(;;)
+	{
+		interruptible_sleep_on_timeout(&state->wakeup_q, 2*HZ);
+
+		if (state->flags & AVIA_GT_WDT_SHUTDOWN) {
+			complete_all(&state->compl);
+			break;
+		}
+	
+		if((enx_reg_16(FIFO_PDCT)&0x7F) == 0x00) {
+			dprintk("avia_gt_wdt_thread: FIFO_PDCT = 0 ==> framer crashed .. restarting\n");
+        	avia_gt_dmx_risc_reset(1);
+		}
+		if((enx_reg_16(FIFO_PDCT)&0x7F) == 0x7F) {
+			dprintk("avia_gt_wdt_thread: FIFO_PDCT = 127 ==> risc crashed .. restarting\n");
+			avia_gt_dmx_risc_reset(1);
+		}			
+	}
+	return 0;
+}
+
 int __init avia_gt_dmx_init(void)
 {
 	sAviaGtDmxQueue *q;
@@ -1333,7 +1384,7 @@ int __init avia_gt_dmx_init(void)
 	u32 queue_addr;
 	u8 queue_nr;
 	
-	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.210.2.2 2005/01/31 03:16:06 carjay Exp $\n");;
+	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.210.2.3 2005/01/31 20:04:09 carjay Exp $\n");;
 
 	gt_info = avia_gt_get_info();
 	ucode_info = avia_gt_dmx_get_ucode_info();
@@ -1470,6 +1521,18 @@ int __init avia_gt_dmx_init(void)
 		}
 	}
 
+	/* if not disabled and it's an eNX start watchdog thread */
+	if (!wdt&&!no_watchdog&&avia_gt_chip(ENX)){
+		wdt = (struct wdt_state*) kmalloc (sizeof(struct wdt_state),GFP_KERNEL);
+		if (!wdt)
+			return -ENOMEM;
+		memset(wdt,0,sizeof(struct wdt_state));
+
+		init_waitqueue_head(&wdt->wakeup_q);
+		init_completion(&wdt->compl);
+		wdt->pid = kernel_thread (avia_gt_wdt_thread, wdt, 0);
+	}
+
 	return 0;
 }
 
@@ -1478,7 +1541,17 @@ void __exit avia_gt_dmx_exit(void)
 	if (dmx_workqueue)
 		destroy_workqueue(dmx_workqueue);
 
-	if (msgqueue) avia_gt_dmx_free_queue(msgqueue->index);
+	if (wdt){
+		wdt->flags = AVIA_GT_WDT_SHUTDOWN;
+		wake_up_interruptible(&wdt->wakeup_q);
+		wait_for_completion(&wdt->compl);
+		kfree (wdt);
+		wdt = NULL;
+	}
+
+	if (msgqueue) 
+		avia_gt_dmx_free_queue(msgqueue->index);
+	
 	avia_gt_dmx_risc_reset(0);
 }
 
@@ -1492,12 +1565,15 @@ MODULE_LICENSE("GPL");
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 module_param(hw_sections, int, 0);
+module_param(no_watchdog, int, 0);
 #else
 MODULE_PARM(ucode, "s");
 MODULE_PARM_DESC(ucode, "path to risc microcode");
 MODULE_PARM(hw_sections, "i");
+MODULE_PARM(no_watchdog, "i");
 #endif
 MODULE_PARM_DESC(hw_sections, "hw_sections: 0=disabled, 1=enabled if possible (default)");
+MODULE_PARM_DESC(no_watchdog, "0: wd enabled, 1: wd disabled");
 
 EXPORT_SYMBOL(avia_gt_dmx_alloc_queue_audio);
 EXPORT_SYMBOL(avia_gt_dmx_alloc_queue_message);

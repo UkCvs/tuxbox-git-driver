@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_ir.c,v 1.30 2003/09/30 05:45:35 obi Exp $
+ * $Id: avia_gt_ir.c,v 1.30.4.1 2005/01/31 20:04:09 carjay Exp $
  * 
  * AViA eNX/GTX ir driver (dbox-II-project)
  *
@@ -35,7 +35,9 @@
 
 DECLARE_WAIT_QUEUE_HEAD(rx_wait);
 DECLARE_WAIT_QUEUE_HEAD(tx_wait);
+DECLARE_MUTEX(ir_sem);
 
+static int clientnr;
 static sAviaGtInfo *gt_info;
 static u32 duty_cycle = 33;
 static u16 first_period_low;
@@ -258,16 +260,14 @@ void avia_gt_ir_set_queue(unsigned int addr)
 	tx_buffer = (sAviaGtTxIrPulse *)(&gt_info->mem_addr[addr + 256]);
 }
 
-int avia_gt_ir_init(void)
-{
-	printk(KERN_INFO "avia_gt_ir: $Id: avia_gt_ir.c,v 1.30 2003/09/30 05:45:35 obi Exp $\n");
-
-	do_gettimeofday(&last_timestamp);
-	
-	gt_info = avia_gt_get_info();
-
-	if (!avia_gt_supported_chipset(gt_info))
-		return -ENODEV;
+/* f.ex. the samsung driver wants to roll its own, so the IRQs are only 
+		requested when a client attaches */
+int avia_gt_ir_register(void *foo){
+	if (down_interruptible(&ir_sem))
+		return -ERESTARTSYS;
+	if (clientnr)
+		return -EUSERS;
+	clientnr++;
 
 	if (avia_gt_alloc_irq(gt_info->irq_ir, avia_gt_ir_rx_irq)) {
 		printk(KERN_ERR "avia_gt_ir: unable to get rx interrupt\n");
@@ -288,14 +288,42 @@ int avia_gt_ir_init(void)
 	avia_gt_ir_set_queue(AVIA_GT_MEM_IR_OFFS);
 	avia_gt_ir_set_frequency(frequency);
 
+	up(&ir_sem);
+	return 0;
+}
+
+int avia_gt_ir_unregister(void *foo){
+	if (down_interruptible(&ir_sem))
+		return -ERESTARTSYS;
+	if (!clientnr){
+		printk ("avia_gt_ir: no clients registered");
+		return -EIO;
+	}
+	clientnr--;
+
+	avia_gt_free_irq(gt_info->irq_it);
+	avia_gt_free_irq(gt_info->irq_ir);
+	avia_gt_ir_reset(0);
+	
+	up(&ir_sem);
+	return 0;
+}
+
+int avia_gt_ir_init(void)
+{
+	printk(KERN_INFO "avia_gt_ir: $Id: avia_gt_ir.c,v 1.30.4.1 2005/01/31 20:04:09 carjay Exp $\n");
+
+	do_gettimeofday(&last_timestamp);
+	
+	gt_info = avia_gt_get_info();
+
+	if (!avia_gt_supported_chipset(gt_info))
+		return -ENODEV;
 	return 0;
 }
 
 void avia_gt_ir_exit(void)
 {
-	avia_gt_free_irq(gt_info->irq_it);
-	avia_gt_free_irq(gt_info->irq_ir);
-	avia_gt_ir_reset(0);
 }
 
 #if defined(STANDALONE)
@@ -316,5 +344,5 @@ EXPORT_SYMBOL(avia_gt_ir_send_buffer);
 EXPORT_SYMBOL(avia_gt_ir_send_pulse);
 EXPORT_SYMBOL(avia_gt_ir_set_duty_cycle);
 EXPORT_SYMBOL(avia_gt_ir_set_frequency);
-EXPORT_SYMBOL(avia_gt_ir_init);
-EXPORT_SYMBOL(avia_gt_ir_exit);
+EXPORT_SYMBOL(avia_gt_ir_register);
+EXPORT_SYMBOL(avia_gt_ir_unregister);

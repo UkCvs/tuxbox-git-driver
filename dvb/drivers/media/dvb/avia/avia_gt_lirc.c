@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_lirc.c,v 1.14.4.2 2005/01/26 03:36:37 carjay Exp $
+ * $Id: avia_gt_lirc.c,v 1.14.4.3 2005/01/31 20:04:09 carjay Exp $
  *
  * lirc ir driver for AViA eNX/GTX (dbox-II-project)
  *
@@ -260,9 +260,9 @@ static int __init avia_gt_lirc_init(void)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 	int ret;
 #endif
-	printk(KERN_INFO "avia_gt_lirc: $Id: avia_gt_lirc.c,v 1.14.4.2 2005/01/26 03:36:37 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_lirc: $Id: avia_gt_lirc.c,v 1.14.4.3 2005/01/31 20:04:09 carjay Exp $\n");
 
-	if (avia_gt_ir_init() < 0)
+	if (avia_gt_ir_register(NULL) < 0)
 		return -EIO;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
@@ -297,7 +297,7 @@ static void __exit avia_gt_lirc_exit(void)
 #else
 	devfs_unregister (devfs_handle);
 #endif
-	avia_gt_ir_exit();
+	avia_gt_ir_unregister(NULL);
 }
 
 module_init(avia_gt_lirc_init);

@@ -69,7 +69,10 @@ extern int avia_gt_ir_send_buffer(u8 block);
 extern int avia_gt_ir_send_pulse(u32 period_high, u32 period_low, u8 block);
 extern void avia_gt_ir_set_duty_cycle(u32 new_duty_cycle);
 extern void avia_gt_ir_set_frequency(u32 new_frequency);
+#ifndef STANDALONE
 extern int avia_gt_ir_init(void);
 extern void avia_gt_ir_exit(void);
-	    
+#endif
+extern int avia_gt_ir_register(void*);
+extern int avia_gt_ir_unregister(void *);
 #endif
