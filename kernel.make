@@ -40,7 +40,7 @@ install: all
 	@$(MAKE) -C $(KERNEL_LOCATION) M=$(DRIVER_TOPDIR) KBUILD_VERBOSE=0 modules_install
 
 clean:
-	@$(MAKE) -C $(KERNEL_LOCATION) M=$(PWD) KBUILD_VERBOSE=0 clean
+	@$(MAKE) -C $(KERNEL_LOCATION) M=$(shell pwd) KBUILD_VERBOSE=0 clean
 
 # for CDK compatibility, there is no useable distclean from here
 distclean:	clean
