@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_ir_rc_nokia.c,v 1.1.2.1 2005/02/09 05:09:57 carjay Exp $
+ * $Id: avia_gt_ir_rc_nokia.c,v 1.1.2.2 2005/02/09 18:46:16 carjay Exp $
  *
  * nokia (old) rc driver
  *
@@ -88,6 +88,8 @@ static void rc_timeout(unsigned long data)
 		return;
 	/* "key released" event after timeout */
 	dbox2_fp_rc_input_event(EV_KEY, last_key->code, KEY_RELEASED);
+	last_key = NULL;
+	irc->priv = (void *)last_key;
 }
 
 static int avia_gt_ir_rc_input_nokia(struct ir_rc_client *irc){
@@ -150,28 +152,26 @@ static int avia_gt_ir_rc_decode_nokia(struct ir_rc_client *irc, u32 pulselow, u3
 		gap between codes is 79500 but the Nokia RC sends:
 			0xfffe - short pause - code - [gap] - [code] - ... - 0xfffe
 	*/
-	if (filtered_low>=5){
+	if (filtered_low>5){
 		skip=0;state=0;
+		return -EAGAIN;
 	} else if (skip){
 		return -EINVAL;
 	}
 
-	if (state >= 34){	/* symb. too long */
+	if (state > 32){	/* symb. too long */
 		return -EINVAL;
 	}
 	
-	if (!filtered_low && state){
-		skip = 1;
+	if (filtered_low>90 && state){
+		skip = 1;		/* data was lost */
 		return -EINVAL;
-	} else if (!filtered_low && !state){
-		state++;	/* start condition */
-		return -EAGAIN;
 	}
-
-	if (state == 1 && filtered_low != 5 ){
+	
+	if (!state && filtered_low != 5 ){
 		skip = 1;
 		return -EINVAL;
-	} else if (state == 1 && filtered_low == 5){
+	} else if (!state && filtered_low == 5){
 		state++;	/* symbol header */
 		symbol=0;
 		return -EAGAIN;
@@ -186,12 +186,12 @@ static int avia_gt_ir_rc_decode_nokia(struct ir_rc_client *irc, u32 pulselow, u3
 	state++;	/* first bit always low */
 	if (filtered_low == 2)
 		state++;
-	symbol |= 1 << (34-state++);	/* state starts at 2 */
+	symbol |= 1 << (33-state++);	/* state starts at 1 */
 	if (filtered_high == 2){
-		symbol |= 1 << (34-state++);
+		symbol |= 1 << (33-state++);
 	}
 
-	if (state >= 34){
+	if (state > 32){
 		/* symbol complete, now decode (phase shift) */
 		int i;
 		irc->received_code = 0;
