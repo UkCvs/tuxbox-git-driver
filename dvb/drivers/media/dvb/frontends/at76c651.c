@@ -276,6 +276,9 @@ static int at76c651_set_parameters(struct dvb_frontend* fe,
 	if ((ret = at76c651_set_symbol_rate(state, p->u.qam.symbol_rate)))
 		return ret;
 
+	if ((ret = at76c651_set_qam(state, p->u.qam.modulation)))
+		return ret;
+
 	if ((ret = at76c651_set_inversion(state, p->inversion)))
 		return ret;
 
