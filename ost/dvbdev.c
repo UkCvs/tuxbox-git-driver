@@ -164,7 +164,7 @@ static void dvb_init_device(dvb_device_t *dev)
 		devfs_register(dev->devfsh, name, DEVFS_FL_DEFAULT,
 			       DVB_MAJOR, (dev->minor<<6)+i,
 			       S_IFCHR | S_IRUSR | S_IWUSR,
-			       &dvb_device_fops, NULL);
+			       &dvb_device_fops, dev);
 	}
 
 }
