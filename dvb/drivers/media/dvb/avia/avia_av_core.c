@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_core.c,v 1.98.2.1 2005/01/15 02:35:09 carjay Exp $
+ * $Id: avia_av_core.c,v 1.98.2.2 2005/01/25 22:58:06 carjay Exp $
  *
  * AViA 500/600 core driver (dbox-II-project)
  *
@@ -87,8 +87,8 @@ static struct {
 #endif
 static int dev;
 
-static spinlock_t avia_command_lock;
-static spinlock_t avia_register_lock;
+static spinlock_t avia_command_lock=SPIN_LOCK_UNLOCKED;
+static spinlock_t avia_register_lock=SPIN_LOCK_UNLOCKED;
 static wait_queue_head_t avia_cmd_wait;
 static wait_queue_head_t avia_av_wdt_sleep;
 static long kernel_thread_pid;
@@ -1593,7 +1593,7 @@ static int __init avia_av_core_init(void)
 	avia_info.dram_start = res->start;
 #endif
 
-	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.1 2005/01/15 02:35:09 carjay Exp $\n");
+	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.2 2005/01/25 22:58:06 carjay Exp $\n");
 
 	if (tv_standard != AVIA_AV_VIDEO_SYSTEM_PAL)
 		tv_standard = AVIA_AV_VIDEO_SYSTEM_NTSC;
