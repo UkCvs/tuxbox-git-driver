@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_napi_core.c,v 1.1.2.2 2005/02/01 00:16:47 carjay Exp $
+ * $Id: dbox2_napi_core.c,v 1.1.2.3 2005/02/01 04:22:14 carjay Exp $
  *
  * Dbox2 DVB Adapter driver
  *
@@ -66,6 +66,7 @@ enum {
 	DBOX2_NAPI_PHILIPS = 2,
 	DBOX2_NAPI_SAGEM = 3
 };
+static int manuf_id;
 
 struct dvb_adapter *dbox2_napi_get_adapter(void)
 {
@@ -103,8 +104,12 @@ static int dbox2_napi_status_monitor(struct dvb_frontend *fe, fe_status_t *statu
 	return 0;
 }
 
+/**************************/
+/* DVB API frontend probe */
+/**************************/
+
 #if 0
-static int dbox2_fe_setup_ves1820(struct dbox2_fe *state, struct ves1820_config *cfg, int manuf_id))
+static int dbox2_fe_setup_ves1820(struct dbox2_fe *state, struct ves1820_config *cfg))
 {
 	struct dvb_frontend_ops ops;
 	state->dvb_fe = ves1820_attach(cfg,state->i2c_adap);
@@ -136,7 +141,7 @@ static int ves1x93_get_identity (int *id)
 }
 /* HACK */
 
-static int dbox2_fe_setup_ves1x93(struct dbox2_fe *state, struct ves1x93_config *cfg, int manuf_id)
+static int dbox2_fe_setup_ves1x93(struct dbox2_fe *state, struct ves1x93_config *cfg)
 {
 	int id;
 	state->dvb_fe = ves1x93_attach(cfg,state->i2c_adap);
@@ -171,70 +176,113 @@ static int dbox2_fe_setup_ves1x93(struct dbox2_fe *state, struct ves1x93_config 
 	return 0;
 }
 
+/***************/
+/* board probe */
+/***************/
+
+int dbox2_probe_nokia_S_frontend(struct dbox2_fe *state){
+	struct ves1x93_config *Scfg = kmalloc(sizeof(struct ves1x93_config),GFP_KERNEL);
+	if (!Scfg)
+		return -ENOMEM;
+	Scfg->demod_address = 0x10>>1;
+	Scfg->xin = 96000000UL;
+	Scfg->invert_pwm = 0;
+	Scfg->pll_init = dbox2_napi_pll_init;
+	Scfg->pll_set = dbox2_napi_pll_set;
+	if (dbox2_fe_setup_ves1x93(state,Scfg)){
+		kfree(Scfg);
+		return -ENODEV;
+	}
+	state->fe_config = Scfg;
+	return 0;
+}
+
+int dbox2_probe_nokia_C_frontend(struct dbox2_fe *state){
+	return -ENODEV;
+}
+
+int dbox2_probe_philips_S_frontend(struct dbox2_fe *state){
+	return -ENODEV;
+}
+
+int dbox2_probe_philips_C_frontend(struct dbox2_fe *state){
+	return -ENODEV;
+}
+
+int dbox2_probe_sagem_S_frontend(struct dbox2_fe *state){
+	struct ves1x93_config *Scfg = kmalloc(sizeof(struct ves1x93_config),GFP_KERNEL);
+	if (!Scfg)
+		return -ENOMEM;
+	Scfg->demod_address = 0x10>>1;
+	Scfg->xin = 92160000UL;
+	Scfg->invert_pwm = 1;
+	Scfg->pll_init = dbox2_napi_pll_init;
+	Scfg->pll_set = dbox2_napi_pll_set;
+	if (dbox2_fe_setup_ves1x93(state,Scfg)){
+		kfree(Scfg);
+		return -ENODEV;
+	}
+	state->fe_config = Scfg;
+	return 0;
+}
+
+int dbox2_probe_sagem_C_frontend(struct dbox2_fe *state){
+	return -ENODEV;
+}
+
+/****************/
+/* driver probe */
+/****************/
+
 static int dbox2_fe_probe(struct device *dev)
 {
     /* find out board manufacturer */
 	int ret;
 	struct platform_device *pdev = to_platform_device(dev);
-    int manuf_id = (int)pdev->dev.platform_data;
+    manuf_id = (int)pdev->dev.platform_data;
 
     switch (manuf_id){
-    case DBOX2_NAPI_NOKIA:{
-		/* TODO */
-/*
-		struct ves1820_config vesC_cfg = {
-		};
-*/
-		/* cable TODO */
-/*
-		if (!dbox2_fe_setup_ves1820(&fe_state, &vesC_cfg, manuf_id))
-			break;
-*/
-
-		break;}
-
-    case DBOX2_NAPI_PHILIPS:{
-		/* TODO */
-		/* satellite */
-	    break;}
-
-    case DBOX2_NAPI_SAGEM:{
-		/* satellite (ves1993) */
-		struct ves1x93_config *Scfg = kmalloc(sizeof(struct ves1x93_config),GFP_KERNEL);
-		if (!Scfg)
-			break;
-		Scfg->demod_address = 0x10>>1;
-		Scfg->xin = 92160000UL;
-		Scfg->invert_pwm = 1;
-		Scfg->pll_init = dbox2_napi_pll_init;
-		Scfg->pll_set = dbox2_napi_pll_set;
-
-		if (!dbox2_fe_setup_ves1x93(&fe_state,Scfg,manuf_id)){
-			fe_state.fe_config = Scfg;
-			break;
-		} else {
-			kfree(Scfg);
+    case DBOX2_NAPI_NOKIA:
+		if (dbox2_probe_nokia_S_frontend(&fe_state) &&
+				dbox2_probe_nokia_C_frontend(&fe_state)){
+			printk(KERN_ERR "dbox2_napi: no Nokia frontend found\n");
+			return -ENODEV;
 		}
-		
-		/* cable (at76c651) */
-		/* TODO */
+	    break;
 
-		printk(KERN_ERR "dbox2_napi: no frontend found\n");
-		return -ENODEV;
-    }
+    case DBOX2_NAPI_PHILIPS:
+		if (dbox2_probe_philips_S_frontend(&fe_state) &&
+				dbox2_probe_philips_C_frontend(&fe_state)){
+			printk(KERN_ERR "dbox2_napi: no Philips frontend found\n");
+			return -ENODEV;
+		}
+	    break;
+
+    case DBOX2_NAPI_SAGEM:
+		if (dbox2_probe_sagem_S_frontend(&fe_state) &&
+				dbox2_probe_sagem_C_frontend(&fe_state)){
+			printk(KERN_ERR "dbox2_napi: no Sagem frontend found\n");
+			return -ENODEV;
+		}
+		break;
     default:
 	    printk(KERN_ERR "dbox2_napi: unknown manufacturer id: %d\n",manuf_id);
 	    return -ENODEV;	
     }
 
-	/* we want to quicky restart the framer if the signal gets interrupted, so we
+	/* We want to quicky restart the framer if the signal gets interrupted, so we
 		listen in on the status. Not all ucodes report errors so this might
 		be necessary */
+
 	fe_state.fe_read_status = fe_state.dvb_fe->ops->read_status;
 	fe_state.dvb_fe->ops->read_status = dbox2_napi_status_monitor;
 	
 	if ((ret = dvb_register_frontend(fe_state.dvb_adap, fe_state.dvb_fe))<0){
 		printk(KERN_ERR "dbox2_napi: error registering frontend\n");
+		if (fe_state.fe_config){
+			kfree(fe_state.fe_config);
+			fe_state.fe_config = NULL;
+		}
 		return ret;
 	}
     return 0;
@@ -259,7 +307,7 @@ static struct device_driver dbox2_fe_driver = {
 static int __init dbox2_napi_init(void)
 {
 	int res;
-	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.2 2005/02/01 00:16:47 carjay Exp $\n");
+	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.3 2005/02/01 04:22:14 carjay Exp $\n");
 
 	if ((res = dvb_register_adapter(&fe_state.dvb_adap, "C-Cube AViA GTX/eNX with AViA 500/600",THIS_MODULE))<0){
 		printk(KERN_ERR "dbox2_napi: error registering adapter\n");
