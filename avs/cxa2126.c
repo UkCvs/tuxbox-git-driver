@@ -21,6 +21,12 @@
  *
  *
  *   $Log: cxa2126.c,v $
+ *   Revision 1.22.6.1  2003/07/02 15:56:50  ghostrider
+ *   add lucgas enigma image driver to cvs
+ *
+ *   Revision 1.2  2003/06/21 15:22:19  dkey
+ *   change to drivers from 27.8.02
+ *
  *   Revision 1.22  2002/04/25 12:08:50  happydude
  *   unified scart pin 8 voltage setting for lazyT :)
  *   hopefully fix mute status on Philips for sat24
@@ -90,7 +96,7 @@
  *   initial release
  *
  *
- *   $Revision: 1.22 $
+ *   $Revision: 1.22.6.1 $
  *
  */
 

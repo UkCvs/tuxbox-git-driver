@@ -21,11 +21,11 @@
  *
  *
  *   $Log: cxa2092.c,v $
- *   Revision 1.24.2.1  2003/03/26 09:57:40  thegoodguy
- *   == 1.25 (current HEAD) == 1.24.4.1 (current rel_alexW): "fnc at init"
+ *   Revision 1.24.2.1.2.1  2003/07/02 15:56:50  ghostrider
+ *   add lucgas enigma image driver to cvs
  *
- *   Revision 1.25  2003/02/17 17:30:07  alexw
- *   fnc at init
+ *   Revision 1.2  2003/06/21 15:22:19  dkey
+ *   change to drivers from 27.8.02
  *
  *   Revision 1.24  2002/04/25 12:08:49  happydude
  *   unified scart pin 8 voltage setting for lazyT :)
@@ -97,7 +97,7 @@
  *   Revision 1.3  2001/01/06 10:05:43  gillem
  *   cvs check
  *
- *   $Revision: 1.24.2.1 $
+ *   $Revision: 1.24.2.1.2.1 $
  *
  */
 
@@ -605,7 +605,6 @@ int cxa2092_init(struct i2c_client *client)
 	cxa2092_data.vsw2 = 1;
 	cxa2092_data.asw2 = 1;
 
-	cxa2092_data.fnc  = 2;
 	cxa2092_data.asw3 = 1;
 
 	return cxa2092_set(client);

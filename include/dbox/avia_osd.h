@@ -1,7 +1,9 @@
 /*
- *   i2c-8xx.h - ppc i2c driver (dbox-II-project)
+ *   avia_osd.h - AViA OSD driver (dbox-II-project)
  *
- *   Copyright (C) 2000-2001 Tmbinc, Gillem (htoa@gmx.net)
+ *   Homepage: http://dbox2.elxsi.de
+ *
+ *   Copyright (C) 2001 Gillem (htoa@gmx.net)
  *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -18,36 +20,35 @@
  *   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  *
- *   $Log: i2c-8xx.h,v $
- *   Revision 1.4.12.1  2003/07/02 15:56:56  ghostrider
+ *   $Log: avia_osd.h,v $
+ *   Revision 1.2.4.1  2003/07/02 15:56:57  ghostrider
  *   add lucgas enigma image driver to cvs
  *
- *   Revision 1.2  2003/06/21 15:22:19  dkey
+ *   Revision 1.3  2003/06/21 15:22:19  dkey
  *   change to drivers from 27.8.02
  *
- *   Revision 1.4  2001/02/20 18:37:05  gillem
- *   - remove polling some drivers not work now !
+ *   Revision 1.1  2001/03/06 21:51:35  gillem
+ *   - initial release
  *
- *   Revision 1.3  2001/01/06 10:06:01  gillem
- *   cvs check
  *
- *   $Revision: 1.4.12.1 $
+ *
+ *   $Revision: 1.2.4.1 $
  *
  */
 
-#ifndef _I2C_H_
-#define _I2C_H_
+typedef struct sosd_create_frame {
+	int framenr;
+	int x;
+	int y;
+	int w;
+	int h;
+	int gbf;
+	int pel;
+	int psize;
+	void *palette;
+	int bsize;
+	void *bitmap;
+} sosd_create_frame;
 
-void i2c_init(int speed);
-
-void i2c_send( unsigned char address,
-				unsigned char secondary_address,
-				int enable_secondary,
-				unsigned short size, unsigned char dataout[] );
-
-void i2c_receive(unsigned char address,
-				unsigned char secondary_address,
-				int enable_secondary,
-                unsigned short size_to_expect, unsigned char datain[] );
-
-#endif
+#define OSD_IOCTL_CREATE_FRAME	0
+#define OSD_IOCTL_DESTROY_FRAME	1

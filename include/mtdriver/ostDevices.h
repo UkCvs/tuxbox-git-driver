@@ -23,7 +23,7 @@
  * \brief Default major numbers and device names for OST-specific
  * device drivers.
  *
- * \version $Id: ostDevices.h,v 1.3 2002/02/24 15:32:06 woglinde Exp $
+ * \version $Id: ostDevices.h,v 1.3.8.1 2003/07/02 15:57:03 ghostrider Exp $
  *
  * \date <Add date>
  *
@@ -46,7 +46,7 @@ extern "C" {
  *      OST
  */
 
-/* $Id: ostDevices.h,v 1.3 2002/02/24 15:32:06 woglinde Exp $ */
+/* $Id: ostDevices.h,v 1.3.8.1 2003/07/02 15:57:03 ghostrider Exp $ */
 
 /*
  * Defines and consts

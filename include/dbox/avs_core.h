@@ -21,6 +21,12 @@
  *
  *
  *   $Log: avs_core.h,v $
+ *   Revision 1.7.6.1  2003/07/02 15:56:57  ghostrider
+ *   add lucgas enigma image driver to cvs
+ *
+ *   Revision 1.3  2003/06/21 15:22:19  dkey
+ *   change to drivers from 27.8.02
+ *
  *   Revision 1.7  2002/04/25 12:07:06  happydude
  *   unified setting of scart pin8 voltage for lazyT :)
  *
@@ -43,7 +49,7 @@
  *   - initial release
  *
  *
- *   $Revision: 1.7 $
+ *   $Revision: 1.7.6.1 $
  *
  */
 

@@ -290,7 +290,6 @@
 #define ENX_IRQ_VL2				AVIA_GT_IRQ(ENX_IRQ_REG_ISR0, 6)
 #define ENX_IRQ_CAPTURE			AVIA_GT_IRQ(ENX_IRQ_REG_ISR0, 7)
 #define ENX_IRQ_PCR				AVIA_GT_IRQ(ENX_IRQ_REG_ISR1, 5)
-#define ENX_IRQ_TT				AVIA_GT_IRQ(ENX_IRQ_REG_ISR1, 8)
 
 #pragma pack(1)
 
@@ -371,13 +370,6 @@ typedef struct {
   };
 
 } sENX_REG_CPCCRCSRC2;*/
-
-typedef struct {
-
-  unsigned char Reserved1: 8;
-  unsigned int Addr: 24;
-
-} sENX_REG_CPCDST;
 
 typedef struct {
 

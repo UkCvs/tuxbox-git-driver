@@ -20,6 +20,12 @@
  *	Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  *	$Log: event.c,v $
+ *	Revision 1.9.6.1  2003/07/02 15:56:54  ghostrider
+ *	add lucgas enigma image driver to cvs
+ *	
+ *	Revision 1.2  2003/06/21 15:22:19  dkey
+ *	change to drivers from 27.8.02
+ *	
  *	Revision 1.9  2002/08/12 17:00:47  obi
  *	removed compiler warning
  *	
@@ -51,7 +57,7 @@
  *	- initial release (not ready today)
  *
  *
- *	$Revision: 1.9 $
+ *	$Revision: 1.9.6.1 $
  *
  */
 

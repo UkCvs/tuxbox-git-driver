@@ -20,11 +20,11 @@
  *   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  *
- *   $Log: avia_av_osd.c,v $
- *   Revision 1.14.6.1  2003/07/02 15:56:40  ghostrider
+ *   $Log: avia_osd.c,v $
+ *   Revision 1.13.4.1  2003/07/02 15:56:42  ghostrider
  *   add lucgas enigma image driver to cvs
  *
- *   Revision 1.2  2003/06/21 15:22:18  dkey
+ *   Revision 1.3  2003/06/21 15:22:19  lucgas
  *   change to drivers from 27.8.02
  *
  *   Revision 1.12  2002/08/22 13:39:33  Jolt
@@ -66,7 +66,7 @@
  *   - initial release
  *
  *
- *   $Revision: 1.14.6.1 $
+ *   $Revision: 1.13.4.1 $
  *
  */
 

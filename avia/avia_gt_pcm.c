@@ -21,11 +21,11 @@
  *
  *
  *   $Log: avia_gt_pcm.c,v $
- *   Revision 1.19  2002/10/03 11:12:42  thegoodguy
- *   Reenable full volume
+ *   Revision 1.19.6.1  2003/07/02 15:56:42  ghostrider
+ *   add lucgas enigma image driver to cvs
  *
- *   Revision 1.18  2002/09/25 18:50:52  Jolt
- *   Added 24000 and 12000 sample rate support
+ *   Revision 1.3  2003/06/21 15:22:19  dkey
+ *   change to drivers from 27.8.02
  *
  *   Revision 1.17  2002/08/22 13:39:33  Jolt
  *   - GCC warning fixes
@@ -84,7 +84,7 @@
  *
  *
  *
- *   $Revision: 1.19 $
+ *   $Revision: 1.19.6.1 $
  *
  */
 
@@ -357,36 +357,29 @@ void avia_gt_pcm_set_pcm_attenuation(unsigned char left, unsigned char right)
 int avia_gt_pcm_set_rate(unsigned short rate)
 {
 
-	unsigned char divider_mode = 3;
+	unsigned char divider_mode = (unsigned char)0;
 
 	switch(rate) {
 
-		case 48000:
-		case 44100:
+	case 48000:
+	case 44100:
 
-			divider_mode = 3;
-		
+		divider_mode = 3;
 		break;
 
-		case 24000:
-		case 22050:
+	case 22050:
 
-			divider_mode = 2;
-		
+		divider_mode = 2;
 		break;
 
-		case 12000:
-		case 11025:
+	case 11025:
 
-			divider_mode = 1;
-		
+		divider_mode = 1;
 		break;
 
-		default:
+	default:
 
-			return -EINVAL;
-			
-		break;
+		return -EINVAL;
 
 	}
 
@@ -581,7 +574,7 @@ int avia_gt_pcm_init(void)
 	unsigned short irq_ad  = (unsigned short)0;
 	unsigned short irq_pf  = (unsigned short)0;
 
-	printk("avia_gt_pcm: $Id: avia_gt_pcm.c,v 1.19 2002/10/03 11:12:42 thegoodguy Exp $\n");
+	printk("avia_gt_pcm: $Id: avia_gt_pcm.c,v 1.19.6.1 2003/07/02 15:56:42 ghostrider Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
@@ -641,7 +634,7 @@ int avia_gt_pcm_init(void)
 		gtx_reg_set(PCMC, I, 0);
 
 	// Pass through mpeg samples
-	avia_gt_pcm_set_mpeg_attenuation(0x80, 0x80);
+	avia_gt_pcm_set_mpeg_attenuation(0x40, 0x40);
 
 	// Set a default mode
 	avia_gt_pcm_set_rate(44100);

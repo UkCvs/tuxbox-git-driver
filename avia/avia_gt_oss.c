@@ -21,17 +21,14 @@
  *
  *
  *   $Log: avia_gt_oss.c,v $
- *   Revision 1.12  2002/10/03 13:32:36  alexw
- *   changed output volume to avoid clipping
+ *   Revision 1.12.6.1  2003/07/02 15:56:42  ghostrider
+ *   add lucgas enigma image driver to cvs
  *
- *   Revision 1.11  2002/09/25 18:50:52  Jolt
- *   Added 24000 and 12000 sample rate support
+ *   Revision 1.4  2003/06/25 23:10:50  lucgas
+ *   mp3 fix
  *
- *   Revision 1.10  2002/09/24 17:50:19  Jolt
- *   PCM sample rate hack
- *
- *   Revision 1.9  2002/09/22 14:19:00  Jolt
- *   Misc fixes/cleanups
+ *   Revision 1.3  2003/06/21 15:22:18  dkey
+ *   change to drivers from 27.8.02
  *
  *   Revision 1.8  2002/08/22 13:39:33  Jolt
  *   - GCC warning fixes
@@ -62,7 +59,7 @@
  *
  *
  *
- *   $Revision: 1.12 $
+ *   $Revision: 1.12.6.1 $
  *
  */
 
@@ -84,11 +81,8 @@
 
 #include <dbox/avia_gt_pcm.h>
 
-int dsp_dev	= 0;
-int mixer_dev = 0;
-
-extern int avia_standby(int state);
-extern u16 avia_get_sample_rate(void);
+int dsp_dev			= (int)0;
+int mixer_dev		= (int)0;
 
 static int avia_oss_dsp_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -108,8 +102,8 @@ static int avia_oss_dsp_ioctl(struct inode *inode, struct file *file, unsigned i
 
 	case SNDCTL_DSP_CHANNELS:
 
-		if (get_user(val, (int *)arg))
-			return -EFAULT;
+	    if (get_user(val, (int *)arg))
+		return -EFAULT;
 
 	    dprintk("avia_oss: IOCTL: SNDCTL_DSP_CHANNELS (arg=%d)\n", val);
 
@@ -171,8 +165,8 @@ static int avia_oss_dsp_ioctl(struct inode *inode, struct file *file, unsigned i
 
 	case SNDCTL_DSP_SETFMT:
 
-		if (get_user(val, (int *)arg))
-			return -EFAULT;
+	    if (get_user(val, (int *)arg))
+		return -EFAULT;
 
 	    dprintk("avia_oss: IOCTL: SNDCTL_DSP_SETFMT (arg=%d)\n", val);
 
@@ -180,8 +174,8 @@ static int avia_oss_dsp_ioctl(struct inode *inode, struct file *file, unsigned i
 
 		case AFMT_U8:
 
-			if ((retval = avia_gt_pcm_set_width(8)) < 0)
-				return retval;
+		    if ((retval = avia_gt_pcm_set_width(8)) < 0)
+			return retval;
 
 		    return avia_gt_pcm_set_signed(0);
 
@@ -189,10 +183,12 @@ static int avia_oss_dsp_ioctl(struct inode *inode, struct file *file, unsigned i
 
 		case AFMT_S8:
 
-			if ((retval = avia_gt_pcm_set_width(8)) < 0)
-				return retval;
+		    if ((retval = avia_gt_pcm_set_width(8)) < 0)
+			return retval;
 
 		    return avia_gt_pcm_set_signed(1);
+
+		    return 0;
 
 		break;
 
@@ -250,33 +246,26 @@ static int avia_oss_dsp_ioctl(struct inode *inode, struct file *file, unsigned i
 
 	case SNDCTL_DSP_SPEED:
 
-		if (get_user(val, (int *)arg))
-			return -EFAULT;
+	    if (get_user(val, (int *)arg))
+		return -EFAULT;
 
-		dprintk("avia_oss: IOCTL: SNDCTL_DSP_SPEED (arg=%d)\n", val);
-		
-		if ((val != 48000) && (val != 24000) && (val != 12000) && (avia_get_sample_rate() != 44100)) {
+	    dprintk("avia_oss: IOCTL: SNDCTL_DSP_SPEED (arg=%d)\n", val);
 
-			avia_standby(1);
-			avia_standby(0);
-		
-		}
-
-		return avia_gt_pcm_set_rate(val);
+	    return avia_gt_pcm_set_rate(val);
 
 	break;
 
 	case SNDCTL_DSP_STEREO:
 
-		if (get_user(val, (int *)arg))
-			return -EFAULT;
+	    if (get_user(val, (int *)arg))
+		return -EFAULT;
 
-		dprintk("avia_oss: IOCTL: SNDCTL_DSP_STEREO (arg=%d)\n", val);
+	    dprintk("avia_oss: IOCTL: SNDCTL_DSP_STEREO (arg=%d)\n", val);
 
-		if ((val == 0) || (val == 1))
-			return avia_gt_pcm_set_channels(val + 1);
-		else
-			return -EINVAL;
+	    if ((val == 0) || (val == 1))
+		return avia_gt_pcm_set_channels(val + 1);
+	    else
+		return -EINVAL;
 
 	break;
 
@@ -324,14 +313,14 @@ static int avia_oss_dsp_ioctl(struct inode *inode, struct file *file, unsigned i
 static ssize_t avia_oss_dsp_write(struct file *file, const char *buf, size_t count, loff_t *offset)
 {
 
-    int result;
+    int result = (int)0;
 
     dprintk("avia_oss: dsp write (buffer=0x%X, count=%d)\n", (unsigned int)buf, count);
 
-    result = avia_gt_pcm_play_buffer((void *)buf, count, !(file->f_flags & O_NONBLOCK));
+    return avia_gt_pcm_play_buffer((void *)buf, count, !(file->f_flags & O_NONBLOCK));
 
-    if ((result > 0) && (offset))
-		*offset += result;
+    if (result > 0)
+	*offset += result;
 
     return result;
 
@@ -339,18 +328,15 @@ static ssize_t avia_oss_dsp_write(struct file *file, const char *buf, size_t cou
 
 unsigned int avia_oss_dsp_poll(struct file *file, struct poll_table_struct *wait)
 {
-
 	return avia_gt_pcm_poll(file, wait);
-	
 }
 
 static struct file_operations dsp_fops = {
 
     ioctl: avia_oss_dsp_ioctl,
     owner: THIS_MODULE,
-    poll: avia_oss_dsp_poll,
     write: avia_oss_dsp_write,
-	
+    poll: avia_oss_dsp_poll,
 };
 
 static struct file_operations mixer_fops = {
@@ -363,9 +349,9 @@ static struct file_operations mixer_fops = {
 static int __init avia_oss_init(void)
 {
 
-    printk("avia_oss: $Id: avia_gt_oss.c,v 1.12 2002/10/03 13:32:36 alexw Exp $\n");
+    printk("avia_oss: $Id: avia_gt_oss.c,v 1.12.6.1 2003/07/02 15:56:42 ghostrider Exp $\n");
 
-    avia_gt_pcm_set_pcm_attenuation(0x70, 0x70);
+    avia_gt_pcm_set_pcm_attenuation(0x80, 0x80);
 
     avia_gt_pcm_set_rate(44100);
     avia_gt_pcm_set_width(16);

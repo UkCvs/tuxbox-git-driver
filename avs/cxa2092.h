@@ -21,6 +21,12 @@
  *
  *
  *   $Log: cxa2092.h,v $
+ *   Revision 1.12.8.1  2003/07/02 15:56:50  ghostrider
+ *   add lucgas enigma image driver to cvs
+ *
+ *   Revision 1.2  2003/06/21 15:22:19  dkey
+ *   change to drivers from 27.8.02
+ *
  *   Revision 1.12  2002/02/28 20:42:45  gillem
  *   - some changes
  *   - add vcr/tv slow blanking event
@@ -56,7 +62,7 @@
  *   Revision 1.2  2001/01/06 10:05:43  gillem
  *   cvs check
  *
- *   $Revision: 1.12 $
+ *   $Revision: 1.12.8.1 $
  *
  */
 

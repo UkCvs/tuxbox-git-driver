@@ -21,20 +21,11 @@
  *
  *
  *   $Log: avia_gt_accel.c,v $
- *   Revision 1.8  2002/10/13 21:16:15  Jolt
- *   HW copy
+ *   Revision 1.8.6.1  2003/07/02 15:56:41  ghostrider
+ *   add lucgas enigma image driver to cvs
  *
- *   Revision 1.7  2002/10/09 18:31:06  Jolt
- *   HW copy support
- *
- *   Revision 1.6  2002/09/19 21:09:20  Jolt
- *   Removed old sw crc dependency
- *
- *   Revision 1.5  2002/09/13 22:53:55  Jolt
- *   HW CRC support
- *
- *   Revision 1.4  2002/09/13 21:37:30  Jolt
- *   Fixed GTX HW-CRC
+ *   Revision 1.3  2003/06/21 15:22:18  dkey
+ *   change to drivers from 27.8.02
  *
  *   Revision 1.3  2002/08/27 20:18:45  Jolt
  *   Engine is working now for GTX and eNX (except for section data :-( )
@@ -47,7 +38,7 @@
  *
  *
  *
- *   $Revision: 1.8 $
+ *   $Revision: 1.8.6.1 $
  *
  */
 
@@ -55,57 +46,14 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/time.h>
-#include <linux/slab.h>
 #include <asm/errno.h>
 
 #include <dbox/avia_gt.h>
 #include <dbox/avia_gt_accel.h>
+#include "crc32.c"
 
 static sAviaGtInfo *gt_info = NULL;
 static u8 max_transaction_size = 0;
-
-void avia_gt_accel_copy(u32 buffer_src, u32 buffer_dst, u32 buffer_size, u8 decrement)
-{
-
-	u32 transaction_size;
-
-	if (avia_gt_chip(ENX)) {
-	
-		enx_reg_set(CPCSRC1, Addr, buffer_src);
-		enx_reg_set(CPCDST, Addr, buffer_dst);
-
-	} else if (avia_gt_chip(GTX)) {
-	
-		gtx_reg_set(CCSA, Addr, buffer_src);
-		gtx_reg_set(CDA, Addr, buffer_dst);
-	
-	}
-
-    while (buffer_size) {
-    
-		if (buffer_size > max_transaction_size)
-			transaction_size = max_transaction_size;
-		else
-			transaction_size = buffer_size;
-
-		if (avia_gt_chip(ENX)) {
-		
-			enx_reg_16(CPCCMD) = ((!!decrement << 10)) | (3 << 8) | (transaction_size - 1);
-			
-		} else if (avia_gt_chip(GTX)) {
-		
-			if (((buffer_src & 1) || (buffer_dst & 1)) && (transaction_size == max_transaction_size))
-				transaction_size -= 2;
-	
-			gtx_reg_16(CCOM) = ((!!decrement << 10)) | (1 << 9) | (1 << 8) | (transaction_size - 1);
-			
-		}
-		
-		buffer_size -= transaction_size;
-
-	}
-	
-} 
 
 u32 avia_gt_accel_crc32(u32 buffer, u32 buffer_size, u32 seed)
 {
@@ -113,6 +61,9 @@ u32 avia_gt_accel_crc32(u32 buffer, u32 buffer_size, u32 seed)
 	u32 transaction_size;
 	u8 odd_end_padding = 0;
 	u8 odd_start_padding = 0;
+//	u32 swcrc;
+
+//	swcrc = crc32_seed((char *)&gt_info->mem_addr[buffer], buffer_size, seed);
 
 	if (avia_gt_chip(ENX)) {
 	
@@ -133,18 +84,10 @@ u32 avia_gt_accel_crc32(u32 buffer, u32 buffer_size, u32 seed)
 		
 	} else if (avia_gt_chip(GTX)) {
 	
-		if (seed) {
-		
-			gtx_reg_set(RCRC, CRC, seed ^ 0xFFFFFFFF);
-			
-		} else {
-		
+		if (seed)
+			gtx_reg_set(RCRC, CRC, seed);
+		else
 			gtx_reg_set(RCRC, CRC, *((u32*)&gt_info->mem_addr[buffer]));
-			
-			buffer += 4;
-			buffer_size -= 4;
-			
-		}
 
 		if ((buffer & 1) || (!buffer_size))
 			odd_start_padding = 1;
@@ -189,20 +132,32 @@ u32 avia_gt_accel_crc32(u32 buffer, u32 buffer_size, u32 seed)
 	
     }
 
+/*	if (swcrc != gtx_reg_32(RCRC)) {
+
+		printk("avia_gt_crc: CRC-NACK 0x%08X/0x%08X/0x%08X\n", swcrc, gtx_reg_32(RCRC), gtx_reg_32(RCRC) ^ 0xFFFFFFFF);
+
+		return swcrc;
+	
+	} else {
+		
+		printk("avia_gt_crc: CRC-ACK!!!!\n");
+		
+	}*/
+
 	if (avia_gt_chip(ENX))
 	    //return enx_reg_s(CPCCRCSRC2)->CRC.CRC;
     	return (enx_reg_32(CPCCRCSRC2) ^ 0xFFFFFFFF);
 	else if (avia_gt_chip(GTX))
-		return (gtx_reg_32(RCRC) ^ 0xFFFFFFFF);
+		return gtx_reg_32(RCRC);
 		
 	return 0;	
 
 }
 
-int __init avia_gt_accel_init(void)
+static int __init avia_gt_accel_init(void)
 {
 
-    printk("avia_gt_accel: $Id: avia_gt_accel.c,v 1.8 2002/10/13 21:16:15 Jolt Exp $\n");
+    printk("avia_gt_accel: $Id: avia_gt_accel.c,v 1.8.6.1 2003/07/02 15:56:41 ghostrider Exp $\n");
 
 	gt_info = avia_gt_get_info();
 	
@@ -228,11 +183,13 @@ int __init avia_gt_accel_init(void)
 		
 	}
 	
+//	avia_gt_accel_crc32(0, 2 * 1024 * 1024 - 100, 0);
+							    
     return 0;
     
 }
 
-void __exit avia_gt_accel_exit(void)
+static void __exit avia_gt_accel_exit(void)
 {
 
 	if (avia_gt_chip(ENX))
@@ -246,11 +203,11 @@ void __exit avia_gt_accel_exit(void)
 #ifdef MODULE_LICENSE
 MODULE_LICENSE("GPL");
 #endif
-EXPORT_SYMBOL(avia_gt_accel_copy);
 EXPORT_SYMBOL(avia_gt_accel_crc32);
 #endif
 
-#if defined(MODULE) && defined(STANDALONE)
+#if defined(MODULE) 
+//&& defined(STANDALONE)
 module_init(avia_gt_accel_init);
 module_exit(avia_gt_accel_exit);
 #endif

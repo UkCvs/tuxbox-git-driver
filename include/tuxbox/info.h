@@ -18,7 +18,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * $Id: info.h,v 1.2.2.1 2003/03/09 16:35:45 waldi Exp $
+ * $Id: info.h,v 1.2.2.1.2.1 2003/07/02 15:57:04 ghostrider Exp $
  */
 
 #ifndef TUXBOX_INFO_H

@@ -1,5 +1,5 @@
 /* 
- *   $Id: tda8044h.c,v 1.14.2.1 2003/02/20 00:41:28 ghostrider Exp $
+ *   $Id: tda8044h.c,v 1.14.2.1.2.1 2003/07/02 15:57:14 ghostrider Exp $
  *   
  *   tda8044h.c - Philips TDA8044H (d-box 2 project) 
  *
@@ -23,6 +23,15 @@
  *
  *
  *   $Log: tda8044h.c,v $
+ *   Revision 1.14.2.1.2.1  2003/07/02 15:57:14  ghostrider
+ *   add lucgas enigma image driver to cvs
+ *
+ *   Revision 1.2  2003/05/23 22:21:05  dkey
+ *   newer ves drivers
+ *
+ *   Revision 1.14.4.1  2003/03/25 13:01:36  alexw
+ *   == rel_1_0_0
+ *
  *   Revision 1.14.2.1  2003/02/20 00:41:28  ghostrider
  *   merge FE_READ_SNR, FE_READ_SIGNAL_STRENGTH, FE_READ_BER, FE_READ_UNCORRECED_BLOCKS with head.... i hope in enigma now the signals bars are correct...
  *
@@ -83,7 +92,7 @@
  *   philips support (sat, tda8044h), ost/dvb.c fix to call demod->init() now.
  *
  *
- *   $Revision: 1.14.2.1 $
+ *   $Revision: 1.14.2.1.2.1 $
  *
  */
 

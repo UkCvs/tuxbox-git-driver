@@ -22,7 +22,7 @@
  *
  * \brief Error codes for OST
  *
- * \version $Id: ostErrors.h,v 1.3 2001/07/21 20:37:04 gillem Exp $
+ * \version $Id: ostErrors.h,v 1.3.12.1 2003/07/02 15:57:03 ghostrider Exp $
  *
  * \date <Add date>
  *
@@ -49,7 +49,7 @@ extern "C" {
  *      OST
  */
 
-/* $Id: ostErrors.h,v 1.3 2001/07/21 20:37:04 gillem Exp $ */
+/* $Id: ostErrors.h,v 1.3.12.1 2003/07/02 15:57:03 ghostrider Exp $ */
 
 /*
  * Defines and consts

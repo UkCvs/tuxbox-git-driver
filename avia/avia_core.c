@@ -20,11 +20,14 @@
  *   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  *
- *   $Log: avia_av_core.c,v $
- *   Revision 1.36.2.1.4.1  2003/07/02 15:56:40  ghostrider
+ *   $Log: avia_core.c,v $
+ *   Revision 1.35.4.1  2003/07/02 15:56:41  ghostrider
  *   add lucgas enigma image driver to cvs
  *
- *   Revision 1.2  2003/06/21 15:22:18  dkey
+ *   Revision 1.4  2003/06/25 23:10:50  lucgas
+ *   mp3 fix
+ *
+ *   Revision 1.3  2003/06/21 15:22:18  dkey
  *   change to drivers from 27.8.02
  *
  *   Revision 1.31  2002/08/22 13:39:33  Jolt
@@ -155,7 +158,7 @@
  *   Revision 1.8  2001/01/31 17:17:46  tmbinc
  *   Cleaned up avia drivers. - tmb
  *
- *   $Revision: 1.36.2.1.4.1 $
+ *   $Revision: 1.35.4.1 $
  *
  */
 
@@ -1512,7 +1515,7 @@ init_module (void)
 {
 	int err = (int)0;
 
-	printk ("AVIA: $Id: avia_av_core.c,v 1.36.2.1.4.1 2003/07/02 15:56:40 ghostrider Exp $\n");
+	printk ("AVIA: $Id: avia_core.c,v 1.35.4.1 2003/07/02 15:56:41 ghostrider Exp $\n");
 
 	aviamem = 0;
 

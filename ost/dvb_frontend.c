@@ -328,7 +328,7 @@ fe_zigzag(dvb_front_t *fe)
         else if (fe->type == DVB_C)
                 soff=fe->param.u.qam.SymbolRate/16000;
         else if (fe->type == DVB_T)
-                /* FIXME finish fe_zigzag for ofdm */
+                #warning finish fe_zigzag for ofdm
                 soff=0;
         else 
                 soff=0;
@@ -396,7 +396,7 @@ fe_tune(dvb_front_t *fe)
 			|| param->Inversion != new_param->Inversion;
                 break;
         case DVB_T:
-                /* FIXME optimize fe_tune for ofdm */
+                #warning FIXME optimize fe_tune for ofdm
                 do_set_front = 1;
                 break;
         default:
@@ -418,7 +418,7 @@ fe_tune(dvb_front_t *fe)
                 fe->zz_count = 1;
         }
         else if (fe->type == DVB_C || fe->type == DVB_T) {
-                /* FIXME optimize fe_tune for ofdm */
+                #warning FIXME optimize fe_tune for ofdm
                 mdelay(30);
                 fe->zz_count = 0;
         }

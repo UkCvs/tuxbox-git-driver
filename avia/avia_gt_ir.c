@@ -21,6 +21,12 @@
  *
  *
  *   $Log: avia_gt_ir.c,v $
+ *   Revision 1.19.6.1  2003/07/02 15:56:41  ghostrider
+ *   add lucgas enigma image driver to cvs
+ *
+ *   Revision 1.3  2003/06/21 15:22:18  dkey
+ *   change to drivers from 27.8.02
+ *
  *   Revision 1.19  2002/08/22 13:39:33  Jolt
  *   - GCC warning fixes
  *   - screen flicker fixes
@@ -82,7 +88,7 @@
  *
  *
  *
- *   $Revision: 1.19 $
+ *   $Revision: 1.19.6.1 $
  *
  */
 
@@ -442,7 +448,7 @@ int __init avia_gt_ir_init(void)
 	u16 rx_irq = 0;
 	u16 tx_irq = 0;
 
-    printk("avia_gt_ir: $Id: avia_gt_ir.c,v 1.19 2002/08/22 13:39:33 Jolt Exp $\n");
+    printk("avia_gt_ir: $Id: avia_gt_ir.c,v 1.19.6.1 2003/07/02 15:56:41 ghostrider Exp $\n");
 
     do_gettimeofday(&last_timestamp);
 	

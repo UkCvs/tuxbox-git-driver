@@ -483,7 +483,7 @@ dvb_net_init(dvb_net_t *dvbnet, dmx_demux_t *demux)
 int
 init_module (void)
 {
-	printk("dvb_net: $Id: dvb_net.c,v 1.6 2002/08/12 18:24:05 obi Exp $\n");
+	printk("dvb_net: $Id: dvb_net.c,v 1.6.6.1 2003/07/02 15:57:09 ghostrider Exp $\n");
 
 	dvb_net.dvb_net_release   = dvb_net_release;
 	dvb_net.dvb_net_init      = dvb_net_init;

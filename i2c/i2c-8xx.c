@@ -19,6 +19,12 @@
  *
  *
  *   $Log: i2c-8xx.c,v $
+ *   Revision 1.20.6.1  2003/07/02 15:56:56  ghostrider
+ *   add lucgas enigma image driver to cvs
+ *
+ *   Revision 1.2  2003/06/21 15:22:19  dkey
+ *   change to drivers from 27.8.02
+ *
  *   Revision 1.20  2002/08/12 17:45:13  obi
  *   removed compiler warning
  *
@@ -47,7 +53,7 @@
  *   Revision 1.12  2001/01/06 10:06:01  gillem
  *   cvs check
  *
- *   $Revision: 1.20 $
+ *   $Revision: 1.20.6.1 $
  *
  */
 

@@ -21,6 +21,12 @@
  *
  *
  *   $Log: avia_gt_capture.c,v $
+ *   Revision 1.22.6.1  2003/07/02 15:56:41  ghostrider
+ *   add lucgas enigma image driver to cvs
+ *
+ *   Revision 1.3  2003/06/21 15:22:18  dkey
+ *   change to drivers from 27.8.02
+ *
  *   Revision 1.22  2002/08/22 13:39:33  Jolt
  *   - GCC warning fixes
  *   - screen flicker fixes
@@ -80,7 +86,7 @@
  *
  *
  *
- *   $Revision: 1.22 $
+ *   $Revision: 1.22.6.1 $
  *
  */
 
@@ -461,7 +467,7 @@ void avia_gt_capture_reset(unsigned char reenable)
 int __init avia_gt_capture_init(void)
 {
 
-    printk("avia_gt_capture: $Id: avia_gt_capture.c,v 1.22 2002/08/22 13:39:33 Jolt Exp $\n");
+    printk("avia_gt_capture: $Id: avia_gt_capture.c,v 1.22.6.1 2003/07/02 15:56:41 ghostrider Exp $\n");
 
     gt_info = avia_gt_get_info();
 

@@ -21,6 +21,12 @@
  *
  *
  *   $Log: info.c,v $
+ *   Revision 1.20.6.1  2003/07/02 15:57:06  ghostrider
+ *   add lucgas enigma image driver to cvs
+ *
+ *   Revision 1.2  2003/06/21 15:22:19  dkey
+ *   change to drivers from 27.8.02
+ *
  *   Revision 1.20  2002/08/07 13:28:49  obi
  *   checked wrong byte for avia detection?
  *
@@ -80,7 +86,7 @@
  *   added /proc/bus/info.
  *
  *
- *   $Revision: 1.20 $
+ *   $Revision: 1.20.6.1 $
  *
  */
 

@@ -1,5 +1,5 @@
 /* 
-   $Id: ves1893.c,v 1.28.2.2 2003/02/20 00:41:28 ghostrider Exp $
+   $Id: ves1893.c,v 1.28.2.2.2.1 2003/07/02 15:57:14 ghostrider Exp $
 
     VES1893A - Single Chip Satellite Channel Receiver driver module
                used on the the Siemens DVB-S cards
@@ -22,6 +22,15 @@
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
     $Log: ves1893.c,v $
+    Revision 1.28.2.2.2.1  2003/07/02 15:57:14  ghostrider
+    add lucgas enigma image driver to cvs
+
+    Revision 1.2  2003/05/23 22:21:05  dkey
+    newer ves drivers
+
+    Revision 1.28.2.1.2.1  2003/03/25 13:01:36  alexw
+    == rel_1_0_0
+
     Revision 1.28.2.2  2003/02/20 00:41:28  ghostrider
     merge FE_READ_SNR, FE_READ_SIGNAL_STRENGTH, FE_READ_BER, FE_READ_UNCORRECED_BLOCKS with head.... i hope in enigma now the signals bars are correct...
 

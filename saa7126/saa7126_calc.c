@@ -1,9 +1,9 @@
 /*
- *   avia_av_proc.h - proc driver for AViA (dbox-II-project)
+ *   saa7126_calc.c - pal driver (dbox-II-project)
  *
  *   Homepage: http://dbox2.elxsi.de
  *
- *   Copyright (C) 2002 Florian Schirmer (jolt@tuxbox.org)
+ *   Copyright (C) 2000-2001 Gillem (htoa@gmx.net)
  *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -19,12 +19,32 @@
  *   along with this program; if not, write to the Free Software
  *   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
+ *
+ *   $Log: saa7126_calc.c,v $
+ *   Revision 1.4.4.1  2003/07/02 15:57:12  ghostrider
+ *   add lucgas enigma image driver to cvs
+ *
+ *   Revision 1.1  2003/05/16 16:23:48  dkey
+ *   drivers: 24.08.2002 09:31
+ *
+ *   Revision 1.3  2001/01/06 10:06:55  gillem
+ *   cvs check
+ *
+ *   $Revision: 1.4.4.1 $
+ *
  */
 
-#ifndef AVIA_AV_PROC_H
-#define AVIA_AV_PROC_H
+#include "saa7126_calc.h"
 
-extern int avia_av_proc_init(void);
-extern void avia_av_proc_exit(void);
-	    
-#endif
+void cyc2rgb( int cr, int y, int cb, int *r, int *g, int *b )
+{
+/*	*r = y + 1.3707*(cr-128);
+	*g = y - 0.3365*(cb-128) - 0.6982*(cr-128);
+	*b = y + 1.7324*(cb-128);
+*/
+}
+
+unsigned int fsc( int ffsc, int fiic )
+{
+	return((ffsc/fiic)*(0x100000000));
+}

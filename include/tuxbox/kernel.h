@@ -17,7 +17,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * $Id: kernel.h,v 1.1.2.1 2003/03/09 16:35:45 waldi Exp $
+ * $Id: kernel.h,v 1.1.2.1.2.1 2003/07/02 15:57:05 ghostrider Exp $
  */
 
 #ifndef TUXBOX_KERNEL_H

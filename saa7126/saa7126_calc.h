@@ -1,9 +1,9 @@
 /*
- *   avia_av_event.h - event driver for AViA (dbox-II-project)
+ *   saa7126_calc.h - pal driver (dbox-II-project)
  *
  *   Homepage: http://dbox2.elxsi.de
  *
- *   Copyright (C) 2002 Florian Schirmer (jolt@tuxbox.org)
+ *   Copyright (C) 2000-2001 Gillem (htoa@gmx.net)
  *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -19,26 +19,17 @@
  *   along with this program; if not, write to the Free Software
  *   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
+ *
+ *   $Log: saa7126_calc.h,v $
+ *   Revision 1.3.4.1  2003/07/02 15:57:12  ghostrider
+ *   add lucgas enigma image driver to cvs
+ *
+ *   Revision 1.1  2003/05/16 16:23:48  dkey
+ *   drivers: 24.08.2002 09:31
+ *
+ *   Revision 1.2  2001/01/06 10:06:55  gillem
+ *   cvs check
+ *
+ *   $Revision: 1.3.4.1 $
+ *
  */
-
-#ifndef AVIA_AV_EVENT_H
-#define AVIA_AV_EVENT_H
-
-#define AVIA_AV_EVENT_TIMER 100	/* max. ~100Hz (not realtime...) */
-
-struct avia_av_event_reg {
-
-	u16 hsize;
-	u16 vsize;
-	u16 aratio;
-	u16 frate;
-	u16 brate;
-	u16 vbsize;
-	u16 atype;
-	
-};
-
-extern int avia_av_event_init(void);
-extern void avia_av_event_exit(void);
-	    
-#endif

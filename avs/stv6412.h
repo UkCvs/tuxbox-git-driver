@@ -21,6 +21,12 @@
  *
  *
  *   $Log: stv6412.h,v $
+ *   Revision 1.3.8.1  2003/07/02 15:56:50  ghostrider
+ *   add lucgas enigma image driver to cvs
+ *
+ *   Revision 1.2  2003/06/21 15:22:19  dkey
+ *   change to drivers from 27.8.02
+ *
  *   Revision 1.3  2002/02/28 20:42:45  gillem
  *   - some changes
  *   - add vcr/tv slow blanking event
@@ -32,7 +38,7 @@
  *   - initial release
  *
  *
- *   $Revision: 1.3 $
+ *   $Revision: 1.3.8.1 $
  *
  */
 

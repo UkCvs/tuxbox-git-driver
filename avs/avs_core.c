@@ -21,6 +21,12 @@
  *
  *
  *   $Log: avs_core.c,v $
+ *   Revision 1.21.6.1  2003/07/02 15:56:50  ghostrider
+ *   add lucgas enigma image driver to cvs
+ *
+ *   Revision 1.2  2003/06/21 15:22:19  dkey
+ *   change to drivers from 27.8.02
+ *
  *   Revision 1.21  2002/08/12 16:58:52  obi
  *   removed compiler warning
  *
@@ -83,7 +89,7 @@
  *   - initial release
  *
  *
- *   $Revision: 1.21 $
+ *   $Revision: 1.21.6.1 $
  *
  */
 

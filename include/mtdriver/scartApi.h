@@ -22,7 +22,7 @@
  *
  * \brief API definitions for the Scart Device Driver.
  *
- * \version $Id: scartApi.h,v 1.1 2001/05/25 22:59:34 gillem Exp $
+ * \version $Id: scartApi.h,v 1.1.12.1 2003/07/02 15:57:03 ghostrider Exp $
  *
  * \date <Add date>
  *
@@ -55,7 +55,7 @@ extern "C" {
  *     OST
  */
 
-/* $Id: scartApi.h,v 1.1 2001/05/25 22:59:34 gillem Exp $ */
+/* $Id: scartApi.h,v 1.1.12.1 2003/07/02 15:57:03 ghostrider Exp $ */
 
 /*
  * Include files

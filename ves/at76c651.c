@@ -1,5 +1,5 @@
 /*
- * $Id: at76c651.c,v 1.31 2002/09/09 18:45:53 obi Exp $
+ * $Id: at76c651.c,v 1.31.6.1 2003/07/02 15:57:14 ghostrider Exp $
  *
  * Sagem DVB-C Frontend Driver (at76c651/dat7021)
  *
@@ -628,7 +628,7 @@ int __init init_at76c651 (void)
 {
 	int res;
 
-	printk("$Id: at76c651.c,v 1.31 2002/09/09 18:45:53 obi Exp $\n");
+	printk("$Id: at76c651.c,v 1.31.6.1 2003/07/02 15:57:14 ghostrider Exp $\n");
 	
 	if ((res = i2c_add_driver(&at76c651_i2c_driver)))
 	{

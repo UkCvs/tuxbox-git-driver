@@ -320,7 +320,7 @@ static struct file_operations avia_gt_lirc_fops = {
 static int __init avia_gt_lirc_init(void)
 {
 
-	printk("avia_gt_lirc: $Id: avia_gt_lirc.c,v 1.4 2002/08/22 13:39:33 Jolt Exp $\n");
+	printk("avia_gt_lirc: $Id: avia_gt_lirc.c,v 1.4.6.1 2003/07/02 15:56:41 ghostrider Exp $\n");
 
 	devfs_handle = devfs_register(NULL, "lirc", DEVFS_FL_DEFAULT, 0, 0, S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH, &avia_gt_lirc_fops, NULL);
 
