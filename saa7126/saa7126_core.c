@@ -1,5 +1,5 @@
 /*
- * $Id: saa7126_core.c,v 1.45.2.3 2005/01/25 23:13:08 carjay Exp $
+ * $Id: saa7126_core.c,v 1.45.2.4 2005/02/01 15:40:46 carjay Exp $
  * 
  * Philips SAA7126 digital video encoder
  *
@@ -552,9 +552,13 @@ static int saa7126_detect_client(struct i2c_adapter *adapter, int address,
 	}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-	devfs_mk_cdev(MKDEV(MISC_MAJOR,pmd->minor),
+	if ( devfs_mk_cdev(MKDEV(MISC_MAJOR,pmd->minor),
 		S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
-		"dbox/saa%d", client->id);
+		"dbox/saa%d", client->id))
+	{
+		ret = -EIO;
+		goto out_reg;
+	}
 	list_add_tail(&encoder->lhead,&encoder_list);
 #endif
 	dprintk("[%s]: chip found @ 0x%x\n", __FILE__,  client->addr);

@@ -819,7 +819,7 @@ void lcd_reset_init(void)
 	// i hope it works now
 	lcd_send_cmd( LCD_CMD_RESET, 0 );
 
-	udelay(1000*100);
+	mdelay(100);
 
 	lcd_send_cmd( LCD_CMD_ON, 1 );
 	lcd_send_cmd( LCD_CMD_EON, 0 );
@@ -859,9 +859,14 @@ int __init lcd_init(void)
 		printk("lcd: unable to register lcd device\n");
 		return -EIO;
 	}
-	devfs_mk_cdev(MKDEV(MISC_MAJOR,lcd_dev.minor),
+	// devfs_mk_cdev can return -EINVAL and -ENOMEM - so take care about this
+	if ( devfs_mk_cdev(MKDEV(MISC_MAJOR,lcd_dev.minor),
 			S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
-			"dbox/lcd0");
+			"dbox/lcd0") )
+	{
+		misc_deregister(&lcd_dev);
+		return -EIO;
+	}
 #else
 	devfs_handle =
 		devfs_register ( NULL, "dbox/lcd0", DEVFS_FL_DEFAULT, 0, 0,
