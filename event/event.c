@@ -1,5 +1,5 @@
 /*
- * $Id: event.c,v 1.12.4.1 2005/01/15 01:36:54 carjay Exp $
+ * $Id: event.c,v 1.12.4.2 2005/01/26 00:15:00 carjay Exp $
  * 
  * global event driver (dbox-II-project)
  *
@@ -56,7 +56,7 @@ struct event_private_t {
 static int open_handle;
 static struct event_private_t *event_private[5];
 static DECLARE_WAIT_QUEUE_HEAD(event_wait);
-static spinlock_t event_lock;
+static spinlock_t event_lock=SPIN_LOCK_UNLOCKED;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 static devfs_handle_t devfs_handle;
@@ -251,7 +251,7 @@ static struct miscdevice event_dev = {
 
 static int __init event_init(void)
 {
-	printk(KERN_INFO "event: $Id: event.c,v 1.12.4.1 2005/01/15 01:36:54 carjay Exp $\n");
+	printk(KERN_INFO "event: $Id: event.c,v 1.12.4.2 2005/01/26 00:15:00 carjay Exp $\n");
 
 	memset(event_private, 0, sizeof(event_private));
 
@@ -260,6 +260,9 @@ static int __init event_init(void)
 		printk("event: unable to register device\n");
 		return -EIO;
 	}
+	devfs_mk_cdev(MKDEV(MISC_MAJOR,event_dev.minor),
+		S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
+		"dbox/event0");
 #else
 	devfs_handle = devfs_register( NULL, "dbox/event0", DEVFS_FL_DEFAULT,
 		0, 0,
@@ -278,6 +281,7 @@ static void __exit event_exit(void)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 	devfs_unregister(devfs_handle);
 #else
+	devfs_remove("dbox/event0");
 	misc_deregister(&event_dev);
 #endif
 }
