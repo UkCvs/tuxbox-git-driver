@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_lirc.c,v 1.14.4.3 2005/01/31 20:04:09 carjay Exp $
+ * $Id: avia_gt_lirc.c,v 1.14.4.4 2005/02/01 02:15:49 carjay Exp $
  *
  * lirc ir driver for AViA eNX/GTX (dbox-II-project)
  *
@@ -44,6 +44,7 @@
 static devfs_handle_t devfs_handle;
 #endif
 
+static int ir_handle;
 static lirc_t pulse_buffer[AVIA_GT_IR_MAX_PULSE_COUNT * 2];
 
 static int avia_gt_lirc_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
@@ -260,10 +261,11 @@ static int __init avia_gt_lirc_init(void)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 	int ret;
 #endif
-	printk(KERN_INFO "avia_gt_lirc: $Id: avia_gt_lirc.c,v 1.14.4.3 2005/01/31 20:04:09 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_lirc: $Id: avia_gt_lirc.c,v 1.14.4.4 2005/02/01 02:15:49 carjay Exp $\n");
 
-	if (avia_gt_ir_register(NULL) < 0)
-		return -EIO;
+	/* register the functionality (IR resource management) */
+	if ((ir_handle = avia_gt_ir_register(AVIA_GT_IR_TX | AVIA_GT_IR_RX)) < 0)
+		return ir_handle;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 	ret = misc_register(&avia_gt_lirc_device);
@@ -297,7 +299,8 @@ static void __exit avia_gt_lirc_exit(void)
 #else
 	devfs_unregister (devfs_handle);
 #endif
-	avia_gt_ir_unregister(NULL);
+	/* turn off IR */
+	avia_gt_ir_unregister(ir_handle);
 }
 
 module_init(avia_gt_lirc_init);

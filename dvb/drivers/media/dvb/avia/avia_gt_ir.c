@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_ir.c,v 1.30.4.2 2005/01/31 20:15:18 carjay Exp $
+ * $Id: avia_gt_ir.c,v 1.30.4.3 2005/02/01 02:15:48 carjay Exp $
  * 
  * AViA eNX/GTX ir driver (dbox-II-project)
  *
@@ -28,6 +28,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/sched.h>
+#include <linux/vmalloc.h>
 #include <linux/wait.h>
 
 #include "avia_gt.h"
@@ -37,14 +38,15 @@ DECLARE_WAIT_QUEUE_HEAD(rx_wait);
 DECLARE_WAIT_QUEUE_HEAD(tx_wait);
 DECLARE_MUTEX(ir_sem);
 
-static int clientnr;
+static u32 client_flags[2]; /* max. 2 clients (RX,TX) */
+
 static sAviaGtInfo *gt_info;
 static u32 duty_cycle = 33;
 static u16 first_period_low;
 static u16 first_period_high;
 static u32 frequency = 38000;
 #define RX_MAX 50000
-static sAviaGtIrPulse rx_buffer[RX_MAX];
+static sAviaGtIrPulse *rx_buffer;
 static u32 rx_buffer_read_position;
 static u32 rx_buffer_write_position;
 static u8 rx_unit_busy;
@@ -262,27 +264,44 @@ void avia_gt_ir_set_queue(unsigned int addr)
 
 /* f.ex. the samsung driver wants to roll its own, so the IRQs are only 
 		requested when a client attaches */
-int avia_gt_ir_register(void *foo){
+int avia_gt_ir_register(u32 flags){
+	int clientnr;
+
 	if (down_interruptible(&ir_sem))
 		return -ERESTARTSYS;
-
-	if (clientnr){
+	
+	if ((flags & (client_flags[0] | client_flags[1]))||
+			(client_flags[0]!=0 && client_flags[1]!=0)){
 		up(&ir_sem);
 		return -EUSERS;
 	}
-	clientnr++;
 
-	if (avia_gt_alloc_irq(gt_info->irq_ir, avia_gt_ir_rx_irq)) {
-		printk(KERN_ERR "avia_gt_ir: unable to get rx interrupt\n");
-		up(&ir_sem);
-		return -EIO;
+	if (flags & AVIA_GT_IR_RX) {
+		if (avia_gt_alloc_irq(gt_info->irq_ir, avia_gt_ir_rx_irq)) {
+			printk(KERN_ERR "avia_gt_ir: unable to get rx interrupt\n");
+			up(&ir_sem);
+			return -EIO;
+		}
+		rx_buffer = (sAviaGtIrPulse*) vmalloc (RX_MAX * sizeof (sAviaGtIrPulse));
+		if (!rx_buffer){
+			up(&ir_sem);
+			return -ENOMEM;
+		}
+		memset (rx_buffer, 0, RX_MAX * sizeof(sAviaGtIrPulse));
 	}
 	
-	if (avia_gt_alloc_irq(gt_info->irq_it, avia_gt_ir_tx_irq)) {
-		printk(KERN_ERR "avia_gt_ir: unable to get tx interrupt\n");
-		avia_gt_free_irq(gt_info->irq_ir);
-		up(&ir_sem);
-		return -EIO;
+	if (flags & AVIA_GT_IR_TX) {
+		if (avia_gt_alloc_irq(gt_info->irq_it, avia_gt_ir_tx_irq)) {
+			printk(KERN_ERR "avia_gt_ir: unable to get tx interrupt\n");
+			if (flags & AVIA_GT_IR_RX)
+				avia_gt_free_irq(gt_info->irq_ir);
+			if (rx_buffer){
+				vfree (rx_buffer);
+				rx_buffer = NULL;
+			}
+			up(&ir_sem);
+			return -EIO;
+		}
 	}
 
 	avia_gt_ir_reset(1);
@@ -293,32 +312,43 @@ int avia_gt_ir_register(void *foo){
 	avia_gt_ir_set_queue(AVIA_GT_MEM_IR_OFFS);
 	avia_gt_ir_set_frequency(frequency);
 
+	if (!client_flags[0])
+		clientnr = 0;
+	else
+		clientnr = 1;
+
+	client_flags[clientnr] = flags;
 	up(&ir_sem);
-	return 0;
+	return clientnr;
 }
 
-int avia_gt_ir_unregister(void *foo){
+int avia_gt_ir_unregister(int ir_handle){
 	if (down_interruptible(&ir_sem))
 		return -ERESTARTSYS;
 
-	if (!clientnr){
-		printk ("avia_gt_ir: no clients registered");
+	if ( (ir_handle>1) || (!client_flags[ir_handle])){
+		printk ("avia_gt_ir: invalid client handle");
 		up(&ir_sem);
 		return -EIO;
 	}
-	clientnr--;
 
-	avia_gt_free_irq(gt_info->irq_it);
-	avia_gt_free_irq(gt_info->irq_ir);
+	if (client_flags[ir_handle] & AVIA_GT_IR_TX)
+		avia_gt_free_irq(gt_info->irq_it);
+	if (client_flags[ir_handle] & AVIA_GT_IR_RX){
+		avia_gt_free_irq(gt_info->irq_ir);
+		vfree(rx_buffer);
+		rx_buffer = NULL;
+	}
 	avia_gt_ir_reset(0);
 
+	client_flags[ir_handle]=0;
 	up(&ir_sem);
 	return 0;
 }
 
 int avia_gt_ir_init(void)
 {
-	printk(KERN_INFO "avia_gt_ir: $Id: avia_gt_ir.c,v 1.30.4.2 2005/01/31 20:15:18 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_ir: $Id: avia_gt_ir.c,v 1.30.4.3 2005/02/01 02:15:48 carjay Exp $\n");
 
 	do_gettimeofday(&last_timestamp);
 	

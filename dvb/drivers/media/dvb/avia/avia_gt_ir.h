@@ -73,6 +73,11 @@ extern void avia_gt_ir_set_frequency(u32 new_frequency);
 extern int avia_gt_ir_init(void);
 extern void avia_gt_ir_exit(void);
 #endif
-extern int avia_gt_ir_register(void*);
-extern int avia_gt_ir_unregister(void *);
+enum {
+	AVIA_GT_IR_TX = 1,	/* what functionality does the client need? */
+	AVIA_GT_IR_RX = 2
+};
+/* returns a simple handle-like value */
+extern int avia_gt_ir_register(u32 flags);
+extern int avia_gt_ir_unregister(int handle);
 #endif
