@@ -560,9 +560,7 @@ static void fp_task(void *arg)
 	if (useimap)
 		immap->im_ioport.iop_padat &= ~2;
 	
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 	enable_irq(FP_INTERRUPT);
-#endif
 }
 
 
@@ -579,7 +577,8 @@ static void fp_interrupt(int irq, void *vdev, struct pt_regs *regs)
 		immap->im_ioport.iop_padat |= 2;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-	schedule_work(&fp_work);
+	disable_irq(FP_INTERRUPT);	/* fp seems to be level-triggered, */
+	schedule_work(&fp_work);	/*     at least on Nokia */
 	return IRQ_HANDLED;
 #else	
 	schedule_task(&fp_tasklet);
@@ -608,7 +607,7 @@ static int fp_drv_probe(struct device *dev)
 		printk(KERN_ERR "fp: I2C driver registration failed.\n");
 	}
 	
-	if (request_irq(irq, fp_interrupt, SA_ONESHOT, "fp", dev))
+	if (request_irq(irq, fp_interrupt, SA_INTERRUPT, "fp", dev))
 		panic ("fp: could not allocate irq");
 
 	return ret;	
