@@ -21,14 +21,8 @@
  *
  *
  *   $Log: avia_gt_gv.c,v $
- *   Revision 1.25  2002/10/11 09:57:54  Jolt
- *   HW copy stuff
- *
- *   Revision 1.24  2002/10/09 20:20:07  Jolt
- *   Uhhh :)
- *
- *   Revision 1.23  2002/10/09 18:31:06  Jolt
- *   HW copy support
+ *   Revision 1.25.4.1  2003/02/18 14:32:46  alexw
+ *   update to image drivers
  *
  *   Revision 1.22  2002/08/22 13:39:33  Jolt
  *   - GCC warning fixes
@@ -100,7 +94,7 @@
  *   graphic viewport driver added
  *
  *
- *   $Revision: 1.25 $
+ *   $Revision: 1.25.4.1 $
  *
  */
 
@@ -119,29 +113,15 @@
 
 #include <dbox/avia_gt.h>
 #include <dbox/avia_gt_gv.h>
-#include <dbox/avia_gt_accel.h>
 
-static u16 input_height = 576;
-static u8 input_mode = AVIA_GT_GV_INPUT_MODE_RGB16;
+unsigned short input_height = 576;
+unsigned char input_mode = AVIA_GT_GV_INPUT_MODE_RGB16;
 static sAviaGtInfo *gt_info = (sAviaGtInfo *)NULL;
-static u16 input_width = 720;
-static u16 output_x = 0;
-static u16 output_y = 0;
+unsigned short input_width = 720;
+unsigned short output_x = 0;
+unsigned short output_y = 0;
 
-u8 avia_gt_get_bpp(void);
 void avia_gt_gv_set_stride(void);
-
-void avia_gt_gv_copyarea(u16 src_x, u16 src_y, u16 width, u16 height, u16 dst_x, u16 dst_y)
-{
-
-	u16 bpp = avia_gt_get_bpp();
-	u16 line;
-	u16 stride = avia_gt_gv_get_stride();
-	
-	for (line = 0; line < height; line++)
-		avia_gt_accel_copy(AVIA_GT_MEM_GV_OFFS + (src_y + line) * stride + src_x * bpp, AVIA_GT_MEM_GV_OFFS + (dst_y + line) * stride + dst_x * bpp, width * bpp, 0);
-
-}
 
 void avia_gt_gv_cursor_hide(void)
 {
@@ -163,42 +143,10 @@ void avia_gt_gv_cursor_show(void)
 
 }
 
-u8 avia_gt_get_bpp(void) 
+void avia_gt_gv_get_clut(unsigned char clut_nr, unsigned int *transparency, unsigned int *red, unsigned int *green, unsigned int *blue)
 {
 
-	switch(input_mode) {
-
-		case AVIA_GT_GV_INPUT_MODE_RGB4:
-
-			return 1;
-
-		break;
-		case AVIA_GT_GV_INPUT_MODE_RGB8:
-
-			return 1;
-
-		break;
-		case AVIA_GT_GV_INPUT_MODE_RGB16:
-
-			return 2;
-
-		break;
-		case AVIA_GT_GV_INPUT_MODE_RGB32:
-
-			return 4;
-
-		break;
-
-	}
-
-	return 2;
-
-}
-
-void avia_gt_gv_get_clut(u8 clut_nr, u32 *transparency, u32 *red, u32 *green, u32 *blue)
-{
-
-	u32 val = (u32)0;
+	unsigned int val = (unsigned int)0;
 
 	if (avia_gt_chip(ENX)) {
 
@@ -264,18 +212,18 @@ void avia_gt_gv_get_clut(u8 clut_nr, u32 *transparency, u32 *red, u32 *green, u3
 
 }
 
-void avia_gt_gv_get_info(u8 **gv_mem_phys, u8 **gv_mem_lin, u32 *gv_mem_size)
+void avia_gt_gv_get_info(unsigned char **gv_mem_phys, unsigned char **gv_mem_lin, unsigned int *gv_mem_size)
 {
 
 	if (avia_gt_chip(ENX)) {
 
 		if (gv_mem_phys)
-			 *gv_mem_phys = (u8 *)(ENX_MEM_BASE + AVIA_GT_MEM_GV_OFFS);
+			 *gv_mem_phys = (unsigned char *)(ENX_MEM_BASE + AVIA_GT_MEM_GV_OFFS);
 
 	} else if (avia_gt_chip(GTX)) {
 
 		if (gv_mem_phys)
-			 *gv_mem_phys = (u8 *)(GTX_MEM_BASE + AVIA_GT_MEM_GV_OFFS);
+			 *gv_mem_phys = (unsigned char *)(GTX_MEM_BASE + AVIA_GT_MEM_GV_OFFS);
 
 	}
 
@@ -287,10 +235,10 @@ void avia_gt_gv_get_info(u8 **gv_mem_phys, u8 **gv_mem_lin, u32 *gv_mem_size)
 
 }
 
-u16 avia_gt_gv_get_stride(void)
+unsigned short avia_gt_gv_get_stride(void)
 {
 
-	u16 stride = (u16)0;
+	unsigned short stride = (unsigned short)0;
 
 	if (avia_gt_chip(ENX))
 		stride = enx_reg_s(GMR1)->STRIDE << 2;
@@ -311,7 +259,7 @@ void avia_gt_gv_hide(void)
 
 }
 
-void avia_gt_gv_set_blevel(u8 class0, u8 class1)
+void avia_gt_gv_set_blevel(unsigned char class0, unsigned char class1)
 {
 
 	if ((class0 > 0x08) && (class0 != 0x0F))
@@ -341,7 +289,7 @@ void avia_gt_gv_set_blevel(u8 class0, u8 class1)
 
 }
 
-void avia_gt_gv_set_clut(u8 clut_nr, u32 transparency, u32 red, u32 green, u32 blue)
+void avia_gt_gv_set_clut(unsigned char clut_nr, unsigned int transparency, unsigned int red, unsigned int green, unsigned int blue)
 {
 
 	if (avia_gt_chip(ENX)) {
@@ -389,7 +337,7 @@ void avia_gt_gv_set_clut(u8 clut_nr, u32 transparency, u32 red, u32 green, u32 b
 
 }
 
-int avia_gt_gv_set_input_mode(u8 mode)
+int avia_gt_gv_set_input_mode(unsigned char mode)
 {
 
 	printk("avia_gt_gv: set_input_mode (mode=%d)\n", mode);
@@ -403,7 +351,7 @@ int avia_gt_gv_set_input_mode(u8 mode)
 
 }
 
-int avia_gt_gv_set_input_size(u16 width, u16 height)
+int avia_gt_gv_set_input_size(unsigned short width, unsigned short height)
 {
 
 	printk("avia_gt_gv: set_input_size (width=%d, height=%d)\n", width, height);
@@ -507,9 +455,9 @@ int avia_gt_gv_set_input_size(u16 width, u16 height)
 
 }
 
-int avia_gt_gv_set_pos(u16 x, u16 y) {
+int avia_gt_gv_set_pos(unsigned short x, unsigned short y) {
 
-	u8 input_div = 0;
+	unsigned char input_div = (unsigned char)0;
 
 #define BLANK_TIME		132
 #define ENX_VID_PIPEDELAY	16
@@ -549,7 +497,7 @@ int avia_gt_gv_set_pos(u16 x, u16 y) {
 
 }
 
-void avia_gt_gv_set_size(u16 width, u16 height) {
+void avia_gt_gv_set_size(unsigned short width, unsigned short height) {
 
 	if (avia_gt_chip(ENX)) {
 
@@ -569,10 +517,37 @@ void avia_gt_gv_set_size(u16 width, u16 height) {
 
 void avia_gt_gv_set_stride(void) {
 
+	unsigned char input_bpp = 2;
+
+	switch(input_mode) {
+
+		case AVIA_GT_GV_INPUT_MODE_RGB4:
+
+			input_bpp = 1;
+
+		break;
+		case AVIA_GT_GV_INPUT_MODE_RGB8:
+
+			input_bpp = 1;
+
+		break;
+		case AVIA_GT_GV_INPUT_MODE_RGB16:
+
+			input_bpp = 2;
+
+		break;
+		case AVIA_GT_GV_INPUT_MODE_RGB32:
+
+			input_bpp = 4;
+
+		break;
+
+	}
+
 	if (avia_gt_chip(ENX))
-		enx_reg_set(GMR1, STRIDE, ((input_width * avia_gt_get_bpp()) + 3) >> 2);
+		enx_reg_set(GMR1, STRIDE, ((input_width * input_bpp) + 3) >> 2);
 	else if (avia_gt_chip(GTX))
-		gtx_reg_set(GMR, STRIDE, ((input_width * avia_gt_get_bpp()) + 1) >> 1);
+		gtx_reg_set(GMR, STRIDE, ((input_width * input_bpp) + 1) >> 1);
 
 }
 
@@ -635,7 +610,7 @@ int avia_gt_gv_show(void) {
 int avia_gt_gv_init(void)
 {
 
-	printk("avia_gt_gv: $Id: avia_gt_gv.c,v 1.25 2002/10/11 09:57:54 Jolt Exp $\n");
+	printk("avia_gt_gv: $Id: avia_gt_gv.c,v 1.25.4.1 2003/02/18 14:32:46 alexw Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
@@ -783,7 +758,6 @@ void __exit avia_gt_gv_exit(void)
 }
 
 #ifdef MODULE
-EXPORT_SYMBOL(avia_gt_gv_copyarea);
 EXPORT_SYMBOL(avia_gt_gv_get_clut);
 EXPORT_SYMBOL(avia_gt_gv_get_info);
 EXPORT_SYMBOL(avia_gt_gv_set_blevel);

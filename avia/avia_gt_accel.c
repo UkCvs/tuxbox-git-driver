@@ -21,11 +21,8 @@
  *
  *
  *   $Log: avia_gt_accel.c,v $
- *   Revision 1.8  2002/10/13 21:16:15  Jolt
- *   HW copy
- *
- *   Revision 1.7  2002/10/09 18:31:06  Jolt
- *   HW copy support
+ *   Revision 1.8.4.1  2003/02/18 14:32:46  alexw
+ *   update to image drivers
  *
  *   Revision 1.6  2002/09/19 21:09:20  Jolt
  *   Removed old sw crc dependency
@@ -47,7 +44,7 @@
  *
  *
  *
- *   $Revision: 1.8 $
+ *   $Revision: 1.8.4.1 $
  *
  */
 
@@ -55,7 +52,6 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/time.h>
-#include <linux/slab.h>
 #include <asm/errno.h>
 
 #include <dbox/avia_gt.h>
@@ -63,49 +59,6 @@
 
 static sAviaGtInfo *gt_info = NULL;
 static u8 max_transaction_size = 0;
-
-void avia_gt_accel_copy(u32 buffer_src, u32 buffer_dst, u32 buffer_size, u8 decrement)
-{
-
-	u32 transaction_size;
-
-	if (avia_gt_chip(ENX)) {
-	
-		enx_reg_set(CPCSRC1, Addr, buffer_src);
-		enx_reg_set(CPCDST, Addr, buffer_dst);
-
-	} else if (avia_gt_chip(GTX)) {
-	
-		gtx_reg_set(CCSA, Addr, buffer_src);
-		gtx_reg_set(CDA, Addr, buffer_dst);
-	
-	}
-
-    while (buffer_size) {
-    
-		if (buffer_size > max_transaction_size)
-			transaction_size = max_transaction_size;
-		else
-			transaction_size = buffer_size;
-
-		if (avia_gt_chip(ENX)) {
-		
-			enx_reg_16(CPCCMD) = ((!!decrement << 10)) | (3 << 8) | (transaction_size - 1);
-			
-		} else if (avia_gt_chip(GTX)) {
-		
-			if (((buffer_src & 1) || (buffer_dst & 1)) && (transaction_size == max_transaction_size))
-				transaction_size -= 2;
-	
-			gtx_reg_16(CCOM) = ((!!decrement << 10)) | (1 << 9) | (1 << 8) | (transaction_size - 1);
-			
-		}
-		
-		buffer_size -= transaction_size;
-
-	}
-	
-} 
 
 u32 avia_gt_accel_crc32(u32 buffer, u32 buffer_size, u32 seed)
 {
@@ -202,7 +155,7 @@ u32 avia_gt_accel_crc32(u32 buffer, u32 buffer_size, u32 seed)
 int __init avia_gt_accel_init(void)
 {
 
-    printk("avia_gt_accel: $Id: avia_gt_accel.c,v 1.8 2002/10/13 21:16:15 Jolt Exp $\n");
+    printk("avia_gt_accel: $Id: avia_gt_accel.c,v 1.8.4.1 2003/02/18 14:32:46 alexw Exp $\n");
 
 	gt_info = avia_gt_get_info();
 	
@@ -246,7 +199,6 @@ void __exit avia_gt_accel_exit(void)
 #ifdef MODULE_LICENSE
 MODULE_LICENSE("GPL");
 #endif
-EXPORT_SYMBOL(avia_gt_accel_copy);
 EXPORT_SYMBOL(avia_gt_accel_crc32);
 #endif
 

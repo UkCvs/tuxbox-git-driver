@@ -21,8 +21,8 @@
  *
  *
  *   $Log: lcd-console.c,v $
- *   Revision 1.10  2002/09/23 17:07:02  obi
- *   moved lcd-ks0713.h to include/dbox
+ *   Revision 1.10.4.1  2003/02/18 14:32:47  alexw
+ *   update to image drivers
  *
  *   Revision 1.9  2001/12/01 06:53:17  gillem
  *   - malloc.h -> slab.h
@@ -45,7 +45,7 @@
  *   Revision 1.4  2001/01/06 10:06:35  gillem
  *   cvs check
  *
- *   $Revision: 1.10 $
+ *   $Revision: 1.10.4.1 $
  *
  */
 
@@ -59,7 +59,7 @@
 
 #include "lcd-console.h"
 #include "lcd-font.h"
-#include <dbox/lcd-ks0713.h>
+#include "lcd-ks0713.h"
 
 #define MAX_COL 15
 #define MAX_ROW 8

@@ -42,7 +42,6 @@ typedef struct {
 	u8 (*get_data8)(u8 queue_nr, u8 peek);
 	u16 (*get_data16)(u8 queue_nr, u8 peek);
 	u32 (*get_data32)(u8 queue_nr, u8 peek);
-	u32 (*peek_data)(u8 queue_nr, u32 index, void *dest, u32 count);
 	u32	(*put_data)(u8 queue_nr, void *src, u32 count, u8 src_is_user_space);
 	u8 nr;
 
@@ -55,17 +54,14 @@ typedef struct {
 	u8 busy;
 	AviaGtDmxQueueProc *cb_proc;
 	u32 hw_read_pos;
-	u32 hw_write_pos;
 	sAviaGtDmxQueueInfo info;
 	u32 irq_count;
 	AviaGtDmxQueueProc *irq_proc;
 	u32 mem_addr;
-	u8 overflow_count;
 	void *priv_data;
 	u32 read_pos;
 	u32 size;
 	u32 write_pos;
-	u8 is_qim;
 
 } sAviaGtDmxQueue;
 
@@ -214,7 +210,7 @@ void avia_gt_dmx_queue_irq_disable(u8 queue_nr);
 s32 avia_gt_dmx_queue_irq_enable(u8 queue_nr);
 s32 avia_gt_dmx_queue_reset(u8 queue_nr);
 void avia_gt_dmx_queue_set_write_pos(unsigned char queue_nr, unsigned int write_pointer);
-void avia_gt_dmx_set_queue_irq(unsigned char queue_nr, unsigned char qim, s32 write_pos);
+void avia_gt_dmx_set_queue_irq(unsigned char queue_nr, unsigned char qim, unsigned int irq_addr);
 void avia_gt_dmx_set_queue(unsigned char queue_nr, unsigned int write_pointer, unsigned char size);
 void gtx_set_queue_pointer(int queue, u32 read, u32 write, int size, int halt);
 int avia_gt_dmx_start_stop_feed(unsigned entry, unsigned what);

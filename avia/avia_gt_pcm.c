@@ -21,8 +21,8 @@
  *
  *
  *   $Log: avia_gt_pcm.c,v $
- *   Revision 1.19  2002/10/03 11:12:42  thegoodguy
- *   Reenable full volume
+ *   Revision 1.19.4.1  2003/02/18 14:32:46  alexw
+ *   update to image drivers
  *
  *   Revision 1.18  2002/09/25 18:50:52  Jolt
  *   Added 24000 and 12000 sample rate support
@@ -84,7 +84,7 @@
  *
  *
  *
- *   $Revision: 1.19 $
+ *   $Revision: 1.19.4.1 $
  *
  */
 
@@ -581,7 +581,7 @@ int avia_gt_pcm_init(void)
 	unsigned short irq_ad  = (unsigned short)0;
 	unsigned short irq_pf  = (unsigned short)0;
 
-	printk("avia_gt_pcm: $Id: avia_gt_pcm.c,v 1.19 2002/10/03 11:12:42 thegoodguy Exp $\n");
+	printk("avia_gt_pcm: $Id: avia_gt_pcm.c,v 1.19.4.1 2003/02/18 14:32:46 alexw Exp $\n");
 
 	gt_info = avia_gt_get_info();
 

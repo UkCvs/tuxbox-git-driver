@@ -1,60 +1,14 @@
-/*
- *   avia_av.h - AViA driver (dbox-II-project)
- *
- *   Homepage: http://dbox2.elxsi.de
- *
- *   Copyright (C) 2001 Gillem (htoa@gmx.net)
- *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details.
- *
- *   You should have received a copy of the GNU General Public License
- *   along with this program; if not, write to the Free Software
- *   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
- *
- *
- *   $Log: avia_av.h,v $
- *   Revision 1.9.2.1  2002/11/17 01:59:13  obi
- *   "backport" of latest dvb api version 1 drivers from HEAD branch
- *
- *   Revision 1.10  2002/10/28 14:34:25  wjoost
- *   SPTS und AC3 / cleanup
- *
- *   Revision 1.9  2002/10/03 12:47:58  Jolt
- *   AViA AV cleanups
- *
- *
- *
- *
- *   $Revision: 1.9.2.1 $
- *
- */
-
-
-#ifndef AVIA_AV_H
-#define AVIA_AV_H
-
-#define AVIA_AV_STREAM_TYPE_SPTS	0x01
-#define AVIA_AV_STREAM_TYPE_PES		0x02
-#define AVIA_AV_STREAM_TYPE_ES		0x03
+#ifdef MODULE
 
 #define TM_DRAM  0x00
 #define TM_GBUS  0x80
 #define TM_SRAM  0xC0
 
-extern int aviarev;
-
 extern u32 avia_rd(int mode, int address);
 extern void avia_wr(int mode, u32 address, u32 data);
 
 extern u32 avia_command(u32 cmd, ...);
+extern u32 avia_wait(u32 status);
 extern void avia_flush_pcr(void);
 
 #define wGB(a, d) avia_wr(TM_GBUS, a, d)

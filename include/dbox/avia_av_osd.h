@@ -1,5 +1,5 @@
 /*
- *   avia_av_osd.h - AViA OSD driver (dbox-II-project)
+ *   avia_osd.h - AViA OSD driver (dbox-II-project)
  *
  *   Homepage: http://dbox2.elxsi.de
  *
@@ -21,15 +21,15 @@
  *
  *
  *   $Log: avia_av_osd.h,v $
- *   Revision 1.2  2002/10/03 12:47:58  Jolt
- *   AViA AV cleanups
+ *   Revision 1.2.4.1  2003/02/18 14:32:46  alexw
+ *   update to image drivers
  *
  *   Revision 1.1  2001/03/06 21:51:35  gillem
  *   - initial release
  *
  *
  *
- *   $Revision: 1.2 $
+ *   $Revision: 1.2.4.1 $
  *
  */
 

@@ -21,8 +21,8 @@
  *
  *
  *   $Log: avia_gt_oss.c,v $
- *   Revision 1.12  2002/10/03 13:32:36  alexw
- *   changed output volume to avoid clipping
+ *   Revision 1.12.4.1  2003/02/18 14:32:46  alexw
+ *   update to image drivers
  *
  *   Revision 1.11  2002/09/25 18:50:52  Jolt
  *   Added 24000 and 12000 sample rate support
@@ -62,7 +62,7 @@
  *
  *
  *
- *   $Revision: 1.12 $
+ *   $Revision: 1.12.4.1 $
  *
  */
 
@@ -363,9 +363,9 @@ static struct file_operations mixer_fops = {
 static int __init avia_oss_init(void)
 {
 
-    printk("avia_oss: $Id: avia_gt_oss.c,v 1.12 2002/10/03 13:32:36 alexw Exp $\n");
+    printk("avia_oss: $Id: avia_gt_oss.c,v 1.12.4.1 2003/02/18 14:32:46 alexw Exp $\n");
 
-    avia_gt_pcm_set_pcm_attenuation(0x70, 0x70);
+    avia_gt_pcm_set_pcm_attenuation(0x80, 0x80);
 
     avia_gt_pcm_set_rate(44100);
     avia_gt_pcm_set_width(16);
