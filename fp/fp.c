@@ -21,6 +21,9 @@
  *
  *
  *   $Log: fp.c,v $
+ *   Revision 1.72.2.5  2003/01/04 07:50:49  Zwen
+ *   - improved timer detection/clear
+ *
  *   Revision 1.72.2.4  2002/12/03 18:23:18  Zwen
  *   - modified wakeup detection
  *
@@ -249,7 +252,7 @@
  *   - some changes ...
  *
  *
- *   $Revision: 1.72.2.4 $
+ *   $Revision: 1.72.2.5 $
  *
  */
 
@@ -342,8 +345,9 @@ fp:
 #define FP_GETID	    0x1D
 #define FP_WAKEUP		0x11
 #define FP_WAKEUP_SAGEM		0x01
-#define FP_CLEAR_WAKEUP		0x20
-#define FP_CLEAR_WAKEUP_NOKIA	0x2A
+#define FP_STATUS		0x20
+#define FP_CLEAR_WAKEUP		0x21
+#define FP_CLEAR_WAKEUP_NOKIA	0x2B
 
 /* ---------------------------------------------------------------------- */
 
@@ -1815,24 +1819,24 @@ static int fp_get_wakeup_timer()
 
 static int fp_clear_wakeup_timer()
 {
-	u8 id[2]={0, 0};
+	u8 id[1]={0};
 	fp_set_wakeup_timer(0);
-	if (info.fpREV<0x80)
-	{
-		if (fp_cmd(defdata->client, FP_CLEAR_WAKEUP, id, 2))
-			return -1;
-	} else
-	{
-		if (fp_cmd(defdata->client, FP_CLEAR_WAKEUP_NOKIA, id, 2))
-			return -1;
-		if (fp_cmd(defdata->client, FP_CLEAR_WAKEUP, id, 2))
-			return -1;
-	}
-	dprintk("fp.o: clear_wakeup_timer [%x][%x]\n",id[0],id[1]);
+	if (fp_cmd(defdata->client, FP_STATUS, id, 1))
+		return -1;
+	dprintk("fp.o: clear_wakeup_timer [%x]\n",id[0]);
 	if(id[0] & 0x80)
 		is_wakeup=1;
 	else
 		is_wakeup=0;
+	if (info.fpREV<0x80)
+	{
+		if (fp_cmd(defdata->client, FP_CLEAR_WAKEUP, id, 1))
+			return -1;
+	} else
+	{
+		if (fp_cmd(defdata->client, FP_CLEAR_WAKEUP_NOKIA, id, 1))
+			return -1;
+	}
 	return 0;
 }
 
