@@ -1,4 +1,6 @@
 /* 
+  $Id: ves1993.c,v 1.13.2.3 2002/01/22 23:44:56 fnbrd Exp $
+
 		VES1993	- Single Chip Satellite Channel Receiver driver module
 							 
 		Copyright (C) 2001 Ronny Strutz	<3DES@tuxbox.org>
@@ -17,6 +19,11 @@
 		along with this program; if not, write to the Free Software
 		Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
+  $Log: ves1993.c,v $
+  Revision 1.13.2.3  2002/01/22 23:44:56  fnbrd
+  Id und Log reingemacht.
+
+  
 */		
 
 

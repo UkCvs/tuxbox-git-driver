@@ -1,4 +1,6 @@
 /* 
+ * $Id: dvb_frontend.h,v 1.1.2.1 2002/01/22 23:44:56 fnbrd Exp $
+ *
  * dvb_frontend.h
  *
  * Copyright (C) 2001 Ralph  Metzler <ralph@convergence.de>
@@ -17,6 +19,11 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ *
+ * $Log: dvb_frontend.h,v $
+ * Revision 1.1.2.1  2002/01/22 23:44:56  fnbrd
+ * Id und Log reingemacht.
+ *
  *
  */
 

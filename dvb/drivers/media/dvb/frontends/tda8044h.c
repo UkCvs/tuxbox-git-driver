@@ -1,4 +1,6 @@
 /* 
+ *   $Id: tda8044h.c,v 1.4.2.3 2002/01/22 23:44:56 fnbrd Exp $
+ *   
  *   tda8044h.c - Philips TDA8044H (d-box 2 project) 
  *
  *   Homepage: http://dbox2.elxsi.de
@@ -21,6 +23,9 @@
  *
  *
  *   $Log: tda8044h.c,v $
+ *   Revision 1.4.2.3  2002/01/22 23:44:56  fnbrd
+ *   Id und Log reingemacht.
+ *
  *   Revision 1.4.2.2  2002/01/22 23:41:41  fnbrd
  *   changed to new tuning_api
  *
@@ -41,7 +46,7 @@
  *   philips support (sat, tda8044h), ost/dvb.c fix to call demod->init() now.
  *
  *
- *   $Revision: 1.4.2.2 $
+ *   $Revision: 1.4.2.3 $
  *
  */
 
