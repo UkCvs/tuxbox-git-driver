@@ -18,7 +18,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * $Id: tuxbox_hardware_dbox2.c,v 1.5 2003/03/08 09:16:41 waldi Exp $
+ * $Id: tuxbox_hardware_dbox2.c,v 1.5.4.1 2005/01/15 01:52:47 carjay Exp $
  */
 
 #include <linux/module.h>
@@ -36,6 +36,9 @@ struct proc_dir_entry *proc_bus_tuxbox_dbox2 = NULL;
 
 tuxbox_dbox2_gt_t tuxbox_dbox2_gt;
 tuxbox_dbox2_mid_t tuxbox_dbox2_mid;
+EXPORT_SYMBOL(tuxbox_dbox2_gt);
+EXPORT_SYMBOL(tuxbox_dbox2_mid);
+
 
 static int vendor_read (void)
 {
