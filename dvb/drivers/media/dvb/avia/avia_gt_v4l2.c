@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_v4l2.c,v 1.12 2003/09/30 04:54:03 obi Exp $
+ * $Id: avia_gt_v4l2.c,v 1.12.4.1 2005/01/22 01:19:43 carjay Exp $
  *
  * AViA eNX/GTX v4l2 driver (dbox-II-project)
  *
@@ -45,6 +45,11 @@
 #define AVIA_GT_V4L2_CARD	"AViA eNX/GTX"
 #define AVIA_GT_V4L2_BUS_INFO	"AViA core"
 #define AVIA_GT_V4L2_VERSION	KERNEL_VERSION(0,1,14)
+
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static struct video_device *vfd;
+#endif
 
 static int avia_gt_v4l2_open(struct inode *inode, struct file *file)
 {
@@ -206,13 +211,21 @@ static struct file_operations device_fops = {
 
 };
 
-static struct video_device device_info = {
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static struct video_device device_info_template __initdata = {
+#else
+static struct video_device device_info_template = {
+#endif
+	
 //	.owner =
 	.name = AVIA_GT_V4L2_CARD,
 //	.type = 
 //	.type2 =
 //	.hardware = 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	.release = video_device_release,
+#endif
 	.minor = -1,
 	.fops = &device_fops,
 	.priv = NULL,
@@ -221,18 +234,27 @@ static struct video_device device_info = {
 
 static int __init avia_gt_v4l2_init(void)
 {
-
-	printk("avia_gt_v4l2: $Id: avia_gt_v4l2.c,v 1.12 2003/09/30 04:54:03 obi Exp $\n");
-	
+	printk("avia_gt_v4l2: $Id: avia_gt_v4l2.c,v 1.12.4.1 2005/01/22 01:19:43 carjay Exp $\n");
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	vfd = video_device_alloc();
+	if (!vfd){
+		printk(KERN_ERR "avia_gt_v4l2: unable to allocate video device structure");
+		return -ENOMEM;
+	}
+	memcpy (vfd,&device_info_template,sizeof(struct video_device));
+	return video_register_device(vfd, VFL_TYPE_GRABBER, -1);
+#else
 	return video_register_device(&device_info, VFL_TYPE_GRABBER, -1);
-
+#endif
 }
 
 static void __exit avia_gt_v4l2_exit(void)
 {
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	video_unregister_device(vfd);
+#else
 	video_unregister_device(&device_info);
-
+#endif
 }
 
 module_init(avia_gt_v4l2_init);
@@ -241,4 +263,3 @@ module_exit(avia_gt_v4l2_exit);
 MODULE_AUTHOR("Florian Schirmer <jolt@tuxbox.org>");
 MODULE_DESCRIPTION("AViA eNX/GTX V4L2 driver");
 MODULE_LICENSE("GPL");
-
