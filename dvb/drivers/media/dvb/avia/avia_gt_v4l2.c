@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_v4l2.c,v 1.12.4.2 2005/01/24 19:46:40 carjay Exp $
+ * $Id: avia_gt_v4l2.c,v 1.12.4.3 2005/01/25 01:35:51 carjay Exp $
  *
  * AViA eNX/GTX v4l2 driver (dbox-II-project)
  *
@@ -75,11 +75,13 @@ static int avia_gt_v4l2_release(struct inode *inode, struct file *file)
 static ssize_t avia_gt_v4l2_read(struct file *file, char *data, size_t count, loff_t *ppos)
 {
 	int stat;
-	if (file->f_flags & O_NONBLOCK) return -EAGAIN;	// TODO: poll
+	if (file->f_flags & O_NONBLOCK)
+		return -EAGAIN;	// TODO: poll
 	avia_gt_capture_start();
 	stat = avia_gt_capture_copybuffer (data, (unsigned long)count, 1);
 	avia_gt_capture_stop();
-	if (stat<0) return stat;
+	if (stat<0)
+		return stat;
 	*ppos+=count;
 	return count;
 }
@@ -128,15 +130,13 @@ static int avia_gt_v4l2_ioctl(struct inode *inode, struct file *file, unsigned i
 			return avia_gt_pig_hide(0);
 		}
 		case VIDIOC_QUERYCAP:
-	{
-		struct v4l2_capability *capability = (struct v4l2_capability *)arg;
+		{struct v4l2_capability *capability = (struct v4l2_capability *)arg;
 		strcpy(capability->driver, AVIA_GT_V4L2_DRIVER);
 		strcpy(capability->card, AVIA_GT_V4L2_CARD);
 		strcpy(capability->bus_info, AVIA_GT_V4L2_BUS_INFO);
 		capability->version = AVIA_GT_V4L2_VERSION;
 		capability->capabilities = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_VIDEO_OVERLAY | V4L2_CAP_READWRITE | V4L2_CAP_STREAMING | V4L2_CAP_VIDEO_OUTPUT;
-		return 0;
-	}
+		return 0;}
 	case VIDIOC_G_OUTPUT:
 		(*((int *)arg)) = 0;	// only one output
 		return 0;
@@ -299,7 +299,7 @@ static struct video_device device_info = {
 
 static int __init avia_gt_v4l2_init(void)
 {
-	printk("avia_gt_v4l2: $Id: avia_gt_v4l2.c,v 1.12.4.2 2005/01/24 19:46:40 carjay Exp $\n");
+	printk("avia_gt_v4l2: $Id: avia_gt_v4l2.c,v 1.12.4.3 2005/01/25 01:35:51 carjay Exp $\n");
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 	vfd = video_device_alloc();
 	if (!vfd){

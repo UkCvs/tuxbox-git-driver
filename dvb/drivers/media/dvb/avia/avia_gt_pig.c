@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_pig.c,v 1.40.4.1 2005/01/24 19:46:40 carjay Exp $
+ * $Id: avia_gt_pig.c,v 1.40.4.2 2005/01/25 01:35:51 carjay Exp $
  *
  * pig driver for AViA eNX/GTX (dbox-II-project)
  *
@@ -29,7 +29,7 @@
 #include <linux/module.h>
 
 #include "avia_gt.h"
-#include "avia_gt_capture.h"	// TODO: does pig have to know about capture? -> delegate knowledge to v4l2
+#include "avia_gt_capture.h"	/* TODO: does pig have to know about capture? -> delegate knowledge to v4l2 */
 #include "avia_gt_pig.h"
 
 #define MAX_PIG_COUNT 2
@@ -153,8 +153,7 @@ int avia_gt_pig_show(u8 pig_nr)
 		enx_reg_set(VPSA1, Addr, pig_buffer[pig_nr] >> 2);	// Set buffer address (for non d-buffer mode)
 		enx_reg_set(VPOFFS1, OFFSET, pig_oddoffset[pig_nr] >> 2);
 		enx_reg_set(VPP1, U, 0);
-	}
-	else if (avia_gt_chip(GTX)) {
+	} else if (avia_gt_chip(GTX)) {
 		gtx_reg_set(VPO, OFFSET, pig_stride[pig_nr] >> 1);
 		gtx_reg_set(VPO, STRIDE, pig_stride[pig_nr] >> 1);
 		gtx_reg_set(VPO, B, 0);					// Enable hardware double buffering
@@ -177,7 +176,7 @@ int __init avia_gt_pig_init(void)
 {
 	u8 pig_nr;
 
-	printk(KERN_INFO "avia_gt_pig: $Id: avia_gt_pig.c,v 1.40.4.1 2005/01/24 19:46:40 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_pig: $Id: avia_gt_pig.c,v 1.40.4.2 2005/01/25 01:35:51 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
@@ -194,8 +193,7 @@ int __init avia_gt_pig_init(void)
 		enx_reg_set(RSTR0, PIG2, 1);
 		enx_reg_set(RSTR0, PIG1, 0);
 		enx_reg_set(RSTR0, PIG2, 0);
-	}
-	else if (avia_gt_chip(GTX)) {
+	} else if (avia_gt_chip(GTX)) {
 		gtx_reg_set(RSTR0, PIG1, 1);
 		gtx_reg_set(RSTR0, PIG1, 0);
 	}
@@ -233,4 +231,3 @@ EXPORT_SYMBOL(avia_gt_pig_set_size);
 EXPORT_SYMBOL(avia_gt_pig_set_stack);
 EXPORT_SYMBOL(avia_gt_pig_show);
 EXPORT_SYMBOL(avia_gt_pig_get_info);
-
