@@ -50,13 +50,15 @@
 #include <dbox/lcd-ks0713.h>
 #include "lcd-console.h"
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#include <linux/miscdevice.h>
+#else
 #include <linux/devfs_fs_kernel.h>
-
 #ifndef CONFIG_DEVFS_FS
 #error no devfs
-#endif
-
 static devfs_handle_t devfs_handle;
+#endif
+#endif
 
 /* lcd interface id */
 #define KS0713		0x00
@@ -68,11 +70,6 @@ static devfs_handle_t devfs_handle;
 #define CFG_IMMR IMAP_ADDR
 
 volatile iop8xx_t * iop;
-
-#ifdef MODULE
-extern int init_module(void);
-extern int cleanup_module(void);
-#endif /* def MODULE */
 
 static ssize_t lcd_read (struct file *file, char *buf, size_t count,
 			    loff_t *offset);
@@ -840,19 +837,29 @@ void lcd_reset_init(void)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static struct miscdevice lcd_dev = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "lcd",
+	.fops = &lcd_fops
+};
+#endif
+
 int __init lcd_init(void)
 {
 	int status;
 	immap_t	*immap;
 
-	printk("lcd.o: init lcd driver module\n");
+	printk("lcd: init lcd driver module\n");
 
 //	lcd_initialized = 0;
-//	if (register_chrdev(LCD_MAJOR,"lcd",&lcd_fops)) {
-//		printk("lcd.o: unable to get major %d\n", LCD_MAJOR);
-//		return -EIO;
-//	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	if (misc_register(&lcd_dev)<0){
+		printk("lcd: unable to register lcd device\n");
+		return -EIO;
+	}
+#else
 	devfs_handle =
 		devfs_register ( NULL, "dbox/lcd0", DEVFS_FL_DEFAULT, 0, 0,
 		     S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
@@ -862,12 +869,17 @@ int __init lcd_init(void)
 	{
 		return -EIO;
 	}
+#endif
 
 //  lcd_initialized ++;
 
 	if ( ( immap = ( immap_t * ) CFG_IMMR ) == NULL )
 	{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+		misc_deregister(&lcd_dev);
+#else
 		devfs_unregister ( devfs_handle );
+#endif
 		return -EIO;
 	}
 
@@ -890,13 +902,13 @@ int __init lcd_init(void)
 	{
 		case KS0713:
 //		case SED153X:
-			printk("lcd.o: found KS0713/SED153X lcd interface\n");
+			printk("lcd: found KS0713/SED153X lcd interface\n");
 			break;
 		case SSD181X:
-			printk("lcd.o: found SSD181X lcd interface\n");
+			printk("lcd: found SSD181X lcd interface\n");
 			break;
 		default:
-			printk("lcd.o: found unknown (%02X) lcd interface\n",status&0x0f);
+			printk("lcd: found unknown (%02X) lcd interface\n",status&0x0f);
 			break;
 	}
 
@@ -909,22 +921,20 @@ int __init lcd_init(void)
 
 int lcd_cleanup(void)
 {
-//	if (lcd_initialized >= 1) {
-//		if ((res = unregister_chrdev(LCD_MAJOR,"lcd"))) {
-//			printk("lcd.o: unable to release major %d\n", LCD_MAJOR );
-//			return res;
-//		}
-//		lcd_initialized --;
-//	}
-
-  devfs_unregister ( devfs_handle );
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	misc_deregister(&lcd_dev);
+#else
+	devfs_unregister ( devfs_handle );
+#endif
+	
   return 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 EXPORT_NO_SYMBOLS;
+#endif
 
 #ifdef MODULE
 
@@ -934,14 +944,12 @@ MODULE_DESCRIPTION("LCD driver (KS0713)");
 MODULE_LICENSE("GPL");
 #endif
 
-int init_module(void)
+static void __exit lcd_exit(void)
 {
-	return lcd_init();
+	lcd_cleanup();
 }
 
-int cleanup_module(void)
-{
-	return lcd_cleanup();
-}
+module_init(lcd_init);
+module_exit(lcd_exit);
 
 #endif /* def MODULE */
