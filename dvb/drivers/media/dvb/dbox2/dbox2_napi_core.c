@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_napi_core.c,v 1.1.2.1 2005/01/31 03:04:12 carjay Exp $
+ * $Id: dbox2_napi_core.c,v 1.1.2.2 2005/02/01 00:16:47 carjay Exp $
  *
  * Dbox2 DVB Adapter driver
  *
@@ -259,7 +259,7 @@ static struct device_driver dbox2_fe_driver = {
 static int __init dbox2_napi_init(void)
 {
 	int res;
-	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.1 2005/01/31 03:04:12 carjay Exp $\n");
+	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.2 2005/02/01 00:16:47 carjay Exp $\n");
 
 	if ((res = dvb_register_adapter(&fe_state.dvb_adap, "C-Cube AViA GTX/eNX with AViA 500/600",THIS_MODULE))<0){
 		printk(KERN_ERR "dbox2_napi: error registering adapter\n");
@@ -285,15 +285,16 @@ static int __init dbox2_napi_init(void)
 		goto out_driver;
 	}
 
+	if ((res = cam_napi_init())<0){
+		printk(KERN_ERR "dbox2_napi: error initialising DVB API CAM driver\n");
+		goto out_gt;
+	}
+
 	if ((res = avia_gt_napi_init())<0){
 		printk(KERN_ERR "dbox2_napi: error initialising DVB API demux driver\n");
 		goto out_av;
 	}
 
-	if ((res = cam_napi_init())<0){
-		printk(KERN_ERR "dbox2_napi: error initialising DVB API CAM driver\n");
-		goto out_gt;
-	}
 #endif
 	if ((res = dbox2_fp_napi_init())<0){
 		printk(KERN_ERR "dbox2_napi: error initialising DVB API fp driver\n");
@@ -323,8 +324,8 @@ out_dvb:
 static void __exit dbox2_napi_exit(void)
 {
 #ifndef STANDALONE
-	cam_napi_exit();
 	avia_gt_napi_exit();
+	cam_napi_exit();
 	avia_av_napi_exit();
 #endif
 	dbox2_fp_napi_exit();
