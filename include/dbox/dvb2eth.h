@@ -52,4 +52,4 @@ extern dvb2eth_callback avia_gt_napi_dvr_send;
 #define DVB2ETH_IOCTL_BASE	'o'
 #define DVB2ETH_STOP		_IO(DVB2ETH_IOCTL_BASE,242)
 #define DVB2ETH_START		_IO(DVB2ETH_IOCTL_BASE,243)
-#define DVB2ETH_SET_DEST	_IOW(DVB2ETH_IOCTL_BASE,244,sizeof(struct dvb2eth_dest))
+#define DVB2ETH_SET_DEST	_IOW(DVB2ETH_IOCTL_BASE,244,struct dvb2eth_dest)

@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_core.h,v 1.4 2003/03/05 09:52:17 waldi Exp $
+ * $Id: dbox2_fp_core.h,v 1.4.4.1 2005/01/15 02:03:40 carjay Exp $
  *
  * Copyright (C) 2002 by Andreas Oberritter <obi@tuxbox.org>
  *
@@ -32,11 +32,11 @@ extern tuxbox_dbox2_mid_t mid;
 
 typedef void (*queue_proc_t)(u8 queue_nr);
 
+/* container for our private data */
 struct fp_data
 {
 	int fpID;
 	int fpVCR;
-	struct i2c_client * client;
 };
 
 /* internal kernel api */
@@ -48,4 +48,3 @@ struct i2c_client * fp_get_i2c (void);
 
 #endif /* __dbox2_fp_core_h__ */
 #endif /* __KERNEL__ */
-
