@@ -21,6 +21,9 @@
  *
  *
  *   $Log: fp.c,v $
+ *   Revision 1.72.2.3  2002/11/27 19:24:26  Zwen
+ *   - wakeup detection improved
+ *
  *   Revision 1.72.2.2  2002/11/21 18:35:34  Zwen
  *   - IS_WAKEUP ioctl is now compatible with dbox_fp (u8 vs. int)
  *
@@ -243,7 +246,7 @@
  *   - some changes ...
  *
  *
- *   $Revision: 1.72.2.2 $
+ *   $Revision: 1.72.2.3 $
  *
  */
 
@@ -1810,6 +1813,7 @@ static int fp_get_wakeup_timer()
 static int fp_clear_wakeup_timer()
 {
 	u8 id[2]={0, 0};
+	fp_set_wakeup_timer(0);
 	if (info.fpREV<0x80)
 	{
 		if (fp_cmd(defdata->client, FP_CLEAR_WAKEUP, id, 2))
@@ -1821,10 +1825,11 @@ static int fp_clear_wakeup_timer()
 		if (fp_cmd(defdata->client, FP_CLEAR_WAKEUP, id, 2))
 			return -1;
 	}
-	if(id[0]==0)
-		is_wakeup=0;
-	else
+	dprintk("fp.o: clear_wakeup_timer [%x][%x]\n",id[0],id[1]);
+	if(id[0]==0x80)
 		is_wakeup=1;
+	else
+		is_wakeup=0;
 	return 0;
 }
 
