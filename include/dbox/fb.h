@@ -2,7 +2,9 @@
 #define __DBOX_FB_H__
 
 #include <asm/types.h>
+#include <linux/version.h>
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 typedef struct {
 	__u32 sx;	/* screen-relative */
 	__u32 sy;
@@ -11,6 +13,7 @@ typedef struct {
 	__u32 dx;
 	__u32 dy;
 } fb_copyarea;
+#endif
 
 #define AVIA_GT_GV_SET_BLEV	0	/* blend level */
 #define AVIA_GT_GV_SET_POS	1	/* position of graphics frame */
