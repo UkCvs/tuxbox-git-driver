@@ -847,6 +847,7 @@ static struct miscdevice lcd_dev = {
 
 int __init lcd_init(void)
 {
+	int ret;
 	int status;
 	immap_t	*immap;
 
@@ -855,17 +856,15 @@ int __init lcd_init(void)
 //	lcd_initialized = 0;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-	if (misc_register(&lcd_dev)<0){
+	if ((ret=misc_register(&lcd_dev)<0)){
 		printk("lcd: unable to register lcd device\n");
-		return -EIO;
+		return ret;
 	}
 	// devfs_mk_cdev can return -EINVAL and -ENOMEM - so take care about this
-	if ( devfs_mk_cdev(MKDEV(MISC_MAJOR,lcd_dev.minor),
-			S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
-			"dbox/lcd0") )
-	{
+	if ((ret=devfs_mk_cdev(MKDEV(MISC_MAJOR,lcd_dev.minor),
+			S_IFCHR | S_IRUGO | S_IWUGO, "dbox/lcd0") )) {
 		misc_deregister(&lcd_dev);
-		return -EIO;
+		return ret;
 	}
 #else
 	devfs_handle =
@@ -881,8 +880,7 @@ int __init lcd_init(void)
 
 //  lcd_initialized ++;
 
-	if ( ( immap = ( immap_t * ) CFG_IMMR ) == NULL )
-	{
+	if ( ( immap = ( immap_t * ) CFG_IMMR ) == NULL ) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 		devfs_remove("dbox/lcd0");
 		misc_deregister(&lcd_dev);
@@ -907,18 +905,17 @@ int __init lcd_init(void)
 
 	status = lcd_read_status();
 
-	switch(status&0x0f)
-	{
-		case KS0713:
-//		case SED153X:
-			printk("lcd: found KS0713/SED153X lcd interface\n");
-			break;
-		case SSD181X:
-			printk("lcd: found SSD181X lcd interface\n");
-			break;
-		default:
-			printk("lcd: found unknown (%02X) lcd interface\n",status&0x0f);
-			break;
+	switch(status&0x0f){
+	case KS0713:
+//	case SED153X:
+		printk("lcd: found KS0713/SED153X lcd interface\n");
+		break;
+	case SSD181X:
+		printk("lcd: found SSD181X lcd interface\n");
+		break;
+	default:
+		printk("lcd: found unknown (%02X) lcd interface\n",status&0x0f);
+		break;
 	}
 
 	lcd_init_console();

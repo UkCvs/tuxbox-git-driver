@@ -1,5 +1,5 @@
 /*
- * $Id: saa7126_core.c,v 1.45.2.4 2005/02/01 15:40:46 carjay Exp $
+ * $Id: saa7126_core.c,v 1.45.2.5 2005/02/01 19:55:59 carjay Exp $
  * 
  * Philips SAA7126 digital video encoder
  *
@@ -51,7 +51,7 @@ TUXBOX_INFO(dbox2_mid);
 #endif
 #endif
 
-#ifdef SAA7126_DEBUG
+#ifdef DEBUG
 #define dprintk(fmt, args...) printk(fmt, ##args)
 #else
 #define dprintk(fmt, args...)
@@ -547,16 +547,12 @@ static int saa7126_detect_client(struct i2c_adapter *adapter, int address,
 
 	if ((ret = i2c_attach_client(client))<0){
 		printk(KERN_ERR "saa: unable to attach client: Error %d\n",ret);
-		ret = -EIO;
 		goto out_reg;
 	}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-	if ( devfs_mk_cdev(MKDEV(MISC_MAJOR,pmd->minor),
-		S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
-		"dbox/saa%d", client->id))
-	{
-		ret = -EIO;
+	if ((ret = devfs_mk_cdev(MKDEV(MISC_MAJOR,pmd->minor), 
+			S_IFCHR | S_IRUGO | S_IWUGO, "dbox/saa%d", client->id))) {
 		goto out_reg;
 	}
 	list_add_tail(&encoder->lhead,&encoder_list);
