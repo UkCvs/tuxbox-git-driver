@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_ucode.c,v 1.14.2.4 2005/01/22 00:37:58 carjay Exp $
+ * $Id: avia_gt_ucode.c,v 1.14.2.5 2005/01/30 22:18:33 carjay Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -1080,13 +1080,14 @@ static void avia_gt_dmx_load_ucode(void)
 			ucode_buf = (u16 *)ucode_fs_buf;
 		close(fd);
 #endif
+	}
 
 		/* the proprietary firmwares seem to include already set-up tables
 		    so better make sure there are no active feeds */
-		if ((ucode_buf) && (file_size >= 0x740))
-			for (fd = DMX_PID_SEARCH_TABLE; fd < DMX_PID_PARSING_CONTROL_TABLE; fd++)
-				ucode_buf[fd] = 0xdfff;
-	}
+	if ((ucode_buf) && (file_size >= 0x740))
+		for (fd = DMX_PID_SEARCH_TABLE; fd < DMX_PID_PARSING_CONTROL_TABLE; fd++)
+			ucode_buf[fd] = 0xdfff;
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 	set_fs(fs);
 #endif
