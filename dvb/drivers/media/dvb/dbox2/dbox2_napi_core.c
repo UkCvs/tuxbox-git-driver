@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_napi_core.c,v 1.1.2.5 2005/02/02 19:35:43 carjay Exp $
+ * $Id: dbox2_napi_core.c,v 1.1.2.6 2005/02/08 17:31:24 carjay Exp $
  *
  * Dbox2 DVB Adapter driver
  *
@@ -162,7 +162,7 @@ static int dbox2_fe_setup_ves1x93(struct dbox2_fe *state, struct ves1x93_config 
 			break;
 		case 0xde: /* VES1993 */
 			state->pll_set = dbox2_pll_tsa5059_set_freq;
-			state->pll.tsa5059_addr = 0xc2>>1;
+			state->pll.i2c_addr = 0xc2>>1;
 			if (manuf_id == DBOX2_NAPI_NOKIA) {
 				state->pll.clk = 16000000;
 				state->pll.tsa5059_xc = 2;
@@ -227,7 +227,7 @@ int dbox2_probe_philips_S_frontend(struct dbox2_fe *state){
 	state->pll_set = dbox2_pll_tsa5059_set_freq;
 	state->pll.clk = 4000000;
 	state->pll.tsa5059_xc = 0;
-	state->pll.tsa5059_addr = 0xc6>>1;
+	state->pll.i2c_addr = 0xc6>>1;
 	return 0;
 }
 
@@ -253,7 +253,21 @@ int dbox2_probe_sagem_S_frontend(struct dbox2_fe *state){
 }
 
 int dbox2_probe_sagem_C_frontend(struct dbox2_fe *state){
-	return -ENODEV;
+	struct at76c651_config *cfg = kmalloc(sizeof(struct at76c651_config),GFP_KERNEL);
+	if (!cfg)
+		return -ENOMEM;
+	cfg->demod_address = 0x1a>>1;
+	cfg->pll_init = dbox2_napi_pll_init;
+	cfg->pll_set = dbox2_napi_pll_set;
+	if ((state->dvb_fe = at76c651_attach(cfg,state->i2c_adap))==0){
+		kfree(cfg);
+		return -ENODEV;
+	}
+	state->fe_config = cfg;
+	state->pll_init = NULL; 
+	state->pll_set = dbox2_pll_tua6010_set_freq;
+	state->pll.i2c_addr = 0xc2>>1;
+	return 0;
 }
 
 /****************/
@@ -334,7 +348,7 @@ static struct device_driver dbox2_fe_driver = {
 static int __init dbox2_napi_init(void)
 {
 	int res;
-	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.5 2005/02/02 19:35:43 carjay Exp $\n");
+	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.6 2005/02/08 17:31:24 carjay Exp $\n");
 
 	if ((res = dvb_register_adapter(&fe_state.dvb_adap, "C-Cube AViA GTX/eNX with AViA 500/600",THIS_MODULE))<0){
 		printk(KERN_ERR "dbox2_napi: error registering adapter\n");

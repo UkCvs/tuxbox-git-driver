@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_pll.h,v 1.1.2.3 2005/02/02 19:35:43 carjay Exp $
+ * $Id: dbox2_pll.h,v 1.1.2.4 2005/02/08 17:31:24 carjay Exp $
  *
  * Dbox2 PLL driver collection
  *
@@ -33,9 +33,10 @@
 struct pll_state {
 	u32 clk;
 	u8 tsa5059_xc;
-	u8 tsa5059_addr;
+	u8 i2c_addr;
 };
 int dbox2_pll_tsa5059_set_freq (struct pll_state *pll, struct dvb_frontend_parameters *params);
+int dbox2_pll_tua6010_set_freq (struct pll_state *pll, struct dvb_frontend_parameters *params);
 int dbox2_pll_init(struct i2c_adapter *s);
 #endif
 #endif

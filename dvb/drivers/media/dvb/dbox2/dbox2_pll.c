@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_pll.c,v 1.1.2.4 2005/02/02 19:35:43 carjay Exp $
+ * $Id: dbox2_pll.c,v 1.1.2.5 2005/02/08 17:31:24 carjay Exp $
  *
  * Dbox2 PLL driver collection
  *
@@ -169,7 +169,43 @@ int dbox2_pll_tsa5059_set_freq (struct pll_state *pll, struct dvb_frontend_param
 	buf[2] = 0x80 | ((ref >> 10) & 0x60) | (pe << 4) | r;
 	buf[3] = (cp << 6) | ((pll->tsa5059_xc&0x03)<<4);
 
-	return dbox2_pll_i2c_write(pll->tsa5059_addr,buf,sizeof(buf));
+	return dbox2_pll_i2c_write(pll->i2c_addr,buf,sizeof(buf));
+}
+
+/************/
+/* TUA 6010 */
+/************/
+
+int dbox2_pll_tua6010_set_freq(struct pll_state *pll, struct dvb_frontend_parameters *p)
+{
+	u32 div;
+	u8 buf[4];
+	u8 vu, p2, p1, p0;
+	u32 freq = p->frequency;
+	
+	if ((freq < 50000000) || (freq > 900000000))
+		return -EINVAL;
+
+	div = (freq + 36125000) / 62500;
+
+	if (freq > 400000000)
+		vu = 1;
+	else
+		vu = 0;
+
+	if (freq > 400000000)
+		p2 = 1, p1 = 0, p0 = 1;
+	else if (freq > 140000000)
+		p2 = 1, p1 = 1, p0 = 0;
+	else
+		p2 = 0, p1 = 1, p0 = 1;
+
+	buf[0] = (div >> 8) & 0x7f;
+	buf[1] = (div >> 0) & 0xff;
+	buf[2] = 0x8e;
+	buf[3] = (vu << 7) | (p2 << 2) | (p1 << 1) | p0;
+
+	return dbox2_pll_i2c_write(pll->i2c_addr, buf, sizeof(buf));
 }
 
 /******************/
