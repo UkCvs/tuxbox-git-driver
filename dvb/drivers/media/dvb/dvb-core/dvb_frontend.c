@@ -1,10 +1,13 @@
 /*
- * dvb-core.c: DVB core driver
+ * dvb_frontend.c: DVB frontend tuning interface/thread
+ *
  *
  * Copyright (C) 1999-2001 Ralph  Metzler
- *                         Marcus Metzler
- *                         Holger Waechtler 
- *                                    for convergence integrated media GmbH
+ *			   Marcus Metzler
+ *			   Holger Waechtler
+ *				      for convergence integrated media GmbH
+ *
+ * Copyright (C) 2004 Andrew de Quincey (tuning thread cleanup)
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -13,7 +16,7 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -29,29 +32,70 @@
 #include <linux/slab.h>
 #include <linux/poll.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/list.h>
 #include <asm/processor.h>
 #include <asm/semaphore.h>
 
 #include "dvb_frontend.h"
 #include "dvbdev.h"
-#include "dvb_functions.h"
 
-
-static int dvb_frontend_debug = 0;
+static int dvb_frontend_debug;
 static int dvb_shutdown_timeout = 5;
+static int dvb_override_frequency_bending;
+static int dvb_force_auto_inversion;
+static int dvb_override_tune_delay;
+static int do_frequency_bending;
+
+module_param_named(frontend_debug, dvb_frontend_debug, int, 0644);
+MODULE_PARM_DESC(dvb_frontend_debug, "Turn on/off frontend core debugging (default:off).");
+module_param(dvb_shutdown_timeout, int, 0444);
+MODULE_PARM_DESC(dvb_shutdown_timeout, "wait <shutdown_timeout> seconds after close() before suspending hardware");
+module_param(dvb_override_frequency_bending, int, 0444);
+MODULE_PARM_DESC(dvb_override_frequency_bending, "0: normal (default), 1: never use frequency bending, 2: always use frequency bending");
+module_param(dvb_force_auto_inversion, int, 0444);
+MODULE_PARM_DESC(dvb_force_auto_inversion, "0: normal (default), 1: INVERSION_AUTO forced always");
+module_param(dvb_override_tune_delay, int, 0444);
+MODULE_PARM_DESC(dvb_override_tune_delay, "0: normal (default), >0 => delay in milliseconds to wait for lock after a tune attempt");
 
 #define dprintk if (dvb_frontend_debug) printk
+
+#define FESTATE_IDLE 1
+#define FESTATE_RETUNE 2
+#define FESTATE_TUNING_FAST 4
+#define FESTATE_TUNING_SLOW 8
+#define FESTATE_TUNED 16
+#define FESTATE_ZIGZAG_FAST 32
+#define FESTATE_ZIGZAG_SLOW 64
+#define FESTATE_DISEQC 128
+#define FESTATE_WAITFORLOCK (FESTATE_TUNING_FAST | FESTATE_TUNING_SLOW | FESTATE_ZIGZAG_FAST | FESTATE_ZIGZAG_SLOW | FESTATE_DISEQC)
+#define FESTATE_SEARCHING_FAST (FESTATE_TUNING_FAST | FESTATE_ZIGZAG_FAST)
+#define FESTATE_SEARCHING_SLOW (FESTATE_TUNING_SLOW | FESTATE_ZIGZAG_SLOW)
+#define FESTATE_LOSTLOCK (FESTATE_ZIGZAG_FAST | FESTATE_ZIGZAG_SLOW)
+/*
+ * FESTATE_IDLE. No tuning parameters have been supplied and the loop is idling.
+ * FESTATE_RETUNE. Parameters have been supplied, but we have not yet performed the first tune.
+ * FESTATE_TUNING_FAST. Tuning parameters have been supplied and fast zigzag scan is in progress.
+ * FESTATE_TUNING_SLOW. Tuning parameters have been supplied. Fast zigzag failed, so we're trying again, but slower.
+ * FESTATE_TUNED. The frontend has successfully locked on.
+ * FESTATE_ZIGZAG_FAST. The lock has been lost, and a fast zigzag has been initiated to try and regain it.
+ * FESTATE_ZIGZAG_SLOW. The lock has been lost. Fast zigzag has been failed, so we're trying again, but slower.
+ * FESTATE_DISEQC. A DISEQC command has just been issued.
+ * FESTATE_WAITFORLOCK. When we're waiting for a lock.
+ * FESTATE_SEARCHING_FAST. When we're searching for a signal using a fast zigzag scan.
+ * FESTATE_SEARCHING_SLOW. When we're searching for a signal using a slow zigzag scan.
+ * FESTATE_LOSTLOCK. When the lock has been lost, and we're searching it again.
+ */
 
 #define MAX_EVENT 8
 
 struct dvb_fe_events {
 	struct dvb_frontend_event events[MAX_EVENT];
-	int                       eventw;
-	int                       eventr;
-	int                       overflow;
-	wait_queue_head_t         wait_queue;
-	struct semaphore          sem;
+	int			  eventw;
+	int			  eventr;
+	int			  overflow;
+	wait_queue_head_t	  wait_queue;
+	struct semaphore	  sem;
 };
 
 
@@ -61,18 +105,25 @@ struct dvb_frontend_data {
 	struct dvb_device *dvbdev;
 	struct dvb_frontend_parameters parameters;
 	struct dvb_fe_events events;
+	struct module *module;
 	struct semaphore sem;
 	struct list_head list_head;
 	wait_queue_head_t wait_queue;
 	pid_t thread_pid;
 	unsigned long release_jiffies;
-	unsigned long lost_sync_jiffies;
+	int state;
 	int bending;
 	int lnb_drift;
-	int timeout_count;
-	int lost_sync_count;
+	int inversion;
+	int auto_step;
+	int auto_sub_step;
+	int started_auto_step;
+	int min_delay;
+	int max_drift;
+	int step_size;
 	int exit;
-        fe_status_t status;
+	int wakeup;
+	fe_status_t status;
 };
 
 
@@ -102,7 +153,7 @@ static LIST_HEAD(frontend_notifier_list);
 static DECLARE_MUTEX(frontend_mutex);
 
 
-static int dvb_frontend_internal_ioctl (struct dvb_frontend *frontend, 
+static int dvb_frontend_internal_ioctl (struct dvb_frontend *frontend,
 				 unsigned int cmd, void *arg)
 {
 	int err = -EOPNOTSUPP;
@@ -127,14 +178,14 @@ static int dvb_frontend_internal_ioctl (struct dvb_frontend *frontend,
  *  if 2 tuners are located side by side you can get interferences when
  *  they try to tune to the same frequency, so both lose sync.
  *  We will slightly mistune in this case. The AFC of the demodulator
- *  should make it still possible to receive the requested transponder 
+ *  should make it still possible to receive the requested transponder
  *  on both tuners...
  */
 static void dvb_bend_frequency (struct dvb_frontend_data *this_fe, int recursive)
 {
 	struct list_head *entry;
 	int stepsize = this_fe->info->frequency_stepsize;
-	int this_fe_adap_num = this_fe->frontend.i2c->adapter->num;
+	int this_fe_adap_num = this_fe->frontend.dvb_adapter->num;
 	int frequency;
 
 	if (!stepsize || recursive > 10) {
@@ -158,7 +209,7 @@ static void dvb_bend_frequency (struct dvb_frontend_data *this_fe, int recursive
 
 		fe = list_entry (entry, struct dvb_frontend_data, list_head);
 
-		if (fe->frontend.i2c->adapter->num != this_fe_adap_num)
+		if (fe->frontend.dvb_adapter->num != this_fe_adap_num)
 			continue;
 
 		f = fe->parameters.frequency;
@@ -169,8 +220,8 @@ static void dvb_bend_frequency (struct dvb_frontend_data *this_fe, int recursive
 		frequency += this_fe->lnb_drift;
 		frequency += this_fe->bending;
 
-		if (this_fe != fe && fe->lost_sync_count != -1 &&
-                    frequency > f - stepsize && frequency < f + stepsize)
+		if (this_fe != fe && (fe->state != FESTATE_IDLE) &&
+		    frequency > f - stepsize && frequency < f + stepsize)
 		{
 			if (recursive % 2)
 				this_fe->bending += stepsize;
@@ -192,16 +243,10 @@ static void dvb_call_frontend_notifiers (struct dvb_frontend_data *fe,
 {
 	dprintk ("%s\n", __FUNCTION__);
 
-	if ((fe->status & FE_HAS_LOCK) && !(s & FE_HAS_LOCK))
-		fe->lost_sync_jiffies = jiffies;
-
 	if (((s ^ fe->status) & FE_HAS_LOCK) && (s & FE_HAS_LOCK))
-		dvb_delay (fe->info->notifier_delay);
+		msleep (fe->info->notifier_delay);
 
 	fe->status = s;
-
-	if (!(s & FE_HAS_LOCK) && (fe->info->caps & FE_CAN_MUTE_TS))
-		return;
 
 	/**
 	 *   now tell the Demux about the TS status changes...
@@ -231,7 +276,7 @@ static void dvb_frontend_add_event (struct dvb_frontend_data *fe, fe_status_t st
 
 	e = &events->events[events->eventw];
 
-	memcpy (&e->parameters, &fe->parameters, 
+	memcpy (&e->parameters, &fe->parameters,
 		sizeof (struct dvb_frontend_parameters));
 
 	if (status & FE_HAS_LOCK)
@@ -252,160 +297,168 @@ static void dvb_frontend_add_event (struct dvb_frontend_data *fe, fe_status_t st
 static int dvb_frontend_get_event (struct dvb_frontend_data *fe,
 			    struct dvb_frontend_event *event, int flags)
 {
-        struct dvb_fe_events *events = &fe->events;
+	struct dvb_fe_events *events = &fe->events;
 
 	dprintk ("%s\n", __FUNCTION__);
 
 	if (events->overflow) {
-                events->overflow = 0;
-                return -EOVERFLOW;
-        }
+		events->overflow = 0;
+		return -EOVERFLOW;
+	}
 
-        if (events->eventw == events->eventr) {
+	if (events->eventw == events->eventr) {
 		int ret;
 
-                if (flags & O_NONBLOCK)
-                        return -EWOULDBLOCK;
+		if (flags & O_NONBLOCK)
+			return -EWOULDBLOCK;
 
 		up(&fe->sem);
 
-                ret = wait_event_interruptible (events->wait_queue,
-                                                events->eventw != events->eventr);
+		ret = wait_event_interruptible (events->wait_queue,
+						events->eventw != events->eventr);
 
-        	if (down_interruptible (&fe->sem))
+		if (down_interruptible (&fe->sem))
 			return -ERESTARTSYS;
 
-                if (ret < 0)
-                        return ret;
-        }
-
-        if (down_interruptible (&events->sem))
-		return -ERESTARTSYS;
-
-       	memcpy (event, &events->events[events->eventr],
-		sizeof(struct dvb_frontend_event));
-
-        events->eventr = (events->eventr + 1) % MAX_EVENT;
-
-       	up (&events->sem);
-
-        return 0;
-}
-
-
-static int dvb_frontend_set_parameters (struct dvb_frontend_data *fe,
-				 struct dvb_frontend_parameters *param,
-				 int first_trial)
-{
-	struct dvb_frontend *frontend = &fe->frontend;
-	int err;
-
-	if (first_trial) {
-		fe->timeout_count = 0;
-		fe->lost_sync_count = 0;
-		fe->lost_sync_jiffies = jiffies;
-		fe->lnb_drift = 0;
-		if (fe->status & ~FE_TIMEDOUT)
-			dvb_frontend_add_event (fe, 0);
-		memcpy (&fe->parameters, param,
-			sizeof (struct dvb_frontend_parameters));
+		if (ret < 0)
+			return ret;
 	}
 
-	dvb_bend_frequency (fe, 0);
+	if (down_interruptible (&events->sem))
+		return -ERESTARTSYS;
 
-	dprintk ("%s: f == %i, drift == %i\n",
-		 __FUNCTION__, (int) param->frequency, (int) fe->lnb_drift);
+	memcpy (event, &events->events[events->eventr],
+		sizeof(struct dvb_frontend_event));
 
-	param->frequency += fe->lnb_drift + fe->bending;
-	err = dvb_frontend_internal_ioctl (frontend, FE_SET_FRONTEND, param);
-	param->frequency -= fe->lnb_drift + fe->bending;
+	events->eventr = (events->eventr + 1) % MAX_EVENT;
 
-	wake_up_interruptible (&fe->wait_queue);
+	up (&events->sem);
 
-	return err;
+	return 0;
 }
 
 static void dvb_frontend_init (struct dvb_frontend_data *fe)
 {
 	struct dvb_frontend *frontend = &fe->frontend;
 
-	dprintk ("DVB: initialising frontend %i:%i (%s)...\n",
-		 frontend->i2c->adapter->num, frontend->i2c->id,
+	dprintk ("DVB: initialising frontend %i (%s)...\n",
+		 frontend->dvb_adapter->num,
 		 fe->info->name);
 
 	dvb_frontend_internal_ioctl (frontend, FE_INIT, NULL);
 }
 
-
-static void update_delay (int *quality, int *delay, int locked)
+static void update_delay (int *quality, int *delay, int min_delay, int locked)
 {
-	int q2;
+	    int q2;
 
-	dprintk ("%s\n", __FUNCTION__);
+	    dprintk ("%s\n", __FUNCTION__);
 
-	if (locked)
-		(*quality) = (*quality * 220 + 36*256) / 256;
-	else
-		(*quality) = (*quality * 220 + 0) / 256;
+	    if (locked)
+		      (*quality) = (*quality * 220 + 36*256) / 256;
+	    else
+		      (*quality) = (*quality * 220 + 0) / 256;
 
-	q2 = *quality - 128;
-	q2 *= q2;
+	    q2 = *quality - 128;
+	    q2 *= q2;
 
-	*delay = HZ/20 + q2 * HZ / (128*128);
+	    *delay = min_delay + q2 * HZ / (128*128);
 }
 
-
-#define LNB_DRIFT 1024  /*  max. tolerated LNB drift, XXX FIXME: adjust! */
-#define TIMEOUT 2*HZ
-
 /**
- *  here we only come when we have lost the lock bit, 
- *  let's try to do something useful...
+ * Performs automatic twiddling of frontend parameters.
+ *
+ * @param fe The frontend concerned.
+ * @param check_wrapped Checks if an iteration has completed. DO NOT SET ON THE FIRST ATTEMPT
+ * @returns Number of complete iterations that have been performed.
  */
-static void dvb_frontend_recover (struct dvb_frontend_data *fe)
+static int dvb_frontend_autotune(struct dvb_frontend_data *fe, int check_wrapped)
 {
-	dprintk ("%s\n", __FUNCTION__);
+	int autoinversion;
+	int ready = 0;
+	int original_inversion = fe->parameters.inversion;
+	u32 original_frequency = fe->parameters.frequency;
 
-#if 0
-	if (fe->timeout_count > 3) {
-		printk ("%s: frontend seems dead, reinitializing...\n",
-			__FUNCTION__);
-		dvb_call_frontend_notifiers (fe, 0);
-		dvb_frontend_internal_ioctl (&fe->frontend, FE_INIT, NULL);
-		dvb_frontend_set_parameters (fe, &fe->parameters, 1);
-		dvb_frontend_add_event (fe, FE_REINIT);
-		fe->lost_sync_jiffies = jiffies;
-		fe->timeout_count = 0;
-		return;
-	}
-#endif
+	/* are we using autoinversion? */
+	autoinversion = ((!(fe->info->caps & FE_CAN_INVERSION_AUTO)) &&
+			 (fe->parameters.inversion == INVERSION_AUTO));
 
-	/**
-	 *  let's start a zigzag scan to compensate LNB drift...
-	 */
-	{
-		int j = fe->lost_sync_count;
-		int stepsize;
-		
-		if (fe->info->type == FE_QPSK)
-			stepsize = fe->parameters.u.qpsk.symbol_rate / 16000;
-		else if (fe->info->type == FE_QAM)
-			stepsize = 0;
-		else
-			stepsize = fe->info->frequency_stepsize * 2;
+	/* setup parameters correctly */
+	while(!ready) {
+		/* calculate the lnb_drift */
+		fe->lnb_drift = fe->auto_step * fe->step_size;
 
-		if (j % 32 == 0) {
+		/* wrap the auto_step if we've exceeded the maximum drift */
+		if (fe->lnb_drift > fe->max_drift) {
+			fe->auto_step = 0;
+			fe->auto_sub_step = 0;
 			fe->lnb_drift = 0;
-		} else {
-			fe->lnb_drift = -fe->lnb_drift;
-			if (j % 2)
-				fe->lnb_drift += stepsize;
 		}
 
-		dvb_frontend_set_parameters (fe, &fe->parameters, 0);
+		/* perform inversion and +/- zigzag */
+		switch(fe->auto_sub_step) {
+		case 0:
+			/* try with the current inversion and current drift setting */
+			ready = 1;
+			break;
+
+		case 1:
+			if (!autoinversion) break;
+
+			fe->inversion = (fe->inversion == INVERSION_OFF) ? INVERSION_ON : INVERSION_OFF;
+			ready = 1;
+			break;
+
+		case 2:
+			if (fe->lnb_drift == 0) break;
+
+			fe->lnb_drift = -fe->lnb_drift;
+			ready = 1;
+			break;
+
+		case 3:
+			if (fe->lnb_drift == 0) break;
+			if (!autoinversion) break;
+
+			fe->inversion = (fe->inversion == INVERSION_OFF) ? INVERSION_ON : INVERSION_OFF;
+			fe->lnb_drift = -fe->lnb_drift;
+			ready = 1;
+			break;
+
+		default:
+			fe->auto_step++;
+			fe->auto_sub_step = -1; /* it'll be incremented to 0 in a moment */
+			break;
+		}
+
+		if (!ready) fe->auto_sub_step++;
 	}
 
-	dvb_frontend_internal_ioctl (&fe->frontend, FE_RESET, NULL);
+	/* if this attempt would hit where we started, indicate a complete
+	 * iteration has occurred */
+	if ((fe->auto_step == fe->started_auto_step) &&
+	    (fe->auto_sub_step == 0) && check_wrapped) {
+		return 1;
+	}
+
+	/* perform frequency bending if necessary */
+	if ((dvb_override_frequency_bending != 1) && do_frequency_bending)
+		dvb_bend_frequency(fe, 0);
+
+	dprintk("%s: drift:%i bending:%i inversion:%i auto_step:%i "
+		"auto_sub_step:%i started_auto_step:%i\n",
+		__FUNCTION__, fe->lnb_drift, fe->bending, fe->inversion,
+		fe->auto_step, fe->auto_sub_step, fe->started_auto_step);
+
+	/* set the frontend itself */
+	fe->parameters.frequency += fe->lnb_drift + fe->bending;
+	if (autoinversion) fe->parameters.inversion = fe->inversion;
+	dvb_frontend_internal_ioctl (&fe->frontend, FE_SET_FRONTEND, &fe->parameters);
+	fe->parameters.frequency = original_frequency;
+	fe->parameters.inversion = original_inversion;
+
+	fe->auto_sub_step++;
+	return 0;
 }
 
 
@@ -422,87 +475,176 @@ static int dvb_frontend_is_exiting (struct dvb_frontend_data *fe)
 	return 0;
 }
 
+static int dvb_frontend_should_wakeup (struct dvb_frontend_data *fe)
+{
+	if (fe->wakeup) {
+		fe->wakeup = 0;
+		return 1;
+	}
+	return dvb_frontend_is_exiting(fe);
+}
+
+static void dvb_frontend_wakeup (struct dvb_frontend_data *fe) {
+	fe->wakeup = 1;
+	wake_up_interruptible(&fe->wait_queue);
+}
 
 static int dvb_frontend_thread (void *data)
 {
 	struct dvb_frontend_data *fe = (struct dvb_frontend_data *) data;
+	unsigned long timeout;
 	char name [15];
 	int quality = 0, delay = 3*HZ;
 	fe_status_t s;
+	int check_wrapped = 0;
 
 	dprintk ("%s\n", __FUNCTION__);
 
-	snprintf (name, sizeof(name), "kdvb-fe-%i:%i",
-		  fe->frontend.i2c->adapter->num, fe->frontend.i2c->id);
+	snprintf (name, sizeof(name), "kdvb-fe-%i",
+		  fe->frontend.dvb_adapter->num);
 
-	dvb_kernel_thread_setup (name);
-
-	fe->lost_sync_count = -1;
+        lock_kernel ();
+        daemonize (name);
+        sigfillset (&current->blocked);
+        unlock_kernel ();
 
 	dvb_call_frontend_notifiers (fe, 0);
 	dvb_frontend_init (fe);
+	fe->wakeup = 0;
 
-	while (!dvb_frontend_is_exiting (fe)) {
-		up (&fe->sem);      /* is locked when we enter the thread... */
+	while (1) {
+		up (&fe->sem);	    /* is locked when we enter the thread... */
 
-		interruptible_sleep_on_timeout (&fe->wait_queue, delay);
-		if (signal_pending(current))
+		timeout = wait_event_interruptible_timeout(fe->wait_queue,0 != dvb_frontend_should_wakeup (fe), delay);
+		if (-ERESTARTSYS == timeout || 0 != dvb_frontend_is_exiting (fe)) {
+			/* got signal or quitting */
 			break;
+		}
 
 		if (down_interruptible (&fe->sem))
 			break;
 
-		if (fe->lost_sync_count == -1)
+		/* if we've got no parameters, just keep idling */
+		if (fe->state & FESTATE_IDLE) {
+			delay = 3*HZ;
+			quality = 0;
 			continue;
+		}
 
-		if (dvb_frontend_is_exiting (fe))
-			break;
-
-		dvb_frontend_internal_ioctl (&fe->frontend, FE_READ_STATUS, &s);
-
-		update_delay (&quality, &delay, s & FE_HAS_LOCK);
-
-		s &= ~FE_TIMEDOUT;
-
-		if (s & FE_HAS_LOCK) {
-			fe->timeout_count = 0;
-			fe->lost_sync_count = 0;
+		/* get the frontend status */
+		if (fe->state & FESTATE_RETUNE) {
+			s = 0;
 		} else {
-			fe->lost_sync_count++;
-			if (!(fe->info->caps & FE_CAN_RECOVER)) {
-				if (!(fe->info->caps & FE_CAN_CLEAN_SETUP)) {
-					if (fe->lost_sync_count < 10)
-						continue;
-				}
-				dvb_frontend_recover (fe);
-				delay = HZ/5;
+			dvb_frontend_internal_ioctl (&fe->frontend, FE_READ_STATUS, &s);
+			if (s != fe->status) {
+				dvb_frontend_add_event (fe, s);
 			}
-			if (jiffies - fe->lost_sync_jiffies > TIMEOUT) {
-				s |= FE_TIMEDOUT;
-				if ((fe->status & FE_TIMEDOUT) == 0)
-					fe->timeout_count++;
+		}
+		/* if we're not tuned, and we have a lock, move to the TUNED state */
+		if ((fe->state & FESTATE_WAITFORLOCK) && (s & FE_HAS_LOCK)) {
+			update_delay(&quality, &delay, fe->min_delay, s & FE_HAS_LOCK);
+			fe->state = FESTATE_TUNED;
+
+			/* if we're tuned, then we have determined the correct inversion */
+			if ((!(fe->info->caps & FE_CAN_INVERSION_AUTO)) &&
+			    (fe->parameters.inversion == INVERSION_AUTO)) {
+				fe->parameters.inversion = fe->inversion;
+			}
+			continue;
+		}
+
+		/* if we are tuned already, check we're still locked */
+		if (fe->state & FESTATE_TUNED) {
+			update_delay(&quality, &delay, fe->min_delay, s & FE_HAS_LOCK);
+
+			/* we're tuned, and the lock is still good... */
+			if (s & FE_HAS_LOCK)
+				continue;
+			else {
+				/* if we _WERE_ tuned, but now don't have a lock,
+				 * need to zigzag */
+				fe->state = FESTATE_ZIGZAG_FAST;
+				fe->started_auto_step = fe->auto_step;
+				check_wrapped = 0;
 			}
 		}
 
-		if (s != fe->status)
-			dvb_frontend_add_event (fe, s);
+		/* don't actually do anything if we're in the LOSTLOCK state,
+		 * the frontend is set to FE_CAN_RECOVER, and the max_drift is 0 */
+		if ((fe->state & FESTATE_LOSTLOCK) &&
+		    (fe->info->caps & FE_CAN_RECOVER) && (fe->max_drift == 0)) {
+			update_delay(&quality, &delay, fe->min_delay, s & FE_HAS_LOCK);
+			continue;
+		}
+
+		/* don't do anything if we're in the DISEQC state, since this
+		 * might be someone with a motorized dish controlled by DISEQC.
+		 * If its actually a re-tune, there will be a SET_FRONTEND soon enough.	*/
+		if (fe->state & FESTATE_DISEQC) {
+			update_delay(&quality, &delay, fe->min_delay, s & FE_HAS_LOCK);
+			continue;
+		}
+
+		/* if we're in the RETUNE state, set everything up for a brand
+		 * new scan, keeping the current inversion setting, as the next
+		 * tune is _very_ likely to require the same */
+		if (fe->state & FESTATE_RETUNE) {
+			fe->lnb_drift = 0;
+			fe->auto_step = 0;
+			fe->auto_sub_step = 0;
+			fe->started_auto_step = 0;
+			check_wrapped = 0;
+		}
+
+		/* fast zigzag. */
+		if ((fe->state & FESTATE_SEARCHING_FAST) || (fe->state & FESTATE_RETUNE)) {
+			delay = fe->min_delay;
+
+			/* peform a tune */
+			if (dvb_frontend_autotune(fe, check_wrapped)) {
+				/* OK, if we've run out of trials at the fast speed.
+				 * Drop back to slow for the _next_ attempt */
+				fe->state = FESTATE_SEARCHING_SLOW;
+				fe->started_auto_step = fe->auto_step;
+				continue;
+			}
+			check_wrapped = 1;
+
+			/* if we've just retuned, enter the ZIGZAG_FAST state.
+			 * This ensures we cannot return from an
+			 * FE_SET_FRONTEND ioctl before the first frontend tune
+			 * occurs */
+			if (fe->state & FESTATE_RETUNE) {
+				fe->state = FESTATE_TUNING_FAST;
+				wake_up_interruptible(&fe->wait_queue);
+			}
+		}
+
+		/* slow zigzag */
+		if (fe->state & FESTATE_SEARCHING_SLOW) {
+			update_delay(&quality, &delay, fe->min_delay, s & FE_HAS_LOCK);
+
+			/* Note: don't bother checking for wrapping; we stay in this
+			 * state until we get a lock */
+			dvb_frontend_autotune(fe, 0);
+		}
 	};
 
 	if (dvb_shutdown_timeout)
-		dvb_frontend_internal_ioctl (&fe->frontend, FE_SLEEP, NULL); 
-
-	up (&fe->sem);
+		dvb_frontend_internal_ioctl (&fe->frontend, FE_SLEEP, NULL);
 
 	fe->thread_pid = 0;
 	mb();
 
-	wake_up_interruptible (&fe->wait_queue);
+	dvb_frontend_wakeup(fe);
 	return 0;
 }
 
 
 static void dvb_frontend_stop (struct dvb_frontend_data *fe)
 {
+	unsigned long ret;
+
 	dprintk ("%s\n", __FUNCTION__);
 
 	fe->exit = 1;
@@ -520,10 +662,18 @@ static void dvb_frontend_stop (struct dvb_frontend_data *fe)
 		return;
 	}
 
-	wake_up_interruptible(&fe->wait_queue);
-	interruptible_sleep_on(&fe->wait_queue);
+	/* wake up the frontend thread, so it notices that fe->exit == 1 */
+	dvb_frontend_wakeup(fe);
 
-	/* paranoia check */
+	/* wait until the frontend thread has exited */
+	ret = wait_event_interruptible(fe->wait_queue,0 == fe->thread_pid);
+	if (-ERESTARTSYS != ret) {
+		fe->state = FESTATE_IDLE;
+		return;
+	}
+	fe->state = FESTATE_IDLE;
+
+	/* paranoia check in case a signal arrived */
 	if (fe->thread_pid)
 		printk("dvb_frontend_stop: warning: thread PID %d won't exit\n",
 				fe->thread_pid);
@@ -548,26 +698,12 @@ static int dvb_frontend_start (struct dvb_frontend_data *fe)
 	if (down_interruptible (&fe->sem))
 		return -EINTR;
 
+	fe->state = FESTATE_IDLE;
 	fe->exit = 0;
 	fe->thread_pid = 0;
 	mb();
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0))
-{
-	/* bug in linux 2.4.x: kernel_thread() fails when the process calling
-	 * open() is run in the debugger (fixed in kernel 2.5). I hope this
-	 * workaround does not have any ugly side effects...
-	 */
-	int pt = current->ptrace;
-	current->ptrace = 0;
-#endif
-
 	ret = kernel_thread (dvb_frontend_thread, fe, 0);
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0))
-	current->ptrace = pt;
-}
-#endif
 
 	if (ret < 0) {
 		printk("dvb_frontend_start: failed to start kernel_thread (%d)\n", ret);
@@ -585,12 +721,18 @@ static int dvb_frontend_ioctl (struct inode *inode, struct file *file,
 {
 	struct dvb_device *dvbdev = file->private_data;
 	struct dvb_frontend_data *fe = dvbdev->priv;
+	struct dvb_frontend_tune_settings fetunesettings;
 	int err = 0;
 
 	dprintk ("%s\n", __FUNCTION__);
 
 	if (!fe || !fe->frontend.ioctl || fe->exit)
 		return -ENODEV;
+
+	if ((file->f_flags & O_ACCMODE) == O_RDONLY &&
+	    (_IOC_DIR(cmd) != _IOC_READ || cmd == FE_GET_EVENT ||
+	     cmd == FE_DISEQC_RECV_SLAVE_REPLY))
+		return -EPERM;
 
 	if (down_interruptible (&fe->sem))
 		return -ERESTARTSYS;
@@ -599,25 +741,97 @@ static int dvb_frontend_ioctl (struct inode *inode, struct file *file,
 	case FE_DISEQC_SEND_MASTER_CMD:
 	case FE_DISEQC_SEND_BURST:
 	case FE_SET_TONE:
+	case FE_SET_VOLTAGE:
 		if (fe->status)
 			dvb_call_frontend_notifiers (fe, 0);
 		dvb_frontend_internal_ioctl (&fe->frontend, cmd, parg);
+		fe->state = FESTATE_DISEQC;
 		break;
+
 	case FE_SET_FRONTEND:
-		err = dvb_frontend_set_parameters (fe, parg, 1);
+		fe->state = FESTATE_RETUNE;
+
+		memcpy (&fe->parameters, parg,
+			sizeof (struct dvb_frontend_parameters));
+
+		memset(&fetunesettings, 0, sizeof(struct dvb_frontend_tune_settings));
+		memcpy(&fetunesettings.parameters, parg,
+		       sizeof (struct dvb_frontend_parameters));
+
+		/* force auto frequency inversion if requested */
+		if (dvb_force_auto_inversion) {
+			fe->parameters.inversion = INVERSION_AUTO;
+			fetunesettings.parameters.inversion = INVERSION_AUTO;
+		}
+		if (fe->info->type == FE_OFDM) {
+			/* without hierachical coding code_rate_LP is irrelevant,
+			 * so we tolerate the otherwise invalid FEC_NONE setting */
+			if (fe->parameters.u.ofdm.hierarchy_information == HIERARCHY_NONE &&
+			    fe->parameters.u.ofdm.code_rate_LP == FEC_NONE)
+				fe->parameters.u.ofdm.code_rate_LP = FEC_AUTO;
+		}
+
+		/* get frontend-specific tuning settings */
+		if (dvb_frontend_internal_ioctl(&fe->frontend, FE_GET_TUNE_SETTINGS,
+						&fetunesettings) == 0) {
+			fe->min_delay = (fetunesettings.min_delay_ms * HZ) / 1000;
+			fe->max_drift = fetunesettings.max_drift;
+			fe->step_size = fetunesettings.step_size;
+		} else {
+			/* default values */
+			switch(fe->info->type) {
+			case FE_QPSK:
+				fe->min_delay = HZ/20;
+				fe->step_size = fe->parameters.u.qpsk.symbol_rate / 16000;
+				fe->max_drift = fe->parameters.u.qpsk.symbol_rate / 2000;
+				break;
+
+			case FE_QAM:
+				fe->min_delay = HZ/20;
+				fe->step_size = 0; /* no zigzag */
+				fe->max_drift = 0;
+				break;
+
+			case FE_OFDM:
+				fe->min_delay = HZ/20;
+				fe->step_size = fe->info->frequency_stepsize * 2;
+				fe->max_drift = (fe->info->frequency_stepsize * 2) + 1;
+				break;
+			case FE_ATSC:
+				printk("dvb-core: FE_ATSC not handled yet.\n");
+				break;
+			}
+		}
+		if (dvb_override_tune_delay > 0) {
+		       fe->min_delay = (dvb_override_tune_delay * HZ) / 1000;
+		}
+
+		dvb_frontend_wakeup(fe);
+		dvb_frontend_add_event (fe, 0);
 		break;
+
 	case FE_GET_EVENT:
 		err = dvb_frontend_get_event (fe, parg, file->f_flags);
 		break;
+
 	case FE_GET_FRONTEND:
 		memcpy (parg, &fe->parameters,
 			sizeof (struct dvb_frontend_parameters));
 		/*  fall-through... */
 	default:
-		dvb_frontend_internal_ioctl (&fe->frontend, cmd, parg);
+		err = dvb_frontend_internal_ioctl (&fe->frontend, cmd, parg);
 	};
 
 	up (&fe->sem);
+	if (err < 0)
+		return err;
+
+	/* Force the CAN_INVERSION_AUTO bit on. If the frontend doesn't
+	 * do it, it is done for it. */
+	if ((cmd == FE_GET_INFO) && (err == 0)) {
+		struct dvb_frontend_info* tmp = (struct dvb_frontend_info*) parg;
+		tmp->caps |= FE_CAN_INVERSION_AUTO;
+	}
 
 	return err;
 }
@@ -659,6 +873,11 @@ static int dvb_frontend_open (struct inode *inode, struct file *file)
 		fe->events.eventr = fe->events.eventw = 0;
 	}
 
+	if (!ret && fe->module) {
+		if (!try_module_get(fe->module))
+			return -EINVAL;
+	}
+
 	return ret;
 }
 
@@ -667,27 +886,33 @@ static int dvb_frontend_release (struct inode *inode, struct file *file)
 {
 	struct dvb_device *dvbdev = file->private_data;
 	struct dvb_frontend_data *fe = dvbdev->priv;
+	int ret = 0;
 
 	dprintk ("%s\n", __FUNCTION__);
 
 	if ((file->f_flags & O_ACCMODE) != O_RDONLY)
 		fe->release_jiffies = jiffies;
 
-	return dvb_generic_release (inode, file);
+	ret = dvb_generic_release (inode, file);
+
+	if (!ret && fe->module)
+		module_put(fe->module);
+
+	return ret;
 }
 
 
 
 int
 dvb_add_frontend_ioctls (struct dvb_adapter *adapter,
-                         int (*before_ioctl) (struct dvb_frontend *frontend,
-                                              unsigned int cmd, void *arg),
-                         int (*after_ioctl)  (struct dvb_frontend *frontend,
-                                              unsigned int cmd, void *arg),
+			 int (*before_ioctl) (struct dvb_frontend *frontend,
+					      unsigned int cmd, void *arg),
+			 int (*after_ioctl)  (struct dvb_frontend *frontend,
+					      unsigned int cmd, void *arg),
 			 void *before_after_data)
 {
 	struct dvb_frontend_ioctl_data *ioctl;
-        struct list_head *entry;
+	struct list_head *entry;
 
 	dprintk ("%s\n", __FUNCTION__);
 
@@ -713,7 +938,7 @@ dvb_add_frontend_ioctls (struct dvb_adapter *adapter,
 
 		fe = list_entry (entry, struct dvb_frontend_data, list_head);
 
-		if (fe->frontend.i2c->adapter == adapter &&
+		if (fe->frontend.dvb_adapter == adapter &&
 		    fe->frontend.before_ioctl == NULL &&
 		    fe->frontend.after_ioctl == NULL)
 		{
@@ -732,9 +957,9 @@ dvb_add_frontend_ioctls (struct dvb_adapter *adapter,
 void
 dvb_remove_frontend_ioctls (struct dvb_adapter *adapter,
 			    int (*before_ioctl) (struct dvb_frontend *frontend,
-                                                 unsigned int cmd, void *arg),
-                            int (*after_ioctl)  (struct dvb_frontend *frontend,
-                                                 unsigned int cmd, void *arg))
+						 unsigned int cmd, void *arg),
+			    int (*after_ioctl)	(struct dvb_frontend *frontend,
+						 unsigned int cmd, void *arg))
 {
 	struct list_head *entry, *n;
 
@@ -747,7 +972,7 @@ dvb_remove_frontend_ioctls (struct dvb_adapter *adapter,
 
 		fe = list_entry (entry, struct dvb_frontend_data, list_head);
 
-		if (fe->frontend.i2c->adapter == adapter &&
+		if (fe->frontend.dvb_adapter == adapter &&
 		    fe->frontend.before_ioctl == before_ioctl &&
 		    fe->frontend.after_ioctl == after_ioctl)
 		{
@@ -768,7 +993,7 @@ dvb_remove_frontend_ioctls (struct dvb_adapter *adapter,
 		{
 			list_del (&ioctl->list_head);
 			kfree (ioctl);
-			
+
 			break;
 		}
 	}
@@ -808,7 +1033,7 @@ dvb_add_frontend_notifier (struct dvb_adapter *adapter,
 
 		fe = list_entry (entry, struct dvb_frontend_data, list_head);
 
-		if (fe->frontend.i2c->adapter == adapter &&
+		if (fe->frontend.dvb_adapter == adapter &&
 		    fe->frontend.notifier_callback == NULL)
 		{
 			fe->frontend.notifier_callback = callback;
@@ -837,7 +1062,7 @@ dvb_remove_frontend_notifier (struct dvb_adapter *adapter,
 
 		fe = list_entry (entry, struct dvb_frontend_data, list_head);
 
-		if (fe->frontend.i2c->adapter == adapter &&
+		if (fe->frontend.dvb_adapter == adapter &&
 		    fe->frontend.notifier_callback == callback)
 		{
 			fe->frontend.notifier_callback = NULL;
@@ -855,7 +1080,7 @@ dvb_remove_frontend_notifier (struct dvb_adapter *adapter,
 		{
 			list_del (&notifier->list_head);
 			kfree (notifier);
-			
+
 			break;
 		}
 	}
@@ -872,14 +1097,13 @@ static struct file_operations dvb_frontend_fops = {
 	.release	= dvb_frontend_release
 };
 
-
-
 int
 dvb_register_frontend (int (*ioctl) (struct dvb_frontend *frontend,
 				     unsigned int cmd, void *arg),
-		       struct dvb_i2c_bus *i2c,
+		       struct dvb_adapter *dvb_adapter,
 		       void *data,
-		       struct dvb_frontend_info *info)
+		       struct dvb_frontend_info *info,
+		       struct module *module)
 {
 	struct list_head *entry;
 	struct dvb_frontend_data *fe;
@@ -909,11 +1133,13 @@ dvb_register_frontend (int (*ioctl) (struct dvb_frontend *frontend,
 	init_MUTEX (&fe->events.sem);
 	fe->events.eventw = fe->events.eventr = 0;
 	fe->events.overflow = 0;
+	fe->module = module;
 
 	fe->frontend.ioctl = ioctl;
-	fe->frontend.i2c = i2c;
+	fe->frontend.dvb_adapter = dvb_adapter;
 	fe->frontend.data = data;
 	fe->info = info;
+	fe->inversion = INVERSION_OFF;
 
 	list_for_each (entry, &frontend_ioctl_list) {
 		struct dvb_frontend_ioctl_data *ioctl;
@@ -922,7 +1148,7 @@ dvb_register_frontend (int (*ioctl) (struct dvb_frontend *frontend,
 				    struct dvb_frontend_ioctl_data,
 				    list_head);
 
-		if (ioctl->adapter == i2c->adapter) {
+		if (ioctl->adapter == dvb_adapter) {
 			fe->frontend.before_ioctl = ioctl->before_ioctl;
 			fe->frontend.after_ioctl = ioctl->after_ioctl;
 			fe->frontend.before_after_data = ioctl->before_after_data;
@@ -937,33 +1163,35 @@ dvb_register_frontend (int (*ioctl) (struct dvb_frontend *frontend,
 				       struct dvb_frontend_notifier_data,
 				       list_head);
 
-		if (notifier->adapter == i2c->adapter) {
+		if (notifier->adapter == dvb_adapter) {
 			fe->frontend.notifier_callback = notifier->callback;
 			fe->frontend.notifier_data = notifier->data;
 			break;
 		}
 	}
 
+	
 	list_add_tail (&fe->list_head, &frontend_list);
 
-	printk ("DVB: registering frontend %i:%i (%s)...\n",
-		fe->frontend.i2c->adapter->num, fe->frontend.i2c->id,
+	printk ("DVB: registering frontend %i (%s)...\n",
+		fe->frontend.dvb_adapter->num,
 		fe->info->name);
 
-	dvb_register_device (i2c->adapter, &fe->dvbdev, &dvbdev_template,
+	dvb_register_device (dvb_adapter, &fe->dvbdev, &dvbdev_template,
 			     fe, DVB_DEVICE_FRONTEND);
 
-	up (&frontend_mutex);
+	if ((info->caps & FE_NEEDS_BENDING) || (dvb_override_frequency_bending == 2))
+		do_frequency_bending = 1;
 
+	up (&frontend_mutex);
 	return 0;
 }
 
-
 int dvb_unregister_frontend (int (*ioctl) (struct dvb_frontend *frontend,
 					   unsigned int cmd, void *arg),
-			     struct dvb_i2c_bus *i2c)
+			     struct dvb_adapter *dvb_adapter)
 {
-        struct list_head *entry, *n;
+	struct list_head *entry, *n;
 
 	dprintk ("%s\n", __FUNCTION__);
 
@@ -974,7 +1202,7 @@ int dvb_unregister_frontend (int (*ioctl) (struct dvb_frontend *frontend,
 
 		fe = list_entry (entry, struct dvb_frontend_data, list_head);
 
-		if (fe->frontend.ioctl == ioctl && fe->frontend.i2c == i2c) {
+		if (fe->frontend.ioctl == ioctl && fe->frontend.dvb_adapter == dvb_adapter) {
 			dvb_unregister_device (fe->dvbdev);
 			list_del (entry);
 			up (&frontend_mutex);
@@ -987,8 +1215,3 @@ int dvb_unregister_frontend (int (*ioctl) (struct dvb_frontend *frontend,
 	up (&frontend_mutex);
 	return -EINVAL;
 }
-
-MODULE_PARM(dvb_frontend_debug,"i");
-MODULE_PARM(dvb_shutdown_timeout,"i");
-MODULE_PARM_DESC(dvb_frontend_debug, "enable verbose debug messages");
-MODULE_PARM_DESC(dvb_shutdown_timeout, "wait <shutdown_timeout> seconds after close() before suspending hardware");

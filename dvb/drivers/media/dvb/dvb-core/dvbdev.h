@@ -28,8 +28,9 @@
 #include <linux/fs.h>
 #include <linux/list.h>
 #include <linux/devfs_fs_kernel.h>
+#include <linux/smp_lock.h>
 
-#define DVB_MAJOR 250
+#define DVB_MAJOR 212
 
 #define DVB_DEVICE_VIDEO      0
 #define DVB_DEVICE_AUDIO      1
@@ -44,23 +45,18 @@
 
 struct dvb_adapter {
 	int num;
-#include <linux/version.h>
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0))
-	devfs_handle_t devfs_handle;
-#endif
 	struct list_head list_head;
 	struct list_head device_list;
 	const char *name;
 	u8 proposed_mac [6];
+
+	struct module *module;
 };
 
 
 struct dvb_device {
 	struct list_head list_head;
 	struct file_operations *fops;
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0))
-	devfs_handle_t devfs_handle;
-#endif
 	struct dvb_adapter *adapter;
 	int type;
 	u32 id;
@@ -79,7 +75,7 @@ struct dvb_device {
 };
 
 
-extern int dvb_register_adapter (struct dvb_adapter **padap, const char *name);
+extern int dvb_register_adapter (struct dvb_adapter **padap, const char *name, struct module *module);
 extern int dvb_unregister_adapter (struct dvb_adapter *adap);
 
 extern int dvb_register_device (struct dvb_adapter *adap,
@@ -94,5 +90,15 @@ extern int dvb_generic_open (struct inode *inode, struct file *file);
 extern int dvb_generic_release (struct inode *inode, struct file *file);
 extern int dvb_generic_ioctl (struct inode *inode, struct file *file,
 			      unsigned int cmd, unsigned long arg);
+
+/* we don't mess with video_usercopy() any more,
+we simply define out own dvb_usercopy(), which will hopefully become
+generic_usercopy()  someday... */
+
+extern int dvb_usercopy(struct inode *inode, struct file *file,
+	                    unsigned int cmd, unsigned long arg,
+			    int (*func)(struct inode *inode, struct file *file,
+			    unsigned int cmd, void *arg));
+			      
 #endif /* #ifndef _DVBDEV_H_ */
 

@@ -25,36 +25,35 @@
 #include <linux/errno.h>
 #include <linux/string.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/init.h>
 #include <linux/slab.h>
+#include <linux/device.h>
 
 #include "dvbdev.h"
-#include "dvb_functions.h"
 
-static int dvbdev_debug = 0;
+static int dvbdev_debug;
+
+module_param(dvbdev_debug, int, 0644);
+MODULE_PARM_DESC(dvbdev_debug, "Turn on/off device debugging (default:off).");
+
 #define dprintk if (dvbdev_debug) printk
 
 static LIST_HEAD(dvb_adapter_list);
 static DECLARE_MUTEX(dvbdev_register_lock);
 
-
-static char *dnames[] = { 
+static const char * const dnames[] = {
         "video", "audio", "sec", "frontend", "demux", "dvr", "ca",
 	"net", "osd"
 };
 
+#define DVB_MAX_IDS              4
+#define nums2minor(num,type,id)  ((num << 6) | (id << 4) | type)
 
-#ifdef CONFIG_DVB_DEVFS_ONLY
-
-	#define DVB_MAX_IDS              ~0
-	#define nums2minor(num,type,id)  0
-
-#else
-
-	#define DVB_MAX_IDS              4
-	#define nums2minor(num,type,id)  ((num << 6) | (id << 4) | type)
+struct class_simple *dvb_class;
+EXPORT_SYMBOL(dvb_class);
 
 static struct dvb_device* dvbdev_find_device (int minor)
 {
@@ -107,9 +106,6 @@ static struct file_operations dvb_device_fops =
 	.owner =	THIS_MODULE,
 	.open =		dvb_device_open,
 };
-#endif /* CONFIG_DVB_DEVFS_ONLY */
-
-
 
 int dvb_generic_open(struct inode *inode, struct file *file)
 {
@@ -200,7 +196,7 @@ int dvb_register_device(struct dvb_adapter *adap, struct dvb_device **pdvbdev,
 
 	if ((id = dvbdev_get_free_id (adap, type)) < 0) {
 		up (&dvbdev_register_lock);
-		*pdvbdev = 0;
+		*pdvbdev = NULL;
 		printk ("%s: could get find free device id...\n", __FUNCTION__);
 		return -ENFILE;
 	}
@@ -220,31 +216,20 @@ int dvb_register_device(struct dvb_adapter *adap, struct dvb_device **pdvbdev,
 	dvbdev->adapter = adap;
 	dvbdev->priv = priv;
 
+	dvbdev->fops->owner = adap->module;
+
 	list_add_tail (&dvbdev->list_head, &adap->device_list);
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0))
-	{
-	char name[64];
-	snprintf(name, sizeof(name), "%s%d", dnames[type], id);
-	dvbdev->devfs_handle = devfs_register(adap->devfs_handle, name,
-					      DEVFS_FL_DEFAULT,
-					      DVB_MAJOR,
-					      nums2minor(adap->num, type, id),
-					      S_IFCHR | S_IRUSR | S_IWUSR,
-					      dvbdev->fops, dvbdev);
-	dprintk("DVB: register adapter%d/%s @ minor: %i (0x%02x)\n",
-		adap->num, name, nums2minor(adap->num, type, id),
-		nums2minor(adap->num, type, id));
-	}
-#else
 	devfs_mk_cdev(MKDEV(DVB_MAJOR, nums2minor(adap->num, type, id)),
  			S_IFCHR | S_IRUSR | S_IWUSR,
 			"dvb/adapter%d/%s%d", adap->num, dnames[type], id);
 
+	class_simple_device_add(dvb_class, MKDEV(DVB_MAJOR, nums2minor(adap->num, type, id)),
+				NULL, "dvb%d.%s%d", adap->num, dnames[type], id);
+
 	dprintk("DVB: register adapter%d/%s%d @ minor: %i (0x%02x)\n",
 		adap->num, dnames[type], id, nums2minor(adap->num, type, id),
  		nums2minor(adap->num, type, id));
-#endif
 
 	return 0;
 }
@@ -255,12 +240,12 @@ void dvb_unregister_device(struct dvb_device *dvbdev)
 	if (!dvbdev)
 		return;
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0))
-	devfs_unregister(dvbdev->devfs_handle);
-#else
 	devfs_remove("dvb/adapter%d/%s%d", dvbdev->adapter->num,
 			dnames[dvbdev->type], dvbdev->id);
-#endif
+
+	class_simple_device_remove(MKDEV(DVB_MAJOR, nums2minor(dvbdev->adapter->num,
+					dvbdev->type, dvbdev->id)));
+
 	list_del (&dvbdev->list_head);
 	kfree (dvbdev);
 }
@@ -287,7 +272,7 @@ skip:
 }
 
 
-int dvb_register_adapter(struct dvb_adapter **padap, const char *name)
+int dvb_register_adapter(struct dvb_adapter **padap, const char *name, struct module *module)
 {
 	struct dvb_adapter *adap;
 	int num;
@@ -310,17 +295,10 @@ int dvb_register_adapter(struct dvb_adapter **padap, const char *name)
 
 	printk ("DVB: registering new adapter (%s).\n", name);
 	
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0))
-	{
-	char dirname[64];
-	snprintf(dirname, sizeof(dirname), "adapter%d", num);
-	adap->devfs_handle = devfs_mk_dir(dvb_devfs_handle, dirname, NULL);
-	}
-#else
 	devfs_mk_dir("dvb/adapter%d", num);
-#endif
 	adap->num = num;
 	adap->name = name;
+	adap->module = module;
 
 	list_add_tail (&adap->list_head, &dvb_adapter_list);
 
@@ -332,11 +310,8 @@ int dvb_register_adapter(struct dvb_adapter **padap, const char *name)
 
 int dvb_unregister_adapter(struct dvb_adapter *adap)
 {
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0))
-	devfs_unregister(adap->devfs_handle);
-#else
 	devfs_remove("dvb/adapter%d", adap->num);
-#endif
+
 	if (down_interruptible (&dvbdev_register_lock))
 		return -ERESTARTSYS;
 	list_del (&adap->list_head);
@@ -345,33 +320,95 @@ int dvb_unregister_adapter(struct dvb_adapter *adap)
 	return 0;
 }
 
+/* if the miracle happens and "generic_usercopy()" is included into
+   the kernel, then this can vanish. please don't make the mistake and
+   define this as video_usercopy(). this will introduce a dependecy
+   to the v4l "videodev.o" module, which is unnecessary for some
+   cards (ie. the budget dvb-cards don't need the v4l module...) */
+int dvb_usercopy(struct inode *inode, struct file *file,
+	             unsigned int cmd, unsigned long arg,
+		     int (*func)(struct inode *inode, struct file *file,
+		     unsigned int cmd, void *arg))
+{
+        char    sbuf[128];
+        void    *mbuf = NULL;
+        void    *parg = NULL;
+        int     err  = -EINVAL;
+
+        /*  Copy arguments into temp kernel buffer  */
+        switch (_IOC_DIR(cmd)) {
+        case _IOC_NONE:
+		/*
+		 * For this command, the pointer is actually an integer
+		 * argument.
+		 */
+		parg = (void *) arg;
+		break;
+        case _IOC_READ: /* some v4l ioctls are marked wrong ... */
+        case _IOC_WRITE:
+        case (_IOC_WRITE | _IOC_READ):
+                if (_IOC_SIZE(cmd) <= sizeof(sbuf)) {
+                        parg = sbuf;
+                } else {
+                        /* too big to allocate from stack */
+                        mbuf = kmalloc(_IOC_SIZE(cmd),GFP_KERNEL);
+                        if (NULL == mbuf)
+                                return -ENOMEM;
+                        parg = mbuf;
+                }
+
+                err = -EFAULT;
+                if (copy_from_user(parg, (void __user *)arg, _IOC_SIZE(cmd)))
+                        goto out;
+                break;
+        }
+
+        /* call driver */
+        if ((err = func(inode, file, cmd, parg)) == -ENOIOCTLCMD)
+                err = -EINVAL;
+
+        if (err < 0)
+                goto out;
+
+        /*  Copy results into user buffer  */
+        switch (_IOC_DIR(cmd))
+        {
+        case _IOC_READ:
+        case (_IOC_WRITE | _IOC_READ):
+                if (copy_to_user((void __user *)arg, parg, _IOC_SIZE(cmd)))
+                        err = -EFAULT;
+                break;
+        }
+
+out:
+        if (mbuf)
+                kfree(mbuf);
+
+        return err;
+}
 
 static int __init init_dvbdev(void)
 {
 	int retval;
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0))
-	dvb_devfs_handle = devfs_mk_dir (NULL, "dvb", NULL);
-#else
-	devfs_mk_dir("dvb");
-#endif
-#ifndef CONFIG_DVB_DEVFS_ONLY
+
 	if ((retval = register_chrdev(DVB_MAJOR,"DVB", &dvb_device_fops)))
-		printk("video_dev: unable to get major %d\n", DVB_MAJOR);
-#endif
+		printk("dvb-core: unable to get major %d\n", DVB_MAJOR);
+
+	devfs_mk_dir("dvb");
+
+	dvb_class = class_simple_create(THIS_MODULE, "dvb");
+	if (IS_ERR(dvb_class))
+		return PTR_ERR(dvb_class);
+
 	return retval;
 }
 
 
 static void __exit exit_dvbdev(void)
 {
-#ifndef CONFIG_DVB_DEVFS_ONLY
 	unregister_chrdev(DVB_MAJOR, "DVB");
-#endif
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0))
-	devfs_unregister(dvb_devfs_handle);
-#else
         devfs_remove("dvb");
-#endif
+	class_simple_destroy(dvb_class);
 }
 
 module_init(init_dvbdev);
@@ -380,7 +417,4 @@ module_exit(exit_dvbdev);
 MODULE_DESCRIPTION("DVB Core Driver");
 MODULE_AUTHOR("Marcus Metzler, Ralph Metzler, Holger Waechtler");
 MODULE_LICENSE("GPL");
-
-MODULE_PARM(dvbdev_debug,"i");
-MODULE_PARM_DESC(dvbdev_debug, "enable verbose debug messages");
 
