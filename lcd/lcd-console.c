@@ -21,8 +21,8 @@
  *
  *
  *   $Log: lcd-console.c,v $
- *   Revision 1.10.6.1  2003/07/02 15:57:07  ghostrider
- *   add lucgas enigma image driver to cvs
+ *   Revision 1.10.6.2  2003/07/02 19:36:04  lucgas
+ *   needed files
  *
  *   Revision 1.2  2003/06/21 15:22:19  dkey
  *   change to drivers from 27.8.02
@@ -48,7 +48,7 @@
  *   Revision 1.4  2001/01/06 10:06:35  gillem
  *   cvs check
  *
- *   $Revision: 1.10.6.1 $
+ *   $Revision: 1.10.6.2 $
  *
  */
 
