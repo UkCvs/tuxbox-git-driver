@@ -1,5 +1,5 @@
 /* 
-  $Id: ves1993.c,v 1.13.2.3 2002/01/22 23:44:56 fnbrd Exp $
+  $Id: ves1993.c,v 1.13.2.4 2002/02/14 20:16:47 TripleDES Exp $
 
 		VES1993	- Single Chip Satellite Channel Receiver driver module
 							 
@@ -20,6 +20,9 @@
 		Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
   $Log: ves1993.c,v $
+  Revision 1.13.2.4  2002/02/14 20:16:47  TripleDES
+  DiSEqC(tm) fix
+
   Revision 1.13.2.3  2002/01/22 23:44:56  fnbrd
   Id und Log reingemacht.
 
@@ -631,12 +634,14 @@ static int dvb_command(struct i2c_client *client, unsigned int cmd, void *arg)
 	}
 	case FE_SEC_COMMAND:
 	{
-		break;
+		//break;
 		struct secCommand *command=(struct secCommand*)arg;
 		switch (command->type) {
 		case SEC_CMDTYPE_DISEQC:
 		{
 			unsigned char msg[SEC_MAX_DISEQC_PARAMS+3];
+			printk("[VES1993] SEND DiSEqC\n");
+			
 			msg[0]=0xE0;
 			msg[1]=command->u.diseqc.addr;
 			msg[2]=command->u.diseqc.cmd;
