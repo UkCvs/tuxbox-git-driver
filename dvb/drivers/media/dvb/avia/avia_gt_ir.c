@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_ir.c,v 1.30.4.1 2005/01/31 20:04:09 carjay Exp $
+ * $Id: avia_gt_ir.c,v 1.30.4.2 2005/01/31 20:15:18 carjay Exp $
  * 
  * AViA eNX/GTX ir driver (dbox-II-project)
  *
@@ -265,18 +265,23 @@ void avia_gt_ir_set_queue(unsigned int addr)
 int avia_gt_ir_register(void *foo){
 	if (down_interruptible(&ir_sem))
 		return -ERESTARTSYS;
-	if (clientnr)
+
+	if (clientnr){
+		up(&ir_sem);
 		return -EUSERS;
+	}
 	clientnr++;
 
 	if (avia_gt_alloc_irq(gt_info->irq_ir, avia_gt_ir_rx_irq)) {
 		printk(KERN_ERR "avia_gt_ir: unable to get rx interrupt\n");
+		up(&ir_sem);
 		return -EIO;
 	}
 	
 	if (avia_gt_alloc_irq(gt_info->irq_it, avia_gt_ir_tx_irq)) {
 		printk(KERN_ERR "avia_gt_ir: unable to get tx interrupt\n");
 		avia_gt_free_irq(gt_info->irq_ir);
+		up(&ir_sem);
 		return -EIO;
 	}
 
@@ -295,8 +300,10 @@ int avia_gt_ir_register(void *foo){
 int avia_gt_ir_unregister(void *foo){
 	if (down_interruptible(&ir_sem))
 		return -ERESTARTSYS;
+
 	if (!clientnr){
 		printk ("avia_gt_ir: no clients registered");
+		up(&ir_sem);
 		return -EIO;
 	}
 	clientnr--;
@@ -304,14 +311,14 @@ int avia_gt_ir_unregister(void *foo){
 	avia_gt_free_irq(gt_info->irq_it);
 	avia_gt_free_irq(gt_info->irq_ir);
 	avia_gt_ir_reset(0);
-	
+
 	up(&ir_sem);
 	return 0;
 }
 
 int avia_gt_ir_init(void)
 {
-	printk(KERN_INFO "avia_gt_ir: $Id: avia_gt_ir.c,v 1.30.4.1 2005/01/31 20:04:09 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_ir: $Id: avia_gt_ir.c,v 1.30.4.2 2005/01/31 20:15:18 carjay Exp $\n");
 
 	do_gettimeofday(&last_timestamp);
 	
