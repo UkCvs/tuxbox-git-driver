@@ -21,8 +21,11 @@
  *
  *
  *   $Log: saa7126_core.c,v $
- *   Revision 1.26.4.1  2003/02/18 14:32:47  alexw
- *   update to image drivers
+ *   Revision 1.26.4.2  2003/02/27 16:48:42  thegoodguy
+ *   == 1.26 (current rel_1_0_0) - include LazyT\'s fix "SAAIOGWSS works now and doesn't kill the box"
+ *
+ *   Revision 1.26  2002/09/15 09:15:06  LazyT
+ *   SAAIOGWSS works now and doesn't kill the box
  *
  *   Revision 1.25  2002/08/12 17:19:06  obi
  *   removed compiler warnings
@@ -96,7 +99,7 @@
  *   Revision 1.2  2001/01/06 10:06:55  gillem
  *   cvs check
  *
- *   $Revision: 1.26.4.1 $
+ *   $Revision: 1.26.4.2 $
  *
  */
 
@@ -780,11 +783,11 @@ static int saa7126_wss_get(void)
 		i = 0;
 		while (i < 8)
 		{
-			if (b[1] == wss_data[i])
+			if (b[0] == wss_data[i])
 			{
 				return i;
-				i++;
 			}
+			i++;
 		}
 	}
 
