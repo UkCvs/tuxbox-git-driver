@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_avia_gt_napi.c,v 1.1.2.1 2005/01/31 03:04:12 carjay Exp $
+ * $Id: dbox2_avia_gt_napi.c,v 1.1.2.2 2005/02/22 04:51:21 carjay Exp $
  * 
  * AViA GTX/eNX demux dvb api driver (dbox-II-project)
  *
@@ -87,21 +87,14 @@ static void avia_gt_set_playback_mode(int new_mode)
 
 static u32 avia_gt_napi_crc32(struct dvb_demux_feed *dvbdmxfeed, const u8 *src, size_t len)
 {
-	if ((dvbdmxfeed->type == DMX_TYPE_SEC) && (dvbdmxfeed->feed.sec.check_crc))
-		return dvbdmxfeed->feed.sec.crc_val;
+	if ((src >= gt_info->mem_addr) && (&src[len] <= &gt_info->mem_addr[0x200000]))
+		return (dvbdmxfeed->feed.sec.crc_val = avia_gt_accel_crc32(src - gt_info->mem_addr, len, dvbdmxfeed->feed.sec.crc_val));
 	else
 		return (dvbdmxfeed->feed.sec.crc_val = crc32_be(dvbdmxfeed->feed.sec.crc_val, src, len));
 }
 
 static void avia_gt_napi_memcpy(struct dvb_demux_feed *dvbdmxfeed, u8 *dst, const u8 *src, size_t len)
 {
-	if ((dvbdmxfeed->type == DMX_TYPE_SEC) && (dvbdmxfeed->feed.sec.check_crc)) {
-		if ((src >= gt_info->mem_addr) && (&src[len] <= &gt_info->mem_addr[0x200000]))
-			dvbdmxfeed->feed.sec.crc_val = avia_gt_accel_crc32(src - gt_info->mem_addr, len, dvbdmxfeed->feed.sec.crc_val);
-		else
-			dvbdmxfeed->feed.sec.crc_val = crc32_be(dvbdmxfeed->feed.sec.crc_val, src, len);
-	}
-
 	memcpy(dst, src, len);
 }
 
@@ -825,7 +818,7 @@ int __init avia_gt_napi_init(void)
 {
 	int result;
 
-	printk(KERN_INFO "avia_gt_napi: $Id: dbox2_avia_gt_napi.c,v 1.1.2.1 2005/01/31 03:04:12 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_napi: $Id: dbox2_avia_gt_napi.c,v 1.1.2.2 2005/02/22 04:51:21 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
@@ -943,7 +936,6 @@ void __exit avia_gt_napi_exit(void)
 	if (ca_dev)
 		dvb_unregister_device(ca_dev);
 	dvb_net_release(&net);
-//	dvb_remove_frontend_notifier(adapter, avia_gt_napi_before_after_tune);
 	demux.dmx.close(&demux.dmx);
 	demux.dmx.disconnect_frontend(&demux.dmx);
 	demux.dmx.remove_frontend(&demux.dmx, &fe_mem);
