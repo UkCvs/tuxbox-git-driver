@@ -14,10 +14,6 @@
 #define ENX_INTERRUPT		SIU_IRQ1
 
 
-#define TDP_INSTR_RAM		0x2000
-#define TDP_DATA_RAM		0x2800
-#define CAM_RAM			0x3000
-
 
 #define ENX_REG_PFCR		0x0780			// Parallel FIFO Control Register
 #define ENX_REG_PFQR		0x0782			// Parallel FIFO Quantity Register
@@ -277,6 +273,10 @@
 #define ENX_REG_QWPnL           0x0880
 #define ENX_REG_QWPnH           0x0882
 
+#define ENX_TDP_INSTR_RAM	0x2000
+#define ENX_TDP_DATA_RAM	0x2800
+#define ENX_CAM_RAM		0x3000
+
 typedef struct {
 
   unsigned char Reserved1: 3;
@@ -481,16 +481,10 @@ typedef struct {
   
 } sENX_REG_VPSZ1;
 
-extern unsigned char* enx_get_mem_addr(void);
-extern unsigned char* enx_get_reg_addr(void);
-extern void enx_free_irq(int reg, int bit);
-extern int enx_allocate_irq(int reg, int bit, void (*isr)(int, int));
-
-#define enx_reg_16(register) ((unsigned short)(*((unsigned short*)(enx_get_reg_addr() + ENX_REG_ ## register))))
-#define enx_reg_16n(offset) ((unsigned short)(*((unsigned short*)(enx_get_reg_addr() + offset))))
-#define enx_reg_32(register) ((unsigned int)(*((unsigned int*)(enx_get_reg_addr() + ENX_REG_ ## register))))
-#define enx_reg_32n(offset) ((unsigned int)(*((unsigned int*)(enx_get_reg_addr() + offset))))
-#define enx_reg_o(offset) (enx_get_reg_addr() + offset)
+#define enx_reg_16(register) ((__u16)(*((__u16*)(gtxenx_reg_base + ENX_REG_ ## register))))
+#define enx_reg_16n(offset) ((__u16)(*((__u16*)(gtxenx_reg_base + offset))))
+#define enx_reg_32(register) ((__u32)(*((__u32*)(gtxenx_reg_base + ENX_REG_ ## register))))
+#define enx_reg_32n(offset) ((__u32)(*((__u32*)(gtxenx_reg_base + offset))))
 #define enx_reg_s(register) ((sENX_REG_##register *)(&enx_reg_32(register)))
 #define enx_reg_32s(register) ((sENX_REG_##register *)(&enx_reg_32(register)))
 #define enx_reg_16s(register) ((sENX_REG_##register *)(&enx_reg_16(register)))
