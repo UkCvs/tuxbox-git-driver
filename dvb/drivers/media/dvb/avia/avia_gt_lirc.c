@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_lirc.c,v 1.14.4.5 2005/02/05 23:52:13 carjay Exp $
+ * $Id: avia_gt_lirc.c,v 1.14.4.6 2005/02/09 04:36:44 carjay Exp $
  *
  * lirc ir driver for AViA eNX/GTX (dbox-II-project)
  *
@@ -261,10 +261,13 @@ static int __init avia_gt_lirc_init(void)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 	int ret;
 #endif
-	printk(KERN_INFO "avia_gt_lirc: $Id: avia_gt_lirc.c,v 1.14.4.5 2005/02/05 23:52:13 carjay Exp $\n");
+	struct ir_client irc;
+	printk(KERN_INFO "avia_gt_lirc: $Id: avia_gt_lirc.c,v 1.14.4.6 2005/02/09 04:36:44 carjay Exp $\n");
 
 	/* register the functionality (IR resource management) */
-	if ((ir_handle = avia_gt_ir_register(AVIA_GT_IR_TX | AVIA_GT_IR_RX)) < 0)
+	memset(&irc,0,sizeof(struct ir_client));
+	irc.flags = AVIA_GT_IR_TX | AVIA_GT_IR_RX;
+	if ((ir_handle = avia_gt_ir_register(&irc)) < 0)
 		return ir_handle;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
