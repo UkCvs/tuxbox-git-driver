@@ -21,6 +21,10 @@
  *
  *
  *   $Log: avia_gt_gv.c,v $
+ *   Revision 1.25.2.1  2003/03/05 09:12:12  zwen
+ *   - eNX red & blue swap fix
+ *   - fixed mmio address for eNX (by obi)
+ *
  *   Revision 1.25  2002/10/11 09:57:54  Jolt
  *   HW copy stuff
  *
@@ -100,7 +104,7 @@
  *   graphic viewport driver added
  *
  *
- *   $Revision: 1.25 $
+ *   $Revision: 1.25.2.1 $
  *
  */
 
@@ -355,7 +359,7 @@ void avia_gt_gv_set_clut(u8 clut_nr, u32 transparency, u32 red, u32 green, u32 b
 
 		mb();
 
-		enx_reg_32(CLUTD) = ((transparency << 24) | (blue << 16) | (green << 8) | (red));
+		enx_reg_32(CLUTD) = ((transparency << 24) | (red << 16) | (green << 8) | (blue));
 
 	} else if (avia_gt_chip(GTX)) {
 
@@ -635,7 +639,7 @@ int avia_gt_gv_show(void) {
 int avia_gt_gv_init(void)
 {
 
-	printk("avia_gt_gv: $Id: avia_gt_gv.c,v 1.25 2002/10/11 09:57:54 Jolt Exp $\n");
+	printk("avia_gt_gv: $Id: avia_gt_gv.c,v 1.25.2.1 2003/03/05 09:12:12 zwen Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
@@ -720,7 +724,7 @@ int avia_gt_gv_init(void)
 		enx_reg_set(VBR, Cb, 0x00);
 
 		enx_reg_set(VCR, D, 0x1);
-		enx_reg_set(VCR, C, 0x1);
+		/* enx_reg_set(VCR, C, 0x1); chroma sense - do not use */
 
 		enx_reg_set(VMCR, FFM, 0x0);
 
