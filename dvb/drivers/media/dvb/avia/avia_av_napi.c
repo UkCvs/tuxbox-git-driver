@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_napi.c,v 1.33 2004/03/11 15:30:27 derget Exp $
+ * $Id: avia_av_napi.c,v 1.33.2.1 2005/01/25 22:56:45 carjay Exp $
  *
  * AViA 500/600 DVB API driver (dbox-II-project)
  *
@@ -747,7 +747,7 @@ static int __init avia_av_napi_init(void)
 {
 	int result;
 
-	printk(KERN_INFO "%s: $Id: avia_av_napi.c,v 1.33 2004/03/11 15:30:27 derget Exp $\n", __FILE__);
+	printk(KERN_INFO "avia_av_napi: $Id: avia_av_napi.c,v 1.33.2.1 2005/01/25 22:56:45 carjay Exp $\n");
 
 	audiostate.AV_sync_state = 0;
 	audiostate.mute_state = 0;
