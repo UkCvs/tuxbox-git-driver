@@ -12,7 +12,7 @@ include $(CONFIG_FILE)
 # objects always generated, 
 #     obj-m are always standalone,
 #     *-misc-objs only if configured that way
-obj-m		:= avia_av.o avia_av_napi.o avia_gt.o avia_napi.o
+obj-m		:= avia_av.o avia_gt.o
 
 avia_av-objs	:= avia_av_core.o avia_av_ksyms.o
 av-misc		:= avia_av_event.o avia_av_proc.o
@@ -28,7 +28,6 @@ obj-m		+= avia_gt_v4l2.o
 endif
 ifeq ($(CONFIG_AVIA_GT_DMX),y)
 gt-misc		+= avia_gt_dmx.o avia_gt_vbi.o
-obj-m		+= avia_gt_napi.o
 endif
 ifeq ($(CONFIG_AVIA_GT_GV),y)
 gt-misc		+= avia_gt_gv.o
@@ -46,8 +45,7 @@ endif
 CC		:= $(CROSS_COMPILE)gcc -I$(TOPDIR)/dvb/include
 
 EXTRA_CFLAGS	+= -I$(DRIVER_TOPDIR)/include -I$(DRIVER_TOPDIR)/dvb/include \
-		    -I$(DRIVER_TOPDIR)/dvb/drivers/media/dvb/dvb-core
-		    
+		    -I$(DRIVER_TOPDIR)/dvb/drivers/media/dvb
 
 ifeq ($(CONFIG_AVIA_DEBUG),y)
 EXTRA_CFLAGS	+= -DDEBUG

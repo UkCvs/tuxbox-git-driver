@@ -2,7 +2,7 @@ ifeq ($(KERNELRELEASE),)
 DRIVER_TOPDIR:=$(shell pwd)/..
 include $(DRIVER_TOPDIR)/kernel.make
 else
-obj-m		:= dbox2_fp.o dbox2_fp_napi.o dbox2_fp_input.o
+obj-m		:= dbox2_fp.o dbox2_fp_input.o
 
 dbox2_fp-objs		:= dbox2_fp_core.o dbox2_fp_sec.o dbox2_fp_timer.o\
 			     dbox2_fp_tuner.o dbox2_fp_reset.o
