@@ -1,6 +1,6 @@
 /*
 
-    $Id: at76c651.c,v 1.24.2.2 2002/01/26 18:55:15 fnbrd Exp $
+    $Id: at76c651.c,v 1.24.2.3 2002/01/26 19:18:30 fnbrd Exp $
 
     AT76C651  - DVB demux driver (dbox-II-project)
 
@@ -23,9 +23,8 @@
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
     $Log: at76c651.c,v $
-    Revision 1.24.2.2  2002/01/26 18:55:15  fnbrd
-    Compilieren sollte jetzt ohne Fehler gehen, ob der Treiber funktioniert
-    muss jemand anderes testen.
+    Revision 1.24.2.3  2002/01/26 19:18:30  fnbrd
+    Kleinigkeit ;) geaendert.
 
     Revision 1.24.2.1  2002/01/26 13:33:06  fnbrd
     Blind (d.h. ohne Compilationsversuch) an neue API angepasst. Mail mir mal bitte wer die Fehlermeldungen beim compilieren zu.
@@ -670,7 +669,7 @@ static struct i2c_client client_template = {
 
 static int attach_adapter(struct i2c_adapter *adap)
 {
-//        struct ves1893 *ves;
+        dvb_front_t *front;
         struct i2c_client *client;
 
         client_template.adapter=adap;
@@ -700,18 +699,25 @@ static int attach_adapter(struct i2c_adapter *adap)
         memcpy(client, &client_template, sizeof(struct i2c_client));
         dclient=client;
 
-        client->data=0;
-//        client->data=ves=kmalloc(sizeof(struct at76c651),GFP_KERNEL);
-/*
-        if (ves==NULL) {
+        client->data=kmalloc(sizeof(dvb_front_t), GFP_KERNEL);
+        if (client->data==NULL) {
                 kfree(client);
                 return -ENOMEM;
         }
-*/
+        front=(dvb_front_t *)client->data;
         dprintk("AT76C651: attaching AT76C651 at 0x%02x\n", (client->addr)<<1);
         i2c_attach_client(client);
 
         dprintk("AT76C651: attached to adapter %s\n", adap->name);
+
+	front->type=DVB_C;
+	front->capabilities=0; // kann auch nix
+	front->i2cbus=adap;
+	
+	front->demod=client;
+	front->demod_type=DVB_DEMOD_AT76C651;
+	
+	register_frontend((dvb_front_t *)client->data);
 
   return 0;
 }
@@ -719,81 +725,15 @@ static int attach_adapter(struct i2c_adapter *adap)
 static int detach_client(struct i2c_client *client)
 {
         dprintk("AT76C651: detach_client\n");
+	unregister_frontend((dvb_front_t *)client->data);
         // IRQs abschalten
 	writereg(client, 0x0b, 0x00);
 
         i2c_detach_client(client);
-//        kfree(client->data);
+        kfree(client->data);
         kfree(client);
-//        unregister_demod(&at76c651);
         return 0;
 }
-
-#ifdef NIXTUN
-
-static void ves_init(void)
-{
-  init(dclient);
-}
-
-static void ves_set_frontend(struct frontend *front)
-{
-//  if (front->flags&FRONT_FREQ_CHANGED)
-  dprintk("AT76C651: ves_set_frontend\n");
-  SetQAM(dclient, front->qam);
-  SetSymbolrate(dclient, front->srate);
-  at_restart();
-}
-
-static void ves_get_frontend(struct frontend *front)
-{
-  u8 lock;
-  at76c651_t *ves = (at76c651_t*)dclient->data;
-  dprintk("AT76C651: ves_get_frontend\n");
-  front->type=FRONT_DVBC;
-  ves->ber=readreg(dclient, 0x83);
-  ves->ber|=(readreg(dclient, 0x82)<<8);
-  ves->ber|=((readreg(dclient, 0x81)&0x0f)<<16);
-  dprintk("AT76C651: ber: 0x%08x\n", ves->ber);
-  front->vber=ves->ber; // Wird allerdings nur gesetzt, wenn IRQ kam, d.h. immer vom letzten signal lost
-  front->nest=0;
-//  front->inv= // ?
-  lock=readreg(dclient, 0x80); // Bits: FEC, CAR, EQU, TIM, AGC2, AGC1, ADC, PLL (PLL=0)
-  // VES: NODVB, BER1, BER0, FEL, FSYNC, CARLOCK, EQ_ALGO
-  // Bits umsortieren
-  // Ich mach das mal so: Ich nehm einfach die 4 wichtigsten Bits des AT
-  // d.h. : FEC, CAR, EQU, und AGC2
-  front->sync=(lock&0xe0)>>5;
-  if(lock&0x08) // AGC2
-    front->sync|=0x08;
-  if((front->sync&0x06)==0x06)
-    front->sync|=0x10; // FEL = FSYNC & CARLOCK
-  if(lock&0x10)
-    front->sync|=0x20; // Timing recovery lock (TIM)
-
-  dprintk("AT76C651: sync (lock): 0x%02x (0x%02x)\n", (int)front->sync, lock);
-//  front->sync=readreg(dclient, 0x80); // Bits: FEC, CAR, EQU, TIM, AGC2, AGC1, ADC, PLL (PLL=0)
-  // AGC1 Lock fuer analog AGC ist hier immer 0, daher setzen wir das mal, wenn AGC2 (digital) 1 ist
-//  if(front->sync&0x08)
-//    front->sync|=0x04;
-
-/* VES1820:
-  front->type=FRONT_DVBC;
-  front->afc=(int)((char)(readreg(dclient,0x19)));
-  front->afc=(front->afc*(int)(front->srate/8))/128;
-  front->agc=(readreg(dclient,0x17)<<8);
-  front->sync=readreg(dclient,0x11);
-  front->nest=0;
-
-  front->vber = readreg(dclient,0x14);
-  front->vber|=(readreg(dclient,0x15)<<8);
-  front->vber|=(readreg(dclient,0x16)<<16);
-*/
-}
-
-#endif // NIXTUN
-
-/* ---------------------------------------------------------------------- */
 
 /* ---------------------------------------------------------------------- */
 
@@ -801,7 +741,7 @@ static void ves_get_frontend(struct frontend *front)
 int init_module(void) {
         int res;
 
-        dprintk("AT76C651: $Id: at76c651.c,v 1.24.2.2 2002/01/26 18:55:15 fnbrd Exp $\n");
+        dprintk("AT76C651: $Id: at76c651.c,v 1.24.2.3 2002/01/26 19:18:30 fnbrd Exp $\n");
         if ((res = i2c_add_driver(&dvbt_driver)))
         {
                 printk("AT76C651: Driver registration failed, module not inserted.\n");
