@@ -21,41 +21,25 @@
  *
  */
 
-#define __KERNEL_SYSCALLS__
-
-#include <linux/string.h>
-#include <linux/fs.h>
-#include <linux/unistd.h>
-#include <linux/fcntl.h>
-#include <linux/vmalloc.h>
-#include <linux/kernel.h>
-#include <linux/ioport.h>
-#include <linux/module.h>
 #include <linux/delay.h>
-#include <linux/slab.h>
-#include <linux/version.h>
-#include <linux/init.h>
-#include <linux/wait.h>
-#include <linux/interrupt.h>
+#include <linux/device.h>
+#include <linux/firmware.h>
 #include <linux/i2c.h>
-#include <linux/devfs_fs_kernel.h>
+#include <linux/init.h>
+#include <linux/interrupt.h>
+#include <linux/ioport.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/poll.h>
-#include <asm/irq.h>
-#include <asm/io.h>
+#include <linux/slab.h>
+#include <linux/string.h>
+#include <linux/version.h>
+#include <linux/vmalloc.h>
+#include <linux/wait.h>
 #include <asm/8xx_immap.h>
-#include <asm/pgtable.h>
-#include <asm/mpc8xx.h>
-#include <asm/bitops.h>
-#include <asm/uaccess.h>
-#include <asm/semaphore.h>
+#include <asm/io.h>
 
 #include <dbox/fp.h>
-
-static int debug;
-static int mio;
-static char *firmware;
-
-#define dprintk(fmt,args...) if(debug) printk( fmt,## args)
 
 #define I2C_DRIVERID_CAM	0x6E
 #define CAM_INTERRUPT		SIU_IRQ3
@@ -67,13 +51,14 @@ static int cam_detach_client(struct i2c_client *client);
 
 static struct i2c_client *dclient;
 
-static struct i2c_driver cam_driver = {
+static struct i2c_driver cam_i2c_driver = {
+	.owner		= THIS_MODULE,
 	.name		= "DBox2-CAM",
 	.id		= I2C_DRIVERID_CAM,
 	.flags		= I2C_DF_NOTIFY,
 	.attach_adapter	= &cam_attach_adapter,
 	.detach_client	= &cam_detach_client,
-	.command	= NULL
+	.command	= NULL,
 };
 
 static struct i2c_client client_template = {
@@ -82,8 +67,7 @@ static struct i2c_client client_template = {
 	.flags		= 0,
 	.addr		= (0x6E >> 1),
 	.adapter	= NULL,
-	.driver		= &cam_driver,
-	.data		= NULL,
+	.driver		= &cam_i2c_driver,
 };
 
 static DECLARE_MUTEX(cam_busy);
@@ -258,36 +242,41 @@ cam_task_up:
 	up(&cam_busy);
 cam_task_enable_irq:
 	enable_irq(CAM_INTERRUPT);
+	;
 }
 
-static struct tq_struct cam_tasklet = {
-	.routine = cam_task,
-	.data = NULL,
-};
+static DECLARE_WORK(cam_work, cam_task, NULL);
 
-static void cam_interrupt(int irq, void *dev, struct pt_regs *regs)
+static irqreturn_t cam_interrupt(int irq, void *dev, struct pt_regs *regs)
 {
-	schedule_task(&cam_tasklet);
+printk("cam_irq\n");
+	schedule_work(&cam_work);
+	disable_irq(CAM_INTERRUPT);
+	return IRQ_HANDLED;
 }
 
 /**
  * Firmware functions
  */
-static int do_firmwrite(void *firmware, size_t len)
+static int cam_write_firmware(struct resource *res, const struct firmware *fw)
 {
 	volatile immap_t *immap = (volatile immap_t *)IMAP_ADDR;
 	volatile cpm8xx_t *cp = &immap->im_cpm;
 	unsigned char *code_base;
+	size_t mem_size;
 	int i;
 
-	if (len > CAM_CODE_SIZE) {
+	mem_size = res->end - res->start + 1;
+
+	if (fw->size > mem_size) {
 		printk(KERN_ERR "cam: firmware file is too large\n");
 		return -EINVAL;
 	}
 
-	if (!(code_base = ioremap_nocache(mio, CAM_CODE_SIZE))) {
-		printk(KERN_ERR "cam: could not map mio=0x%08X\n", mio);
-		return -EFAULT;
+	code_base = ioremap(res->start, mem_size);
+	if (!code_base) {
+		printk(KERN_ERR "cam: ioremap failed\n");
+		return -EIO;
 	}
 
 	/* 0xabc */
@@ -316,10 +305,14 @@ static int do_firmwrite(void *firmware, size_t len)
 
 	cp->cp_pbdat &= ~0x00000001;
 
-	if ((firmware) && (len))
-		memcpy(code_base, firmware, len);
-	if (CAM_CODE_SIZE - len)
-		memset(&code_base[len], 0x5a, CAM_CODE_SIZE - len);
+	if (fw) {
+		memcpy(code_base, fw->data, fw->size);
+		if (mem_size - fw->size != 0)
+			memset(&code_base[fw->size], 0x5a, mem_size - fw->size);
+	}
+	else {
+		memset(code_base, 0x5a, mem_size);
+	}
 
 	wmb();
 	cp->cp_pbdat |= 0x00000001;
@@ -330,116 +323,92 @@ static int do_firmwrite(void *firmware, size_t len)
 
 	cam_reset();
 
-	iounmap((void *)code_base);
+	iounmap(code_base);
 
 	return 0;
 }
 
-static int errno;
-
-static int do_firmread(const char *fn, char **fp)
+static int cam_drv_probe(struct device *dev)
 {
-	/* shameless stolen from sound_firmware.c */
-	int fd;
-	long l;
-	char *dp;
+	struct platform_device *pdev = to_platform_device(dev);
+	struct resource *res;
+	const struct firmware *fw;
+	int ret;
+	int irq;
 
-	fd = open(fn, 0, 0);
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	irq = platform_get_irq(pdev, 0);
 
-	if (fd == -1) {
-		dprintk(KERN_ERR "cam.o: Unable to load '%s'.\n", firmware);
-		return 0;
-	}
-
-	l = lseek(fd, 0L, 2);
-
-	if (l <= 0) {
-		dprintk(KERN_ERR "cam.o: Firmware wrong size '%s'.\n", firmware);
-		sys_close(fd);
-		return 0;
-	}
-
-	lseek(fd, 0L, 0);
-
-	dp = vmalloc(l);
-
-	if (dp == NULL) {
-		dprintk(KERN_ERR "cam.o: Out of memory loading '%s'.\n", firmware);
-		sys_close(fd);
-		return 0;
-	}
-
-	if (read(fd, dp, l) != l) {
-		dprintk(KERN_ERR "cam.o: Failed to read '%s'.%d\n", firmware,errno);
-		vfree(dp);
-		sys_close(fd);
-		return 0;
-	}
-
-	close(fd);
-
-	*fp = dp;
-
-	return (int) l;
-}
-
-/**
- * init/exit functions
- */
-static int __init cam_init(void)
-{
-	int res;
-	mm_segment_t fs;
-	char *microcode;
-	int len;
-
-	printk(KERN_INFO "$Id: cam.c,v 1.30 2004/01/10 16:36:34 alexw Exp $\n");
-
-	if (!mio) {
-		printk(KERN_ERR "cam: mio address unknown\n");
-		return -EINVAL;
+	if ((!res) || (!irq)) {
+		ret = -ENODEV;
+		goto out;
 	}
 
 	init_waitqueue_head(&cam_wait_queue);
 
-	/* load microcode */
-	fs = get_fs();
-	set_fs(get_ds());
-
-	/* read firmware */
-	len = do_firmread(firmware, &microcode);
-	set_fs(fs);
-
-	/* if we don't have any firmware, then we fill up the memory with
-	 * a 0x5a5a5a5a bit pattern... */
-	if (do_firmwrite(microcode, len) < 0) {
-		vfree(microcode);
-		return -EIO;
-	}
-
-	if (len) {
-		vfree(microcode);
-
-		if ((res = i2c_add_driver(&cam_driver))) {
-			printk(KERN_ERR "cam: i2c driver registration failed\n");
-			return res;
+	ret = request_firmware(&fw, "cam-alpha.bin", dev);
+	if (ret) {
+		if (ret == -ENOENT) {
+			printk(KERN_ERR "cam: could not load firmware, "
+					"file not found: cam-alpha.bin\n");
 		}
-	}
-	else {
-		printk(KERN_NOTICE "cam: no firmware file found\n");
+		goto out;
 	}
 
-	if (request_irq(CAM_INTERRUPT, cam_interrupt, SA_ONESHOT, "cam", THIS_MODULE) != 0)
+	if (fw->size > 0x20000) {
+		printk(KERN_ERR "cam: invalid firmware size %d, must be <= 128KB\n", fw->size);
+		goto release;
+	}
+
+	ret = cam_write_firmware(res, fw);
+	if (ret)
+		goto release;
+
+	ret = i2c_add_driver(&cam_i2c_driver);
+	if (ret) {
+		printk(KERN_ERR "cam: i2c driver registration failed\n");
+		goto release;
+	}
+
+	if (request_irq(irq, cam_interrupt, SA_INTERRUPT, "cam", dev))
 		panic("cam: could not allocate irq");
+
+release:
+	release_firmware(fw);
+out:
+	return ret;
+}
+
+static int cam_drv_remove(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	int irq;
+
+	irq = platform_get_irq(pdev, 0);
+
+	free_irq(irq, dev);
+	i2c_del_driver(&cam_i2c_driver);
 
 	return 0;
 }
 
+static struct device_driver cam_driver = {
+	.name		= "cam",
+	.bus		= &platform_bus_type,
+	.probe		= cam_drv_probe,
+	.remove		= cam_drv_remove,
+};
+
+static int __init cam_init(void)
+{
+	printk(KERN_INFO "$Id: cam.c,v 1.30.2.1 2005/01/15 21:18:24 carjay Exp $\n");
+
+	return driver_register(&cam_driver);
+}
+
 static void __exit cam_exit(void)
 {
-	free_irq(CAM_INTERRUPT, THIS_MODULE);
-	i2c_del_driver(&cam_driver);
-	do_firmwrite(NULL, 0);
+	driver_unregister(&cam_driver);
 }
 
 module_init(cam_init);
@@ -452,7 +421,4 @@ EXPORT_SYMBOL(cam_write_message);
 
 MODULE_AUTHOR("Felix Domke <tmbinc@gmx.net>");
 MODULE_DESCRIPTION("DBox2 CAM Driver");
-MODULE_PARM(debug,"i");
-MODULE_PARM(mio,"i");
-MODULE_PARM(firmware,"s");
 MODULE_LICENSE("GPL");
