@@ -20,217 +20,13 @@
  *   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  *
- *   $Log: fp.c,v $
- *   Revision 1.72.2.5.4.1  2003/07/02 15:56:55  ghostrider
- *   add lucgas enigma image driver to cvs
- *
- *   Revision 1.2  2003/06/21 15:22:19  dkey
- *   change to drivers from 27.8.02
- *
- *   Revision 1.70  2002/05/27 18:11:47  happydude
- *   make led on/off work on Nokia
- *
- *   Revision 1.69  2002/05/15 22:02:49  Hunz
- *   raw register read for debugging/testing
- *
- *   Revision 1.68  2002/05/12 11:18:38  Hunz
- *   LCD-DIMM fix (for all boxes)
- *
- *   Revision 1.67  2002/05/06 02:18:19  obi
- *   cleanup for new kernel
- *
- *   Revision 1.66  2002/03/02 19:09:09  tmbinc
- *   fixed status
- *
- *   Revision 1.65  2002/03/02 19:00:49  tmbinc
- *   ups, small typo
- *
- *   Revision 1.64  2002/03/02 18:33:14  tmbinc
- *   changed VCR_ON/OFF to _CHANGED, added IOCTL to get status
- *
- *   Revision 1.63  2002/03/02 17:10:16  waldi
- *   merge new_tuning_api
- *
- *   Revision 1.54.2.1  2002/03/02 17:03:43  tmbinc
- *   modified reset delay
- *
- *   Revision 1.62  2002/02/24 19:11:22  obi
- *   revert to current fp.c - is not related to tuning api
- *
- *   Revision 1.60  2002/02/11 16:11:19  Hunz
- *   keyboard-debug-msgs only when module loaded with debug=1 now
- *
- *   Revision 1.59  2002/02/08 20:52:30  Hunz
- *   keyboard/mouse now work with SAGEM (and Phillips??) too :-)
- *
- *   Revision 1.58  2002/02/08 00:28:59  Hunz
- *   mousepad-inputdev support / keyboard still raw (keyboard-inputdev support still sux :()
- *
- *   Revision 1.57  2002/02/06 23:54:57  Hunz
- *   IR-Keyboard Mousepad test - Inputdev not yet working
- *
- *   Revision 1.56  2002/01/23 19:54:11  Hunz
- *   experimental input support
- *
- *   Revision 1.55  2002/01/23 15:49:32  Hunz
- *   lala
- *
- *   Revision 1.54  2002/01/21 15:18:46  Hunz
- *   maybe keyboard fix
- *
- *   Revision 1.53  2002/01/20 06:21:49  Hunz
- *   keyboard change
- *
- *   Revision 1.52  2002/01/19 17:32:57  Hunz
- *   didn't help
- *
- *   Revision 1.51  2002/01/19 17:20:18  Hunz
- *   kbd-fix?
- *
- *   Revision 1.50  2002/01/19 08:57:38  Hunz
- *   last idea
- *
- *   Revision 1.49  2002/01/19 08:40:25  Hunz
- *   last commit so far...
- *
- *   Revision 1.48  2002/01/19 08:20:02  Hunz
- *   F(i)n(al) fix?
- *
- *   Revision 1.47  2002/01/19 07:58:21  Hunz
- *   SHOULD work...
- *
- *   Revision 1.46  2002/01/19 07:48:35  Hunz
- *   OOPS I did it again...
- *   (but that one was a really nasty one - hope it works now)
- *
- *   Revision 1.45  2002/01/19 05:59:28  Hunz
- *   I will first look for bugs and then commit
- *   I will first look for bugs and then commit
- *   I will first look for bugs and then commit
- *   I will first look for bugs and then commit
- *   I will first look for bugs and then commit
- *   I will first look for bugs and then commit
- *   I will first look for bugs and then commit
- *   I will first look for bugs and then commit
- *
- *   Revision 1.44  2002/01/19 05:54:46  Hunz
- *   keyboard might work now
- *
- *   Revision 1.43  2002/01/19 03:55:06  Hunz
- *   some stupid mistakes fixed
- *
- *   Revision 1.42  2002/01/19 03:38:06  Hunz
- *   initial keyboard kernel support
- *
- *   Revision 1.41  2002/01/17 22:38:09  tmbinc
- *   added keyboard support. keyboard events are ignored.
- *
- *   Revision 1.40  2002/01/10 16:47:06  Hunz
- *   possible SEC_VOLTAGE_LT fix maybe... (untested)
- *
- *   Revision 1.39  2002/01/04 00:59:13  Hunz
- *   added FP_IOCTL_REBOOT
- *
- *   Revision 1.38  2001/12/08 15:20:14  gillem
- *   - add global event handler now
- *
- *   Revision 1.37  2001/12/02 10:33:01  TripleDES
- *   added low-band support (never missed ;)
- *
- *   Revision 1.36  2001/12/01 10:51:22  gillem
- *   - add vcr handling
- *   - todo: add event (tmbinc???)
- *
- *   Revision 1.35  2001/12/01 06:52:28  gillem
- *   - malloc.h -> slab.h
- *
- *   Revision 1.34  2001/11/06 15:54:59  tmbinc
- *   added FP_WAKEUP and ioctls. (only for nokia)
- *
- *   Revision 1.33  2001/10/30 23:17:26  derget
- *
- *   FP_IOCTL_POWEROFF für sagem eingebaut
- *
- *   Revision 1.32  2001/10/30 13:40:55  derget
- *   sagem restart
- *
- *   Revision 1.31  2001/07/31 03:01:39  Hunz
- *   DiSEqC fix (sagem still untested)
- *
- *   Revision 1.30  2001/07/31 01:40:28  Hunz
- *   experimental sagem-diseqc support
- *
- *   Revision 1.29  2001/05/01 02:00:01  TripleDES
- *   added fp_sagem_set_secpower for LNB-voltage control (H/V)
- *   -not completed
- *
- *   Revision 1.28  2001/04/26 17:28:07  Hunz
- *   breakcode-fix
- *
- *   Revision 1.27  2001/04/26 16:56:58  Hunz
- *   added breakcodes support
- *
- *   Revision 1.26  2001/04/22 20:43:40  tmbinc
- *   fixed RC for new and old fp-code
- *
- *   Revision 1.25  2001/04/09 22:58:22  tmbinc
- *   added philips-support.
- *
- *   Revision 1.24  2001/04/09 22:33:57  TripleDES
- *   some unused commands cleared (sagem testing)
- *
- *   Revision 1.23  2001/04/09 19:49:40  TripleDES
- *   added fp_cam_reset for sagem/philips? support
- *
- *   Revision 1.22  2001/04/06 21:15:20  tmbinc
- *   Finally added new rc-support.
- *
- *   Revision 1.21  2001/04/01 01:54:25  tmbinc
- *   added "poll"-support, blocks on open if already opened
- *
- *   Revision 1.20  2001/03/18 21:28:24  tmbinc
- *   fixed again some bug.
- *
- *   Revision 1.19  2001/03/15 22:20:23  Hunz
- *   nothing important...
- *
- *   Revision 1.18  2001/03/14 14:35:58  Hunz
- *   fixed DiSEqC timing
- *
- *   Revision 1.17  2001/03/12 22:03:40  Hunz
- *   final? SEC-fix (always clrbit the VES)
- *
- *   Revision 1.16  2001/03/12 19:51:37  Hunz
- *   SEC changes
- *
- *   Revision 1.15  2001/03/11 18:28:50  gillem
- *   - add new option (test only)
- *
- *   Revision 1.14  2001/03/08 14:08:50  Hunz
- *   DiSEqC number of params changed to 0-3
- *
- *   Revision 1.13  2001/03/06 18:49:20  Hunz
- *   fix for sat-boxes (fp_set_pol... -> fp_set_sec)
- *
- *   Revision 1.12  2001/03/04 18:48:07  gillem
- *   - fix for sagem box
- *
- *   Revision 1.11  2001/03/03 18:20:39  waldi
- *   complete move to devfs; doesn't compile without devfs
- *
- *   Revision 1.10  2001/03/03 13:03:20  gillem
- *   - fix code
- *
- *   Revision 1.9  2001/02/25 21:11:36  gillem
- *   - fix fpid
- *
  *   Revision 1.8  2001/02/23 18:44:43  gillem
  *   - add ioctl
  *   - add debug option
  *   - some changes ...
  *
  *
- *   $Revision: 1.72.2.5.4.1 $
+ *   $Revision: 1.72.2.5.4.2 $
  *
  */
 
@@ -281,6 +77,8 @@
 static devfs_handle_t devfs_handle[2];
 static int sec_bus_status=0;
 static struct dbox_info_struct info;
+static u8 is_wakeup=0;
+
 /* ---------------------------------------------------------------------- */
 
 #ifdef MODULE
@@ -319,7 +117,11 @@ fp:
 #define I2C_FP_DRIVERID     0xF060
 #define RCBUFFERSIZE	16
 #define FP_GETID	    0x1D
-#define FP_WAKEUP						0x11
+#define FP_WAKEUP		0x11
+#define FP_WAKEUP_SAGEM		0x01
+#define FP_STATUS		0x20
+#define FP_CLEAR_WAKEUP		0x21
+#define FP_CLEAR_WAKEUP_NOKIA	0x2B
 
 /* ---------------------------------------------------------------------- */
 
@@ -370,6 +172,7 @@ static int fp_sendcmd(struct i2c_client *client, u8 b0, u8 b1);
 static void fp_check_queues(void);
 static int fp_set_wakeup_timer(int minutes);
 static int fp_get_wakeup_timer(void);
+static int fp_clear_wakeup_timer(void);
 
 static void fp_restart(char *cmd);
 static void fp_power_off(void);
@@ -458,7 +261,7 @@ static int fp_ioctl (struct inode *inode, struct file *file, unsigned int cmd,
 		  unsigned long arg)
 {
 	unsigned int minor = MINOR (file->f_dentry->d_inode->i_rdev);
-    int val;
+	int val;
 
 	switch (minor)
 	{
@@ -513,6 +316,10 @@ static int fp_ioctl (struct inode *inode, struct file *file, unsigned int cmd,
 					if (copy_from_user(&val, (void*)arg, sizeof(val)) )
 						return -EFAULT;
 					return fp_set_wakeup_timer(val);
+				case FP_IOCTL_IS_WAKEUP:
+					if (copy_to_user((void*)arg, &is_wakeup, sizeof(is_wakeup)))
+						return -EFAULT;
+					return 0;
 				case FP_IOCTL_GET_VCR:
 					if (copy_to_user((void*)arg, &defdata->fpVCR, sizeof(defdata->fpVCR)))
 						return -EFAULT;
@@ -1143,6 +950,7 @@ static int fp_init(void)
 	input_irkbd.idbus=BUS_I2C;
 	input_register_device(&input_irkbd);
 #endif
+   fp_clear_wakeup_timer();
 	return 0;
 }
 
@@ -1752,36 +1560,58 @@ int fp_set_sec(int power,int tone)
 
 static int fp_set_wakeup_timer(int minutes)
 {
+	u8 cmd[3]={0x00, minutes&0xFF, minutes>>8};
 	if (info.fpREV<0x80)
 	{
-		dprintk("fp.o: fp_set_wakeup_timer on sagem/philips nyi\n");
-		return -1;
+		cmd[0]=FP_WAKEUP_SAGEM;
 	} else
 	{
-		u8 cmd[3]={0x11, minutes&0xFF, minutes>>8};
-
+		cmd[0]=FP_WAKEUP;
+	}
 		if (i2c_master_send(defdata->client, cmd, 3)!=3)
 			return -1;
 
 		return 0;
-	}
 }
+
 
 static int fp_get_wakeup_timer()
 {
+	u8 id[2]={0, 0};
 	if (info.fpREV<0x80)
 	{
-		dprintk("fp.o: fp_set_wakeup_timer on sagem/philips nyi\n");
-		return -1;
+		if (fp_cmd(defdata->client, FP_WAKEUP_SAGEM, id, 2))
+			return -1;
 	} else
 	{
-		u8 id[2]={0, 0};
 
 		if (fp_cmd(defdata->client, FP_WAKEUP, id, 2))
 			return -1;
-
-		return id[0]+id[1]*256;
 	}
+	return id[0]+id[1]*256;
+}
+
+static int fp_clear_wakeup_timer()
+{
+	u8 id[1]={0};
+	fp_set_wakeup_timer(0);
+	if (fp_cmd(defdata->client, FP_STATUS, id, 1))
+		return -1;
+	dprintk("fp.o: clear_wakeup_timer [%x]\n",id[0]);
+	if(id[0] & 0x80)
+		is_wakeup=1;
+	else
+		is_wakeup=0;
+	if (info.fpREV<0x80)
+	{
+		if (fp_cmd(defdata->client, FP_CLEAR_WAKEUP, id, 1))
+			return -1;
+	} else
+	{
+		if (fp_cmd(defdata->client, FP_CLEAR_WAKEUP_NOKIA, id, 1))
+			return -1;
+	}
+	return 0;
 }
 
 /* ------------------------------------------------------------------------- */
