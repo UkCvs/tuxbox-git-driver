@@ -537,27 +537,29 @@ dvb_frontend_tune(dvb_front_t *fe, FrontendParameters *new_param)
 int
 dvb_frontend_get_event(dvb_front_t *fe, FrontendEvent *event, int nonblocking)
 {
-	int ret;
 	DVBFEEvents *events=&fe->events;
 	
 	if (events->overflow) {
 		events->overflow=0;
 		return -EBUFFEROVERFLOW;
 	}
-	if (events->eventw==events->eventr) {
+	if (events->eventw == events->eventr) {
+		int ret;
+
 		if (nonblocking) 
 			return -EWOULDBLOCK;
 		
-		ret=wait_event_interruptible(events->eventq,
-					     events->eventw!=
-					     events->eventr);
-		if (ret<0)
+		up(&fe->sem);
+		ret = wait_event_interruptible (events->eventq,
+						events->eventw != events->eventr);
+		down(&fe->sem);
+
+		if (ret < 0)
 			return ret;
 	}
 	
 	spin_lock(&events->eventlock);
-	memcpy(event, 
-	       &events->events[events->eventr],
+	memcpy (event, &events->events[events->eventr],
 	       sizeof(FrontendEvent));
 	events->eventr=(events->eventr+1)%MAX_EVENT;
 	spin_unlock(&events->eventlock);
