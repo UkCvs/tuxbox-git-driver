@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_rc.c,v 1.23.2.1 2005/01/15 01:46:41 carjay Exp $
+ * $Id: dbox2_fp_rc.c,v 1.23.2.2 2005/02/09 04:28:29 carjay Exp $
  *
  * Copyright (C) 2002 by Florian Schirmer <jolt@tuxbox.org>
  *
@@ -24,6 +24,7 @@
 #include <linux/module.h>
 
 #include <dbox/dbox2_fp_core.h>
+#include <dbox/dbox2_fp_rc.h>
 
 #include "input_fake.h"
 
@@ -79,6 +80,12 @@ static struct rc_key {
 
 #define RC_KEY_COUNT	ARRAY_SIZE(rc_key_map)
 
+void dbox2_fp_rc_input_event(unsigned int type, unsigned int code, int value)
+{
+	input_event(rc_input_dev, type, code, value);
+}
+EXPORT_SYMBOL(dbox2_fp_rc_input_event);
+
 struct fp_up {
 	struct rc_key *last_key;
 	u8 toggle_bits;			// only RC_NEW
@@ -93,7 +100,7 @@ static void dbox2_fp_rc_keyup(unsigned long data)
 
 	/* "key released" event after timeout */
 	fups->toggle_bits=0xff;
-	input_event(rc_input_dev, EV_KEY, fups->last_key->code, KEY_RELEASED);
+	dbox2_fp_rc_input_event(EV_KEY, fups->last_key->code, KEY_RELEASED);
 	if (fups->last_key) fups->last_key=NULL;
 }
 
@@ -119,7 +126,7 @@ static void dbox2_fp_old_rc_queue_handler(u8 queue_nr)
 		if (timer_pending(&keyup_timer))		/* in case we got a "spurious" break code */
 			del_timer_sync(&keyup_timer);
 		if (fupsold.last_key) {
-			input_event(rc_input_dev, EV_KEY, fupsold.last_key->code, KEY_RELEASED);
+			dbox2_fp_rc_input_event(EV_KEY, fupsold.last_key->code, KEY_RELEASED);
 			fupsold.last_key = NULL;
 		}
 		if (rc_code == 0x5cfe)	/* ...else there was a new key and the breakcode was swallowed */
@@ -131,9 +138,9 @@ static void dbox2_fp_old_rc_queue_handler(u8 queue_nr)
 			if (timer_pending(&keyup_timer))
 				del_timer_sync(&keyup_timer);
 			if ((fupsold.last_key) && (fupsold.last_key->code == key->code)) {
-				input_event(rc_input_dev, EV_KEY, key->code, KEY_AUTOREPEAT);
+				dbox2_fp_rc_input_event(EV_KEY, key->code, KEY_AUTOREPEAT);
 			} else {
-				input_event(rc_input_dev, EV_KEY, key->code, KEY_PRESSED);
+				dbox2_fp_rc_input_event(EV_KEY, key->code, KEY_PRESSED);
 				fupsold.last_key = key;
 			}
 			keyup_timer.expires = jiffies + UP_TIMEOUT;	// in case the break code gets lost
@@ -174,14 +181,14 @@ static void dbox2_fp_new_rc_queue_handler(u8 queue_nr)
 				del_timer_sync(&keyup_timer);
 				if ((fupsnew.last_key->code != key->code) || (fupsnew.toggle_bits != ((rc_code >> 6) & 0x03)))
 					if (fupsnew.toggle_bits!=0xff) {
-						input_event(rc_input_dev, EV_KEY, fupsnew.last_key->code, KEY_RELEASED);
+						dbox2_fp_rc_input_event(EV_KEY, fupsnew.last_key->code, KEY_RELEASED);
 						fupsnew.toggle_bits=0xff;
 					}
 			}
 			if ((fupsnew.toggle_bits!=0xff)&&(fupsnew.toggle_bits == ((rc_code >> 6) & 0x03)))
-				input_event(rc_input_dev, EV_KEY, key->code, KEY_AUTOREPEAT);
+				dbox2_fp_rc_input_event(EV_KEY, key->code, KEY_AUTOREPEAT);
 			else
-				input_event(rc_input_dev, EV_KEY, key->code, KEY_PRESSED);
+				dbox2_fp_rc_input_event(EV_KEY, key->code, KEY_PRESSED);
 			keyup_timer.expires = jiffies + UP_TIMEOUT;
 			keyup_timer.data = (unsigned long)&fupsnew;
 			fupsnew.last_key=key;
