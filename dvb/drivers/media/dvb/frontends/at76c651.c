@@ -1,6 +1,6 @@
 /*
 
-    $Id: at76c651.c,v 1.24.2.4 2002/01/27 01:40:24 tmbinc Exp $
+    $Id: at76c651.c,v 1.24.2.5 2002/02/15 23:21:49 TripleDES Exp $
 
     AT76C651  - DVB demux driver (dbox-II-project)
 
@@ -23,6 +23,9 @@
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
     $Log: at76c651.c,v $
+    Revision 1.24.2.5  2002/02/15 23:21:49  TripleDES
+    da ist das init irgendwie total kaputt - aber so gehts erstmal wieder
+
     Revision 1.24.2.4  2002/01/27 01:40:24  tmbinc
     bereinigt und gefixt. tut aber noch nicht.
 
@@ -195,7 +198,8 @@ static int tuner_attach_adapter(struct i2c_adapter *adap)
 	memcpy(client, &client_template_tuner, sizeof(struct i2c_client));
 	dclient_tuner=client;
 	client->data=tunerdata=kmalloc(sizeof(struct tuner_data),GFP_KERNEL);
-	if (tunerdata==NULL) {
+	if (tunerdata==NULL) 
+	{
 		kfree(client);
 		return -ENOMEM;
 	}
@@ -289,8 +293,8 @@ static int set_tuner_dword(struct i2c_client *client, u32 tw)
 	char msg[4];
 	int len=4;
 
-	if(tunerdata->lastwrite==tw)
-		return 0; // Nichts zu tun
+	//if(tunerdata->lastwrite==tw)
+	//	return 0; // Nichts zu tun
 	dprintk("AT76C651: set_tuner_dword: 0x%08x, dclient_tuner: %x\n", tw, dclient_tuner);
 	*((u32*)(msg))=tw;
 	ves_tuner_i2c(client, 1); //enable tuner access on at76c651
@@ -370,7 +374,8 @@ static int tuner_set_freq(struct i2c_client *client, int freq)
 			printk("AT76C651: Frequency %d not supported\n", freq);
 			break;
 	}
-	if(dw) {
+	if(dw) 
+	{
 		set_tuner_dword(client, dw);
 		return 0;
 	}
@@ -383,15 +388,17 @@ static int tuner_set_freq(struct i2c_client *client, int freq)
 // Tuner an i2c an/abhaengen
 static void ves_tuner_i2c(struct i2c_client *client, int an)
 {
-	if(an) {
+	if(an) 
+	{
 		writereg(client, 0x0c, 0xc2|1);
 		dprintk("AT76C651: tuner now attached to i2c at 0xc2\n");
 	}
-	else {
+	else 
+	{
 		writereg(client, 0x0c, 0xc2);
 		dprintk("AT76C651: tuner now detached from i2c\n");
 	}
-	printk("... %02x\n", readreg(client, 0x0c));
+	dprintk("... %02x\n", readreg(client, 0x0c));
 }
 
 static int init(struct i2c_client *client)
@@ -543,7 +550,7 @@ static int SetQAM(struct i2c_client* client, Modulation QAM_Mode)
 */
 	writereg(client, 0x03, qamsel);
 	// Und ein reset um das Dingens richtig einzustellen
-//		writereg(client, 0x07, 0x01);
+	//	writereg(client, 0x07, 0x01);
 		return 0;
 }
 
@@ -560,62 +567,61 @@ static int dvb_command(struct i2c_client *client, unsigned int cmd, void *arg)
 {
 	switch (cmd) 
 	{
-		
-	case FE_READ_STATUS:
-	{
-		FrontendStatus *status=(FrontendStatus *) arg;
+		case FE_READ_STATUS:
+		{
+			FrontendStatus *status=(FrontendStatus *) arg;
+			int lock;
+			
+			lock=readreg(client, 0x80); // Bits: FEC, CAR, EQU, TIM, AGC2, AGC1, ADC, PLL (PLL=0)
 
-		u8 lock;
-		lock=readreg(client, 0x80); // Bits: FEC, CAR, EQU, TIM, AGC2, AGC1, ADC, PLL (PLL=0)
+			*status=0;
+			dprintk("lock:%x\n",readreg(client,0x80));
 
-		*status=0;
+			if (lock&0x08) // AGC2
+				*status|=FE_HAS_SIGNAL;
+			if (lock&0x40) // CAR
+				*status|=FE_HAS_CARRIER;
+			if (lock&0x20) // EQU
+				*status|=FE_HAS_SYNC;
+			if (lock&0x80) // FEC
+				*status|=FE_HAS_LOCK;
+	
+			break;
+		}
+		case FE_WRITEREG:
+		{
+			u8 *msg = (u8 *) arg;
+			writereg(client, msg[0], msg[1]);
+			break;
+		}
+		case FE_INIT:
+		{
+			init(client);
+			printk("chip init done\n");
+			break;
+		}
+		case FE_RESET:
+		{
+			at_restart(client);
+			break;
+		}
+		case FE_SET_FRONTEND:
+		{
+			FrontendParameters *param = (FrontendParameters *) arg;
 
-		if (lock&0x08) // AGC2
-			*status|=FE_HAS_SIGNAL;
-		if (lock&0x40) // CAR
-			*status|=FE_HAS_CARRIER;
-		if (lock&0x20) // EQU
-			*status|=FE_HAS_SYNC;
-		if (lock&0x80) // FEC
-			*status|=FE_HAS_LOCK;
-		break;
-	}
-
-	case FE_WRITEREG:
-	{
-		u8 *msg = (u8 *) arg;
-		writereg(client, msg[0], msg[1]);
-		break;
-	}
-	case FE_INIT:
-	{
-		init(client);
-		printk("chip init done\n");
-		break;
-	}
-	case FE_RESET:
-		at_restart(client);
-		break;
-
-	case FE_SET_FRONTEND:
-	{
-		FrontendParameters *param = (FrontendParameters *) arg;
-
-		SetQAM(client, param->u.qam.QAM);
-		SetSymbolrate(client, param->u.qam.SymbolRate);
-
-		break;
-	}
-
-	case FE_SETFREQ:
-	{
-		u32 freq=*(u32*)arg;
-		tuner_set_freq(client, freq);
-		break;
-	}
-
-	default:
-		return -1;
+			init(client);
+			//SetQAM(client, param->u.qam.QAM);
+			//SetSymbolrate(client, param->u.qam.SymbolRate);
+			break;
+		}
+		case FE_SETFREQ:
+		{
+			u32 freq=*(u32*)arg;
+			tuner_set_freq(client, freq);
+			break;
+		}
+		default:
+			return -1;
 	}
 	
 	return 0;
@@ -661,21 +667,25 @@ static int attach_adapter(struct i2c_adapter *adap)
 
 	client_template.adapter=adap;
 
-	if (readreg(&client_template, 0x0e)!=0x65) {
+	if (readreg(&client_template, 0x0e)!=0x65) 
+	{
 		printk("no AT76C651(B) found\n");
 		return -1;
 	}
 	
 	if (readreg(&client_template, 0x0f)!=0x10)
 	{
-		if (readreg(&client_template, 0x0f)==0x11) {
+		if (readreg(&client_template, 0x0f)==0x11) 
+		{
 			dprintk("AT76C651B found\n");
 		}
-		else {
+		else 
+		{
 			printk("no AT76C651(B) found\n");
 			return -1;
 		}
-	} else
+	} 
+	else
 		dprintk("AT76C651B found\n");
 	
 
@@ -685,10 +695,12 @@ static int attach_adapter(struct i2c_adapter *adap)
 	memcpy(client, &client_template, sizeof(struct i2c_client));
 
 	client->data=at=(struct at76c651*)kmalloc(sizeof(struct at76c651), GFP_KERNEL);
-	if (at==NULL) {
+	if (at==NULL) 
+	{
 		kfree(client);
 		return -ENOMEM;
 	}
+	
 	dprintk("AT76C651: attaching AT76C651 at 0x%02x\n", (client->addr)<<1);
 	i2c_attach_client(client);
 
@@ -728,7 +740,7 @@ static int detach_client(struct i2c_client *client)
 int init_module(void) {
 	int res;
 
-	dprintk("AT76C651: $Id: at76c651.c,v 1.24.2.4 2002/01/27 01:40:24 tmbinc Exp $\n");
+	dprintk("AT76C651: $Id: at76c651.c,v 1.24.2.5 2002/02/15 23:21:49 TripleDES Exp $\n");
 	if ((res = i2c_add_driver(&dvbt_driver)))
 	{
 		printk("AT76C651: Driver registration failed, module not inserted.\n");
