@@ -1,6 +1,6 @@
 /*
  * at76c651.c
- *
+ * 
  * Atmel DVB-C Frontend Driver (at76c651/tua6010xs)
  *
  * Copyright (C) 2001 fnbrd <fnbrd@gmx.de>
@@ -27,35 +27,30 @@
  *
  * TUA6010XS
  * http://www.infineon.com/cgi/ecrm.dll/ecrm/scripts/public_download.jsp?oid=19512
- *
  */
 
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
 #include <linux/slab.h>
-
-#if defined(__powerpc__)
-#include <asm/bitops.h>
-#endif
+#include <linux/bitops.h>
 
 #include "dvb_frontend.h"
-#include "dvb_i2c.h"
-#include "dvb_functions.h"
 
-static int debug = 0;
-static u8 at76c651_qam;
-static u8 at76c651_revision;
+#define FRONTEND_NAME "dvbfe_at76c651"
 
-#define dprintk	if (debug) printk
+#define dprintk(args...) \
+	do { \
+		if (debug) printk(KERN_DEBUG FRONTEND_NAME ": " args); \
+	} while (0)
 
-// #define AT76C651_PROC_INTERFACE
+static int debug;
 
-#ifdef AT76C651_PROC_INTERFACE
-#include <linux/proc_fs.h>
-static unsigned char at76c651_proc_registered = 0;
-#endif
+module_param(debug, int, 0644);
+MODULE_PARM_DESC(debug, "Turn on/off frontend debugging (default:off).");
+
 
 static struct dvb_frontend_info at76c651_info = {
 	.name = "Atmel AT76C651B with TUA6010XS",
@@ -73,8 +68,14 @@ static struct dvb_frontend_info at76c651_info = {
 	    FE_CAN_FEC_4_5 | FE_CAN_FEC_5_6 | FE_CAN_FEC_6_7 |
 	    FE_CAN_FEC_7_8 | FE_CAN_FEC_8_9 | FE_CAN_FEC_AUTO |
 	    FE_CAN_QAM_16 | FE_CAN_QAM_32 | FE_CAN_QAM_64 | FE_CAN_QAM_128 |
-	    FE_CAN_QAM_256 /* | FE_CAN_QAM_512 | FE_CAN_QAM_1024 */ |
-	    FE_CAN_RECOVER | FE_CAN_CLEAN_SETUP | FE_CAN_MUTE_TS
+	    FE_CAN_MUTE_TS | FE_CAN_QAM_256 | FE_CAN_RECOVER
+};
+
+struct at76c651_state {
+	u8 revision;
+	u8 qam;
+	struct i2c_adapter *i2c;
+	struct dvb_adapter *dvb;
 };
 
 #if ! defined(__powerpc__)
@@ -92,26 +93,26 @@ static __inline__ int __ilog2(unsigned long x)
 }
 #endif
 
-static int at76c651_writereg(struct dvb_i2c_bus *i2c, u8 reg, u8 data)
+static int at76c651_writereg(struct i2c_adapter *i2c, u8 reg, u8 data)
 {
 	int ret;
 	u8 buf[] = { reg, data };
 	struct i2c_msg msg =
 		{ .addr = 0x1a >> 1, .flags = 0, .buf = buf, .len = 2 };
 
-	ret = i2c->xfer(i2c, &msg, 1);
+	ret = i2c_transfer(i2c, &msg, 1);
 
 	if (ret != 1)
 		dprintk("%s: writereg error "
 			"(reg == 0x%02x, val == 0x%02x, ret == %i)\n",
 			__FUNCTION__, reg, data, ret);
 
-	dvb_delay(10);
+	msleep(10);
 
 	return (ret != 1) ? -EREMOTEIO : 0;
 }
 
-static u8 at76c651_readreg(struct dvb_i2c_bus *i2c, u8 reg)
+static u8 at76c651_readreg(struct i2c_adapter *i2c, u8 reg)
 {
 	int ret;
 	u8 val;
@@ -120,7 +121,7 @@ static u8 at76c651_readreg(struct dvb_i2c_bus *i2c, u8 reg)
 		{ .addr = 0x1a >> 1, .flags = I2C_M_RD, .buf = &val, .len = 1 }
 	};
 
-	ret = i2c->xfer(i2c, msg, 2);
+	ret = i2c_transfer(i2c, msg, 2);
 
 	if (ret != 2)
 		dprintk("%s: readreg error (ret == %i)\n", __FUNCTION__, ret);
@@ -128,39 +129,44 @@ static u8 at76c651_readreg(struct dvb_i2c_bus *i2c, u8 reg)
 	return val;
 }
 
-static int at76c651_reset(struct dvb_i2c_bus *i2c)
+static int at76c651_reset(struct i2c_adapter *i2c)
 {
 	return at76c651_writereg(i2c, 0x07, 0x01);
 }
 
-static void at76c651_disable_interrupts(struct dvb_i2c_bus *i2c)
+static void at76c651_disable_interrupts(struct i2c_adapter *i2c)
 {
 	at76c651_writereg(i2c, 0x0b, 0x00);
 }
 
-static int at76c651_set_auto_config(struct dvb_i2c_bus *i2c)
+static int at76c651_set_auto_config(struct at76c651_state *state)
 {
+	struct i2c_adapter *i2c = state->i2c;
+
 	/*
 	 * Autoconfig
 	 */
+
 	at76c651_writereg(i2c, 0x06, 0x01);
 
 	/*
 	 * Performance optimizations, should be done after autoconfig
 	 */
+
 	at76c651_writereg(i2c, 0x10, 0x06);
-	at76c651_writereg(i2c, 0x11, ((at76c651_qam == 5) || (at76c651_qam == 7)) ? 0x12 : 0x10);
+	at76c651_writereg(i2c, 0x11, ((state->qam == 5) || (state->qam == 7)) ? 0x12 : 0x10);
 	at76c651_writereg(i2c, 0x15, 0x28);
 	at76c651_writereg(i2c, 0x20, 0x09);
-	at76c651_writereg(i2c, 0x24, ((at76c651_qam == 5) || (at76c651_qam == 7)) ? 0xC0 : 0x90);
+	at76c651_writereg(i2c, 0x24, ((state->qam == 5) || (state->qam == 7)) ? 0xC0 : 0x90);
 	at76c651_writereg(i2c, 0x30, 0x90);
-	if (at76c651_qam == 5)
+	if (state->qam == 5)
 		at76c651_writereg(i2c, 0x35, 0x2A);
 
 	/*
 	 * Initialize A/D-converter
 	 */
-	if (at76c651_revision == 0x11) {
+
+	if (state->revision == 0x11) {
 		at76c651_writereg(i2c, 0x2E, 0x38);
 		at76c651_writereg(i2c, 0x2F, 0x13);
 	}
@@ -170,33 +176,39 @@ static int at76c651_set_auto_config(struct dvb_i2c_bus *i2c)
 	/*
 	 * Restart operation
 	 */
+
 	at76c651_reset(i2c);
 
 	return 0;
 }
 
-static void at76c651_set_bbfreq(struct dvb_i2c_bus *i2c)
+static void at76c651_set_bbfreq(struct i2c_adapter *i2c)
 {
 	at76c651_writereg(i2c, 0x04, 0x3f);
 	at76c651_writereg(i2c, 0x05, 0xee);
 }
 
-static int at76c651_pll_write(struct dvb_i2c_bus *i2c, u8 *buf, size_t len)
+static int at76c651_pll_write(struct i2c_adapter *i2c, u8 *buf, size_t len)
 {
 	int ret;
 	struct i2c_msg msg =
-		{ .addr = 0xc2 >> 1, .flags = 0, .buf = buf, .len = len };
+	    { .addr = 0xc2 >> 1, .flags = 0, .buf = buf, .len = len };
 
 	at76c651_writereg(i2c, 0x0c, 0xc3);
 
-	ret = i2c->xfer(i2c, &msg, 1);
+	ret = i2c_transfer(i2c, &msg, 1);
 
 	at76c651_writereg(i2c, 0x0c, 0xc2);
 
-	return (ret != 1) ? -EREMOTEIO : 0;
+	if (ret < 0)
+		return ret;
+	else if (ret != 1)
+		return -EREMOTEIO;
+
+	return 0;
 }
 
-static int tua6010_setfreq(struct dvb_i2c_bus *i2c, u32 freq)
+static int tua6010_setfreq(struct i2c_adapter *i2c, u32 freq)
 {
 	u32 div;
 	u8 buf[4];
@@ -208,16 +220,11 @@ static int tua6010_setfreq(struct dvb_i2c_bus *i2c, u32 freq)
 	div = (freq + 36125000) / 62500;
 
 	if (freq > 400000000)
-		vu = 1;
-	else
-		vu = 0;
-
-	if (freq > 400000000)
-		p2 = 1, p1 = 0, p0 = 1;
+		vu = 1, p2 = 1, p1 = 0, p0 = 1;
 	else if (freq > 140000000)
-		p2 = 1, p1 = 1, p0 = 0;
+		vu = 0, p2 = 1, p1 = 1, p0 = 0;
 	else
-		p2 = 0, p1 = 1, p0 = 1;
+		vu = 0, p2 = 0, p1 = 1, p0 = 1;
 
 	buf[0] = (div >> 8) & 0x7f;
 	buf[1] = (div >> 0) & 0xff;
@@ -227,7 +234,7 @@ static int tua6010_setfreq(struct dvb_i2c_bus *i2c, u32 freq)
 	return at76c651_pll_write(i2c, buf, 4);
 }
 
-static int at76c651_set_symbol_rate(struct dvb_i2c_bus *i2c, u32 symbol_rate)
+static int at76c651_set_symbol_rate(struct i2c_adapter *i2c, u32 symbol_rate)
 {
 	u8 exponent;
 	u32 mantissa;
@@ -251,44 +258,45 @@ static int at76c651_set_symbol_rate(struct dvb_i2c_bus *i2c, u32 symbol_rate)
 	return 0;
 }
 
-static int at76c651_set_qam(struct dvb_i2c_bus *i2c, fe_modulation_t qam)
+static int at76c651_set_qam(struct at76c651_state *state, fe_modulation_t qam)
 {
 	switch (qam) {
 	case QPSK:
-		at76c651_qam = 0x02;
+		state->qam = 0x02;
 		break;
 	case QAM_16:
-		at76c651_qam = 0x04;
+		state->qam = 0x04;
 		break;
 	case QAM_32:
-		at76c651_qam = 0x05;
+		state->qam = 0x05;
 		break;
 	case QAM_64:
-		at76c651_qam = 0x06;
+		state->qam = 0x06;
 		break;
 	case QAM_128:
-		at76c651_qam = 0x07;
+		state->qam = 0x07;
 		break;
 	case QAM_256:
-		at76c651_qam = 0x08;
+		state->qam = 0x08;
 		break;
 #if 0
 	case QAM_512:
-		at76c651_qam = 0x09;
+		state->qam = 0x09;
 		break;
 	case QAM_1024:
-		at76c651_qam = 0x0A;
+		state->qam = 0x0A;
 		break;
 #endif
 	default:
 		return -EINVAL;
+
 	}
 
-	return at76c651_writereg(i2c, 0x03, at76c651_qam);
+	return at76c651_writereg(state->i2c, 0x03, state->qam);
 }
 
-static int at76c651_set_inversion(struct dvb_i2c_bus *i2c,
-		       fe_spectral_inversion_t inversion)
+static int at76c651_set_inversion(struct i2c_adapter *i2c,
+				  fe_spectral_inversion_t inversion)
 {
 	u8 feciqinv = at76c651_readreg(i2c, 0x60);
 
@@ -313,9 +321,10 @@ static int at76c651_set_inversion(struct dvb_i2c_bus *i2c,
 	return at76c651_writereg(i2c, 0x60, feciqinv);
 }
 
-static int at76c651_set_parameters(struct dvb_i2c_bus *i2c,
-			struct dvb_frontend_parameters *p)
+static int at76c651_set_parameters(struct at76c651_state *state,
+				   struct dvb_frontend_parameters *p)
 {
+	struct i2c_adapter *i2c = state->i2c;
 	int ret;
 
 	if ((ret = tua6010_setfreq(i2c, p->frequency)))
@@ -324,27 +333,31 @@ static int at76c651_set_parameters(struct dvb_i2c_bus *i2c,
 	if ((ret = at76c651_set_symbol_rate(i2c, p->u.qam.symbol_rate)))
 		return ret;
 
-	if ((ret = at76c651_set_qam(i2c, p->u.qam.modulation)))
+	if ((ret = at76c651_set_qam(state, p->u.qam.modulation)))
 		return ret;
 
 	if ((ret = at76c651_set_inversion(i2c, p->inversion)))
 		return ret;
 
-	return at76c651_set_auto_config(i2c);
+	return at76c651_set_auto_config(state);
 }
 
-static int at76c651_set_defaults(struct dvb_i2c_bus *i2c)
+static int at76c651_set_defaults(struct at76c651_state *state)
 {
+	struct i2c_adapter *i2c = state->i2c;
+
 	at76c651_set_symbol_rate(i2c, 6900000);
-	at76c651_set_qam(i2c, QAM_64);
+	at76c651_set_qam(state, QAM_64);
 	at76c651_set_bbfreq(i2c);
-	at76c651_set_auto_config(i2c);
+	at76c651_set_auto_config(state);
 
 	return 0;
 }
 
 static int at76c651_ioctl(struct dvb_frontend *fe, unsigned int cmd, void *arg)
 {
+	struct at76c651_state *state = fe->data;
+	struct i2c_adapter *i2c = state->i2c;
 
 	switch (cmd) {
 	case FE_GET_INFO:
@@ -359,57 +372,52 @@ static int at76c651_ioctl(struct dvb_frontend *fe, unsigned int cmd, void *arg)
 		/*
 		 * Bits: FEC, CAR, EQU, TIM, AGC2, AGC1, ADC, PLL (PLL=0) 
 		 */
-		sync = at76c651_readreg(fe->i2c, 0x80);
+		sync = at76c651_readreg(i2c, 0x80);
 
 		*status = 0;
 
 		if (sync & (0x04 | 0x10))	/* AGC1 || TIM */
 			*status |= FE_HAS_SIGNAL;
-
-		if (sync & 0x10)	/* TIM */
+		if (sync & 0x10)		/* TIM */
 			*status |= FE_HAS_CARRIER;
-
-		if (sync & 0x80)	/* FEC */
+		if (sync & 0x80)		/* FEC */
 			*status |= FE_HAS_VITERBI;
-
-		if (sync & 0x40)	/* CAR */
+		if (sync & 0x40)		/* CAR */
 			*status |= FE_HAS_SYNC;
-
 		if ((sync & 0xF0) == 0xF0)	/* TIM && EQU && CAR && FEC */
 			*status |= FE_HAS_LOCK;
-
 		break;
 	}
 
 	case FE_READ_BER:
 	{
 		u32 *ber = arg;
-		*ber = (at76c651_readreg(fe->i2c, 0x81) & 0x0F) << 16;
-		*ber |= at76c651_readreg(fe->i2c, 0x82) << 8;
-		*ber |= at76c651_readreg(fe->i2c, 0x83);
+		*ber = (at76c651_readreg(i2c, 0x81) & 0x0F) << 16;
+		*ber |= at76c651_readreg(i2c, 0x82) << 8;
+		*ber |= at76c651_readreg(i2c, 0x83);
 		*ber *= 10;
 		break;
 	}
 
 	case FE_READ_SIGNAL_STRENGTH:
 	{
-		u8 gain = ~at76c651_readreg(fe->i2c, 0x91);
+		u8 gain = ~at76c651_readreg(i2c, 0x91);
 		*(u16 *)arg = (gain << 8) | gain;
 		break;
 	}
 
 	case FE_READ_SNR:
 		*(u16 *)arg = 0xFFFF -
-		    ((at76c651_readreg(fe->i2c, 0x8F) << 8) |
-		     at76c651_readreg(fe->i2c, 0x90));
+		    ((at76c651_readreg(i2c, 0x8F) << 8) |
+		     at76c651_readreg(i2c, 0x90));
 		break;
 
 	case FE_READ_UNCORRECTED_BLOCKS:
-		*(u32 *)arg = at76c651_readreg(fe->i2c, 0x82);
+		*(u32 *)arg = at76c651_readreg(i2c, 0x82);
 		break;
 
 	case FE_SET_FRONTEND:
-		return at76c651_set_parameters(fe->i2c, arg);
+		return at76c651_set_parameters(state, arg);
 
 	case FE_GET_FRONTEND:
 		break;
@@ -418,10 +426,16 @@ static int at76c651_ioctl(struct dvb_frontend *fe, unsigned int cmd, void *arg)
 		break;
 
 	case FE_INIT:
-		return at76c651_set_defaults(fe->i2c);
+		return at76c651_set_defaults(state);
 
-	case FE_RESET:
-		return at76c651_reset(fe->i2c);
+	case FE_GET_TUNE_SETTINGS:
+	{
+	        struct dvb_frontend_tune_settings *fesettings = arg;
+	        fesettings->min_delay_ms = 50;
+	        fesettings->step_size = 0;
+	        fesettings->max_drift = 0;
+		break;
+	}
 
 	default:
 		return -ENOIOCTLCMD;
@@ -430,97 +444,24 @@ static int at76c651_ioctl(struct dvb_frontend *fe, unsigned int cmd, void *arg)
 	return 0;
 }
 
-#ifdef AT76C651_PROC_INTERFACE
-static int at76c651_proc_read(char *buf, char **start, off_t offset, int len, int *eof, void *i2c)
+static struct i2c_client client_template;
+
+static int attach_adapter(struct i2c_adapter *adapter)
 {
-	int nr;
-	u8 val;
-	int idx;
-	u8 bit;
-	u32 ber;
+	struct at76c651_state *state;
+	struct i2c_client *client;
+	int ret;
 
-	const char *lockdescr[8] =
-		{ "FEC", "CAR", "EQU", "TIM", "AGC2", "AGC1", "ADC", "PLL" };
-
-	if (at76c651_revision == 0x10)
-		nr = sprintf(buf, "Status of AT76C651A demodulator:\n");
-	else
-		nr = sprintf(buf, "Status of AT76C651B demodulator:\n");
-
-	val = at76c651_readreg(i2c, 0x80);
-	nr += sprintf(buf, "Lock (0x%02X): ", val);
-
-	bit = 0x80;
-
-	for (idx = 0; idx < 8; idx++) {
-		if (val & bit)
-			nr += sprintf(buf + nr, "%s ", lockdescr[idx]);
-		bit >>= 1;
-	}
-
-	ber = ((at76c651_readreg(i2c, 0x81) & 0x0F) << 16) |
-		(at76c651_readreg(i2c, 0x82) << 8) |
-		at76c651_readreg(i2c, 0x83);
-
-	val = at76c651_readreg(i2c, 0x85);
-
-	nr += sprintf(buf + nr - 1, "\nRecoverable block error rate: %d\n"
-			"Number of uncorrectable frames: %d\n", ber, val) - 1;
-
-	nr += sprintf(buf + nr, "Number of A/D-converter-saturations: %d\n"
-			"AGC1-Value: %d\n",
-			at76c651_readreg(i2c, 0x19),
-			at76c651_readreg(i2c, 0x91));
-
-	if ((val = at76c651_readreg(i2c, 0x60)) & 0x02)
-		nr += sprintf(buf + nr, "FEC: manual mode, %s\n",
-				(val & 0x01) ? "inverse" : "normal");
-	else
-		nr += sprintf(buf + nr, "FEC: automatic mode, %s\n",
-				(val & 0x04) ? "inverse" : "normal");
-
-	return nr;
-}
-
-static int at76c651_register_proc(struct dvb_i2c_bus *i2c)
-{
-	struct proc_dir_entry *proc_bus_at76c651;
-
-	if (!proc_bus)
-		return -ENOENT;
-
-	proc_bus_at76c651 = create_proc_read_entry("at76c651", 0, proc_bus,
-			&at76c651_proc_read,i2c);
-
-	if (!proc_bus_at76c651) {
-		printk(KERN_ERR "Cannot create /proc/bus/at76c651\n");
-		return -ENOENT;
-	}
-
-	at76c651_proc_registered = 1;
-
-	proc_bus_at76c651->owner = THIS_MODULE;
-
-	return 0;
-}
-
-static void at76c651_deregister_proc(void)
-{
-	if (at76c651_proc_registered)
-		remove_proc_entry("at76c651",proc_bus);
-
-	at76c651_proc_registered = 0;
-}
-#endif
-
-static int at76c651_attach(struct dvb_i2c_bus *i2c, void **data)
-{
-	if (at76c651_readreg(i2c, 0x0E) != 0x65)
+	if (at76c651_readreg(adapter, 0x0E) != 0x65)
 		return -ENODEV;
 
-	at76c651_revision = at76c651_readreg(i2c, 0x0F);
+	if (!(state = kmalloc(sizeof(struct at76c651_state), GFP_KERNEL)))
+		return -ENOMEM;
 
-	switch (at76c651_revision) {
+	state->i2c = adapter;
+	state->revision = at76c651_readreg(adapter, 0x0F) & 0xFE;
+
+	switch (state->revision) {
 	case 0x10:
 		at76c651_info.name[14] = 'A';
 		break;
@@ -528,42 +469,102 @@ static int at76c651_attach(struct dvb_i2c_bus *i2c, void **data)
 		at76c651_info.name[14] = 'B';
 		break;
 	default:
+		kfree(state);
 		return -ENODEV;
 	}
 
-	at76c651_set_defaults(i2c);
+	if (!(client = kmalloc(sizeof(struct i2c_client), GFP_KERNEL))) {
+		kfree(state);
+		return -ENOMEM;
+	}
 
-#ifdef AT76C651_PROC_INTERFACE
-	at76c651_register_proc(i2c);
-#endif
+	memcpy(client, &client_template, sizeof(struct i2c_client));
+	client->adapter = adapter;
+	client->addr = 0x1a >> 1;
+	i2c_set_clientdata(client, state);
 
-	return dvb_register_frontend(at76c651_ioctl, i2c, NULL, &at76c651_info);
+	ret = i2c_attach_client(client);
+	if (ret) {
+		kfree(state);
+		kfree(client);
+		return ret;
+	}
+
+	BUG_ON(!state->dvb);
+
+	ret = dvb_register_frontend(at76c651_ioctl, state->dvb, state,
+					&at76c651_info, THIS_MODULE);
+	if (ret) {
+		i2c_detach_client(client);
+		kfree(client);
+		kfree(state);
+		return ret;
+	}
+
+	return 0;
 }
 
-static void at76c651_detach(struct dvb_i2c_bus *i2c, void *data)
+static int detach_client(struct i2c_client *client)
 {
-#ifdef AT76C651_PROC_INTERFACE
-	at76c651_deregister_proc();
-#endif
+	struct at76c651_state *state = i2c_get_clientdata(client);
 
-	dvb_unregister_frontend(at76c651_ioctl, i2c);
+	dvb_unregister_frontend(at76c651_ioctl, state->dvb);
+	i2c_detach_client(client);
+	BUG_ON(state->dvb);
+	kfree(client);
+	kfree(state);
+
+	return 0;
 }
+
+static int command(struct i2c_client *client, unsigned int cmd, void *arg)
+{
+	struct at76c651_state *state = i2c_get_clientdata(client);
+
+	switch (cmd) {
+	case FE_REGISTER:
+		state->dvb = arg;
+		break;
+	case FE_UNREGISTER:
+		state->dvb = NULL;
+		break;
+	default:
+		return -EOPNOTSUPP;
+	}
+
+	return 0;
+}
+
+static struct i2c_driver driver = {
+	.owner		= THIS_MODULE,
+	.name		= FRONTEND_NAME,
+	.id		= I2C_DRIVERID_DVBFE_AT76C651,
+	.flags		= I2C_DF_NOTIFY,
+	.attach_adapter	= attach_adapter,
+	.detach_client	= detach_client,
+	.command	= command,
+};
+
+static struct i2c_client client_template = {
+	.name		= FRONTEND_NAME,
+	.flags		= I2C_CLIENT_ALLOW_USE,
+	.driver		= &driver,
+};
 
 static int __init at76c651_init(void)
 {
-	return dvb_register_i2c_device(THIS_MODULE,
-			at76c651_attach, at76c651_detach);
+	return i2c_add_driver(&driver);
 }
 
 static void __exit at76c651_exit(void)
 {
-	dvb_unregister_i2c_device(at76c651_attach);
+	if (i2c_del_driver(&driver))
+		printk(KERN_ERR "at76c651: driver deregistration failed.\n");
 }
 
 module_init(at76c651_init);
 module_exit(at76c651_exit);
 
-MODULE_DESCRIPTION("at76c651/dat7021(tua6010xs) dvb-c frontend driver");
+MODULE_DESCRIPTION("at76c651/tua6010xs dvb-c frontend driver");
 MODULE_AUTHOR("Andreas Oberritter <obi@linuxtv.org>");
 MODULE_LICENSE("GPL");
-MODULE_PARM(debug, "i");
