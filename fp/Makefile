@@ -1,8 +1,22 @@
-DRIVER_TOPDIR = ..
+#################################################
+# some magic for using linux kernel settings
+# when compiling module(s)
 
-include $(DRIVER_TOPDIR)/Config.make
+M_OBJS       = fp.o
 
-obj-m		:= fp.o
-export-objs	:= fp.o
+# 2.4.0 Kernel Option
+obj-m = $(M_OBJS)
 
-include $(DRIVER_TOPDIR)/Rules.make
+EXTRA_CFLAGS=-I../include -DEXPORT_SYMTAB
+
+here:
+	DIR=`pwd`; (cd $(KERNEL_LOCATION); make SUBDIRS=$$DIR modules)
+
+install:
+	cp -v $(M_OBJS) $(MODULE_DEST)
+
+clean:
+	-rm -f $(M_OBJS) $(O_TARGET) .*.o.flags *~
+
+include $(KERNEL_LOCATION)/Rules.make
+

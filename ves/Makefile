@@ -1,9 +1,21 @@
-DRIVER_TOPDIR = ..
+#################################################
+# some magic for using linux kernel settings
+# when compiling module(s)
 
-include $(DRIVER_TOPDIR)/Config.make
+M_OBJS   = ves1820.o ves1893.o ves1993.o tda8044h.o at76c651.o
+obj-m  = $(M_OBJS)
 
-obj-m		:= ves1820.o ves1893.o ves1993.o tda8044h.o at76c651.o
+#remove __ASSEMBLY__ option from kernel makefile
+AFLAGS=
+EXTRA_CFLAGS=-I../include -I$(KERNEL_LOCATION)/arch/ppc -DEXPORT_SYMTAB -D__DVB_PACK__
 
-EXTRA_CFLAGS	:= -D__DVB_PACK__
+here:
+	DIR=`pwd`; (cd $(KERNEL_LOCATION); make SUBDIRS=$$DIR modules)
 
-include $(DRIVER_TOPDIR)/Rules.make
+install:
+	cp -v $(M_OBJS) $(MODULE_DEST)
+
+clean:
+	-rm -f $(M_OBJS) $(O_TARGET) .*.o.flags *~
+
+include $(KERNEL_LOCATION)/Rules.make
