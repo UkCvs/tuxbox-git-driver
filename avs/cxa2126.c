@@ -88,8 +88,6 @@ typedef struct s_cxa2126_data {
 
 /* ---------------------------------------------------------------------- */
 
-#define dprintk     if (debug) printk
-
 static struct s_cxa2126_data cxa2126_data;	/* current settings */
 
 /* ---------------------------------------------------------------------- */

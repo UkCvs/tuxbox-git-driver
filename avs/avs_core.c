@@ -1,5 +1,5 @@
 /*
- * $Id: avs_core.c,v 1.27 2004/01/10 16:36:34 alexw Exp $
+ * $Id: avs_core.c,v 1.27.2.1 2005/01/15 01:26:26 carjay Exp $
  * 
  * audio/video switch core driver (dbox-II-project)
  *
@@ -26,6 +26,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/version.h>
 
 #include <linux/sched.h>
 #include <linux/string.h>
@@ -48,20 +49,24 @@
 #include "cxa2126.h"
 #include "stv6412.h"
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#include <linux/miscdevice.h>
+#include <linux/workqueue.h>
+#else
 #include <linux/devfs_fs_kernel.h>
-
 #ifndef CONFIG_DEVFS_FS
 #error no devfs
+#endif
 #endif
 
 TUXBOX_INFO(dbox2_mid);
 
-#define dprintk if (debug) printk
-static int debug;
 static int addr;
 static int type = CXAAUTO;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 static devfs_handle_t devfs_handle;
+#endif
 
 /*
  * Addresses to scan
@@ -84,8 +89,13 @@ static struct i2c_client_address_data addr_data = {
 	force
 };
 
-static struct i2c_driver driver;
-static struct i2c_client client_template;
+static struct i2c_driver avs_i2c_driver;
+static struct i2c_client client_template = {
+	.name = "AVS",
+	.id = I2C_DRIVERID_AVS,
+	.flags = 0,
+	.driver = &avs_i2c_driver
+};
 
 static int this_adap;
 static int avs_mixerdev;
@@ -122,8 +132,6 @@ static struct timer_list avs_event_timer;
 typedef struct avs_event_reg {
 	u8 state;
 } avs_event_reg;
-
-
 
 /*
  * mixer
@@ -250,18 +258,6 @@ static int mixer_ioctl(unsigned int cmd, unsigned long arg)
 	return 0;
 }
 
-static int avs_open_mixdev(struct inode *inode, struct file *file)
-{
-	MOD_INC_USE_COUNT;
-	return 0;
-}
-
-static int avs_release_mixdev(struct inode *inode, struct file *file)
-{
-	MOD_DEC_USE_COUNT;
-	return 0;
-}
-
 static int avs_ioctl_mixdev(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
 {
 	return mixer_ioctl(cmd, arg);
@@ -271,8 +267,6 @@ static struct file_operations avs_mixer_fops = {
 	owner:		THIS_MODULE,
 	llseek:		avs_llseek_mixdev,
 	ioctl:		avs_ioctl_mixdev,
-	open:		avs_open_mixdev,
-	release:	avs_release_mixdev,
 };
 
 
@@ -281,7 +275,11 @@ static struct file_operations avs_mixer_fops = {
  * i2c probe
  */
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static int avs_attach(struct i2c_adapter *adap, int addr, int kind)
+#else
 static int avs_attach(struct i2c_adapter *adap, int addr, unsigned short flags, int kind)
+#endif
 {
 	struct i2c_client *client;
 
@@ -294,9 +292,6 @@ static int avs_attach(struct i2c_adapter *adap, int addr, unsigned short flags, 
 
 	this_adap++;
 
-	client_template.adapter = adap;
-	client_template.addr = addr;
-
 	dprintk("[AVS]: chip found @ 0x%x\n",addr);
 
 	if (!(client = kmalloc(sizeof(struct i2c_client), GFP_KERNEL))) {
@@ -304,8 +299,13 @@ static int avs_attach(struct i2c_adapter *adap, int addr, unsigned short flags, 
 		return -ENOMEM;
 	}
 
+	/*
+		NB: this code only works for a single client
+	*/
+	client_template.adapter = adap;
+	client_template.addr = addr;
 	memcpy(client, &client_template, sizeof(struct i2c_client));
-	client->data = avs_data = kmalloc(sizeof(struct s_avs), GFP_KERNEL);
+	avs_data = kmalloc(sizeof(struct s_avs), GFP_KERNEL);
 
 	if (!avs_data)
 	{
@@ -337,10 +337,12 @@ static int avs_probe(struct i2c_adapter *adap)
 {
 	int ret = 0;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 #ifdef MODULE
 	MOD_INC_USE_COUNT;
 #endif
-
+#endif
+	
 	dprintk("[AVS]: probe\n");
 
 	if (addr) {
@@ -359,15 +361,13 @@ static int avs_probe(struct i2c_adapter *adap)
 
 static int avs_detach(struct i2c_client *client)
 {
-	struct avs *t = (struct avs *) client->data;
-
 	dprintk("[AVS]: detach\n");
 
 	i2c_detach_client(client);
 
-	if (t)
-		kfree(t);
-
+	if (avs_data)
+		kfree(avs_data);
+	
 	if (client)
 		kfree(client);
 
@@ -414,17 +414,9 @@ static int avs_ioctl(struct inode *inode, struct file *file, unsigned int cmd, u
 	return avs_command(&client_template, cmd, (void *) arg);
 }
 
-static int avs_open(struct inode *inode, struct file *file)
-{
-	return 0;
-}
-
-
-
 static struct file_operations avs_fops = {
 	owner:		THIS_MODULE,
 	ioctl:		avs_ioctl,
-	open:		avs_open,
 };
 
 
@@ -508,15 +500,25 @@ static void avs_event_task(void *data)
 	spin_unlock_irq(&avs_event_lock);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static DECLARE_WORK(avs_work, avs_event_task, NULL);
+#else
 static struct tq_struct avs_event_tasklet = {
 	routine: avs_event_task,
 	data: 0
 };
+#endif
 
 static void avs_event_func(unsigned long data)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	void *d = (void *)data;
+	PREPARE_WORK(&avs_work, avs_event_task, d);
+	schedule_work(&avs_work);
+#else
 	avs_event_tasklet.data = (void *) data;
 	schedule_task(&avs_event_tasklet);
+#endif
 }
 
 static int avs_event_init(void)
@@ -578,8 +580,11 @@ static void avs_event_cleanup(void)
  * i2c
  */
 
-static struct i2c_driver driver = {
-	.name           = "i2c audio/video switch driver",
+static struct i2c_driver avs_i2c_driver = {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)	
+	.owner			= THIS_MODULE,
+#endif
+	.name           = "avs driver",
 	.id             = I2C_DRIVERID_AVS,
 	.flags          = I2C_DF_NOTIFY,
 	.attach_adapter = &avs_probe,
@@ -592,6 +597,14 @@ static struct i2c_driver driver = {
 /*
  * module init/exit
  */
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static struct miscdevice avs_dev = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "avswitch",
+	.fops = &avs_fops
+};
+#endif
 
 int __init avs_core_init(void)
 {
@@ -614,7 +627,7 @@ int __init avs_core_init(void)
 		}
 	}
 
-	if ((res = i2c_add_driver(&driver))) {
+	if ((res = i2c_add_driver(&avs_i2c_driver))) {
 		dprintk("[AVS]: i2c add driver failed\n");
 		return res;
 	}
@@ -631,23 +644,30 @@ int __init avs_core_init(void)
 		break;
 	default:
 		printk("[AVS]: wrong type %d\n", type);
-		i2c_del_driver(&driver);
+		i2c_del_driver(&avs_i2c_driver);
 		return -EIO;
 	}
 
 	if (avs_event_init() != 0) {
-		i2c_del_driver(&driver);
+		i2c_del_driver(&avs_i2c_driver);
 		return -ENOMEM;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	if (misc_register(&avs_dev)<0){
+		printk("avs: unable to register device\n");
+		return -EIO;
+	}
+#else
 	devfs_handle = devfs_register(NULL, "dbox/avs0", DEVFS_FL_DEFAULT, 0, 0,
 			S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
 			&avs_fops, NULL);
 
 	if (!devfs_handle) {
-		i2c_del_driver(&driver);
+		i2c_del_driver(&avs_i2c_driver);
 		return -EIO;
 	}
+#endif
 
 	avs_mixerdev = register_sound_mixer(&avs_mixer_fops, -1);
 
@@ -660,9 +680,12 @@ void __exit avs_core_exit(void)
 
 	unregister_sound_mixer(avs_mixerdev);
 
-	i2c_del_driver(&driver);
-
+	i2c_del_driver(&avs_i2c_driver);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	misc_deregister(&avs_dev);
+#else
 	devfs_unregister(devfs_handle);
+#endif
 }
 
 module_init(avs_core_init);
@@ -671,6 +694,10 @@ module_exit(avs_core_exit);
 MODULE_AUTHOR("Gillem <gillem@berlios.de>");
 MODULE_DESCRIPTION("dbox2 audio/video switch core driver");
 MODULE_LICENSE("GPL");
-MODULE_PARM(debug,"i");
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+module_param(addr,int,0);
+module_param(type,int,0);
+#else
 MODULE_PARM(addr,"i");
 MODULE_PARM(type,"i");
+#endif
