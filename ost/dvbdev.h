@@ -20,7 +20,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  *
- * $Id: dvbdev.h,v 1.10 2002/01/22 22:36:09 tmbinc Exp $
+ * $Id: dvbdev.h,v 1.9.4.1 2002/01/22 23:41:41 fnbrd Exp $
  */
 
 #ifndef _DVBDEV_H_

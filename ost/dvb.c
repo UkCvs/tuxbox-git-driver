@@ -17,7 +17,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA	02111-1307, USA.
  *
- * $Id: dvb.c,v 1.54 2002/01/22 22:35:26 tmbinc Exp $
+ * $Id: dvb.c,v 1.53.2.1 2002/01/22 23:41:41 fnbrd Exp $
  */
 
 #include <linux/config.h>
