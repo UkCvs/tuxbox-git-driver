@@ -10,7 +10,7 @@
 # execute from the top dir.
 
 ifeq ($(KERNELRELEASE),)
-DRIVER_TOPDIR:=$(PWD)
+DRIVER_TOPDIR:=$(shell pwd)
 include $(DRIVER_TOPDIR)/kernel.make
 else
 obj-y	:= info/

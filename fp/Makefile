@@ -1,5 +1,5 @@
 ifeq ($(KERNELRELEASE),)
-DRIVER_TOPDIR:=$(PWD)/..
+DRIVER_TOPDIR:=$(shell pwd)/..
 include $(DRIVER_TOPDIR)/kernel.make
 else
 obj-m		:= dbox2_fp.o dbox2_fp_napi.o dbox2_fp_input.o

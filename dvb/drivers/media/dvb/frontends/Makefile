@@ -2,7 +2,7 @@
 # Makefile for the kernel DVB frontend device drivers.
 #
 ifeq ($(KERNELRELEASE),)
-DRIVER_TOPDIR:=$(PWD)/../../../../..
+DRIVER_TOPDIR:=$(shell pwd)/../../../../..
 include $(DRIVER_TOPDIR)/kernel.make
 else
 CC	:= $(CROSS_COMPILE)gcc -I$(DRIVER_TOPDIR)/dvb/include

@@ -1,5 +1,5 @@
 ifeq ($(KERNELRELEASE),)
-DRIVER_TOPDIR:=$(PWD)/..
+DRIVER_TOPDIR:=$(shell pwd)/..
 include $(DRIVER_TOPDIR)/kernel.make
 else
 obj-m		+= lcd.o
