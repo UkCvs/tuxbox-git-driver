@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_napi_core.c,v 1.1.2.4 2005/02/02 02:28:51 carjay Exp $
+ * $Id: dbox2_napi_core.c,v 1.1.2.5 2005/02/02 19:35:43 carjay Exp $
  *
  * Dbox2 DVB Adapter driver
  *
@@ -162,6 +162,7 @@ static int dbox2_fe_setup_ves1x93(struct dbox2_fe *state, struct ves1x93_config 
 			break;
 		case 0xde: /* VES1993 */
 			state->pll_set = dbox2_pll_tsa5059_set_freq;
+			state->pll.tsa5059_addr = 0xc2>>1;
 			if (manuf_id == DBOX2_NAPI_NOKIA) {
 				state->pll.clk = 16000000;
 				state->pll.tsa5059_xc = 2;
@@ -169,7 +170,7 @@ static int dbox2_fe_setup_ves1x93(struct dbox2_fe *state, struct ves1x93_config 
 				state->pll.clk = 4000000;
 				state->pll.tsa5059_xc = 0;
 			} else {
-				printk(KERN_WARNING "dbox2_napi: no pll_init for manufacturer %d\n",manuf_id);
+				printk(KERN_WARNING "dbox2_napi: no known pll for manufacturer %d\n",manuf_id);
 				return -ENODEV;
 			} 
 			break;
@@ -211,7 +212,8 @@ int dbox2_probe_philips_S_frontend(struct dbox2_fe *state){
 	if (!cfg)
 		return -ENOMEM;
 	cfg->demod_address = 0xd0>>1;
-	cfg->irq = state->irq;
+//	cfg->irq = state->irq;	/* TODO: irq handling needs to be fixed */
+	cfg->irq = 0;
 	cfg->volt13setting = 0x3f;
 	cfg->volt18setting = 0xbf;
 	cfg->pll_init = dbox2_napi_pll_init;
@@ -225,6 +227,7 @@ int dbox2_probe_philips_S_frontend(struct dbox2_fe *state){
 	state->pll_set = dbox2_pll_tsa5059_set_freq;
 	state->pll.clk = 4000000;
 	state->pll.tsa5059_xc = 0;
+	state->pll.tsa5059_addr = 0xc6>>1;
 	return 0;
 }
 
@@ -331,7 +334,7 @@ static struct device_driver dbox2_fe_driver = {
 static int __init dbox2_napi_init(void)
 {
 	int res;
-	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.4 2005/02/02 02:28:51 carjay Exp $\n");
+	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.5 2005/02/02 19:35:43 carjay Exp $\n");
 
 	if ((res = dvb_register_adapter(&fe_state.dvb_adap, "C-Cube AViA GTX/eNX with AViA 500/600",THIS_MODULE))<0){
 		printk(KERN_ERR "dbox2_napi: error registering adapter\n");

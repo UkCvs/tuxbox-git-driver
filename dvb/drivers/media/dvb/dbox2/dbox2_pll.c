@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_pll.c,v 1.1.2.3 2005/02/02 15:59:29 carjay Exp $
+ * $Id: dbox2_pll.c,v 1.1.2.4 2005/02/02 19:35:43 carjay Exp $
  *
  * Dbox2 PLL driver collection
  *
@@ -102,8 +102,6 @@ int dbox2_pll_i2c_write(int i2c_addr, char *buf, int len)
 /* TSA 5059 */
 /************/
 
-#define TSA5059_I2C_ADDR	(0xc0>>1)
-
 int dbox2_pll_tsa5059_set_freq (struct pll_state *pll, struct dvb_frontend_parameters *p)
 {
 	u8 buf[4];
@@ -171,7 +169,7 @@ int dbox2_pll_tsa5059_set_freq (struct pll_state *pll, struct dvb_frontend_param
 	buf[2] = 0x80 | ((ref >> 10) & 0x60) | (pe << 4) | r;
 	buf[3] = (cp << 6) | ((pll->tsa5059_xc&0x03)<<4);
 
-	return dbox2_pll_i2c_write(TSA5059_I2C_ADDR|1,buf,sizeof(buf));
+	return dbox2_pll_i2c_write(pll->tsa5059_addr,buf,sizeof(buf));
 }
 
 /******************/
