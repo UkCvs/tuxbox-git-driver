@@ -8,7 +8,5 @@ else
 CC	:= $(CROSS_COMPILE)gcc -I$(DRIVER_TOPDIR)/dvb/include
 EXTRA_CFLAGS = -I$(DRIVER_TOPDIR)/dvb/drivers/media/dvb/dvb-core
 
-obj-m	+= at76c651.o
-obj-m	+= ves1820.o
-obj-m	+= ves1x93.o
+obj-m	+= at76c651.o stv0297.o ves1820.o ves1x93.o tda80xx.o
 endif

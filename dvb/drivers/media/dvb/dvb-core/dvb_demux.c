@@ -249,7 +249,22 @@ static void dvb_dmx_swfilter_section_new(struct dvb_demux_feed *feed)
 }
 
 /* 
-** Losless Section Demux 1.4 by Emard
+** Losless Section Demux 1.4.1 by Emard
+** Valsecchi Patrick:
+**  - middle of section A  (no PUSI)
+**  - end of section A and start of section B 
+**    (with PUSI pointing to the start of the second section)
+**  
+**  In this case, without feed->pusi_seen you'll receive a garbage section
+**  consisting of the end of section A. Basically because tsfeedp
+**  is incemented and the use=0 condition is not raised
+**  when the second packet arrives.
+**
+** Fix:
+** when demux is started, let feed->pusi_seen = 0 to
+** prevent initial feeding of garbage from the end of
+** previous section. When you for the first time see PUSI=1
+** then set feed->pusi_seen = 1
 */
 static int dvb_dmx_swfilter_section_copy_dump(struct dvb_demux_feed *feed, const u8 *buf, u8 len)
 {
@@ -295,7 +310,12 @@ static int dvb_dmx_swfilter_section_copy_dump(struct dvb_demux_feed *feed, const
 		sec->seclen = seclen;
 		sec->crc_val = ~0;
 		/* dump [secbuf .. secbuf+seclen) */
-		dvb_dmx_swfilter_section_feed(feed);
+		if(feed->pusi_seen)
+			dvb_dmx_swfilter_section_feed(feed);
+#ifdef DVB_DEMUX_SECTION_LOSS_LOG
+		else
+			printk("dvb_demux.c pusi not seen, discarding section data\n");
+#endif
 		sec->secbufp += seclen; /* secbufp and secbuf moving together is */
 		sec->secbuf += seclen; /* redundand but saves pointer arithmetic */
 	}
@@ -307,7 +327,7 @@ static int dvb_dmx_swfilter_section_copy_dump(struct dvb_demux_feed *feed, const
 static int dvb_dmx_swfilter_section_packet(struct dvb_demux_feed *feed, const u8 *buf) 
 {
 	u8 p, count;
-	int ccok;
+	int ccok, dc_i = 0;
 	u8 cc;
 
 	count = payload(buf);
@@ -315,45 +335,53 @@ static int dvb_dmx_swfilter_section_packet(struct dvb_demux_feed *feed, const u8
 	if (count == 0)  /* count == 0 if no payload or out of range */
 		return -1;
 
-	p = 188-count; /* payload start */
-	
+	p = 188 - count; /* payload start */
+
 	cc = buf[3] & 0x0f;
-	ccok = ((feed->cc+1) & 0x0f) == cc ? 1 : 0;
+	ccok = ((feed->cc + 1) & 0x0f) == cc;
 	feed->cc = cc;
-	if(ccok == 0)
-	{
+
+	if (buf[3] & 0x20) {
+		/* adaption field present, check for discontinuity_indicator */
+		if ((buf[4] > 0) && (buf[5] & 0x80))
+			dc_i = 1;
+	}
+
+	if (!ccok || dc_i) {
 #ifdef DVB_DEMUX_SECTION_LOSS_LOG
 		printk("dvb_demux.c discontinuity detected %d bytes lost\n", count);
 		/* those bytes under sume circumstances will again be reported
 		** in the following dvb_dmx_swfilter_section_new
 		*/
 #endif
+		/* Discontinuity detected. Reset pusi_seen = 0 to
+		** stop feeding of suspicious data until next PUSI=1 arrives
+		*/
+		feed->pusi_seen = 0;
 		dvb_dmx_swfilter_section_new(feed);
 		return 0;
 	}
 
-	if(buf[1] & 0x40)
-	{
+	if (buf[1] & 0x40) {
 		// PUSI=1 (is set), section boundary is here
-		if(count > 1 && buf[p] < count)
-		{
+		if (count > 1 && buf[p] < count) {
 			const u8 *before = buf+p+1;
 			u8 before_len = buf[p];
 			const u8 *after = before+before_len;
 			u8 after_len = count-1-before_len;
 
 			dvb_dmx_swfilter_section_copy_dump(feed, before, before_len);
+			/* before start of new section, set pusi_seen = 1 */
+			feed->pusi_seen = 1;
 			dvb_dmx_swfilter_section_new(feed);
 			dvb_dmx_swfilter_section_copy_dump(feed, after, after_len);
 		}
 #ifdef DVB_DEMUX_SECTION_LOSS_LOG
 		else
-			if(count > 0)
+			if (count > 0)
 				printk("dvb_demux.c PUSI=1 but %d bytes lost\n", count);
 #endif
-	}
-	else
-	{
+	} else {
 		// PUSI=0 (is not set), no section boundary
 		const u8 *entire = buf+p;
 		u8 entire_len = count;
@@ -426,6 +454,7 @@ void dvb_dmx_swfilter_packet(struct dvb_demux *demux, const u8 *buf)
 			feed->cb.ts(buf, 188, NULL, 0, &feed->feed.ts, DMX_OK);
 	}
 }
+EXPORT_SYMBOL(dvb_dmx_swfilter_packet);
 
 void dvb_dmx_swfilter_packets(struct dvb_demux *demux, const u8 *buf, size_t count)
 {
@@ -440,6 +469,7 @@ void dvb_dmx_swfilter_packets(struct dvb_demux *demux, const u8 *buf, size_t cou
 
 	spin_unlock(&demux->lock);
 }
+EXPORT_SYMBOL(dvb_dmx_swfilter_packets);
 
 
 void dvb_dmx_swfilter(struct dvb_demux *demux, const u8 *buf, size_t count)
@@ -479,6 +509,7 @@ void dvb_dmx_swfilter(struct dvb_demux *demux, const u8 *buf, size_t count)
 bailout:
 	spin_unlock(&demux->lock);
 }
+EXPORT_SYMBOL(dvb_dmx_swfilter);
 
 void dvb_dmx_swfilter_204(struct dvb_demux *demux, const u8 *buf, size_t count)
 {
@@ -523,6 +554,7 @@ void dvb_dmx_swfilter_204(struct dvb_demux *demux, const u8 *buf, size_t count)
 bailout:
 	spin_unlock(&demux->lock);
 }
+EXPORT_SYMBOL(dvb_dmx_swfilter_204);
 
 
 static struct dvb_demux_filter * dvb_dmx_filter_alloc(struct dvb_demux *demux)
@@ -782,10 +814,8 @@ static int dvbdmx_release_ts_feed(struct dmx_demux *dmx, struct dmx_ts_feed *ts_
 	}
 
 #ifndef NOBUFS
-	if (feed->buffer) { 
-		vfree(feed->buffer);
-		feed->buffer=0;
-	}
+	vfree(feed->buffer);
+	feed->buffer=0;
 #endif
 
 	feed->state = DMX_STATE_FREE;
@@ -1064,10 +1094,8 @@ static int dvbdmx_release_section_feed(struct dmx_demux *demux,
 		return -EINVAL;
 	}
 #ifndef NOBUFS
-	if (dvbdmxfeed->buffer) {
-		vfree(dvbdmxfeed->buffer);
-		dvbdmxfeed->buffer=0;
-	}
+	vfree(dvbdmxfeed->buffer);
+	dvbdmxfeed->buffer=0;
 #endif
 	dvbdmxfeed->state=DMX_STATE_FREE;
 
@@ -1179,6 +1207,7 @@ int dvbdmx_connect_frontend(struct dmx_demux *demux, struct dmx_frontend *fronte
 	up(&dvbdemux->mutex);
 	return 0;
 }
+EXPORT_SYMBOL(dvbdmx_connect_frontend);
 
 
 int dvbdmx_disconnect_frontend(struct dmx_demux *demux)
@@ -1193,6 +1222,7 @@ int dvbdmx_disconnect_frontend(struct dmx_demux *demux)
 	up(&dvbdemux->mutex);
 	return 0;
 }
+EXPORT_SYMBOL(dvbdmx_disconnect_frontend);
 
 
 static int dvbdmx_get_pes_pids(struct dmx_demux *demux, u16 *pids)
@@ -1279,6 +1309,7 @@ int dvb_dmx_init(struct dvb_demux *dvbdemux)
 
 	return 0;
 }
+EXPORT_SYMBOL(dvb_dmx_init);
 
 
 int dvb_dmx_release(struct dvb_demux *dvbdemux)
@@ -1286,9 +1317,9 @@ int dvb_dmx_release(struct dvb_demux *dvbdemux)
 	struct dmx_demux *dmx = &dvbdemux->dmx;
 
 	dmx_unregister_demux(dmx);
-	if (dvbdemux->filter)
-		vfree(dvbdemux->filter);
-	if (dvbdemux->feed)
-		vfree(dvbdemux->feed);
+	vfree(dvbdemux->filter);
+	vfree(dvbdemux->feed);
 	return 0;
 }
+EXPORT_SYMBOL(dvb_dmx_release);
+
