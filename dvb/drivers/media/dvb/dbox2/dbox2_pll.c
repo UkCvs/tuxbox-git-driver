@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_pll.c,v 1.1.2.2 2005/02/02 02:28:51 carjay Exp $
+ * $Id: dbox2_pll.c,v 1.1.2.3 2005/02/02 15:59:29 carjay Exp $
  *
  * Dbox2 PLL driver collection
  *
@@ -117,8 +117,8 @@ int dbox2_pll_tsa5059_set_freq (struct pll_state *pll, struct dvb_frontend_param
 	u32 pll_clk = pll->clk;
 	
 	u16 ratio[]={
-		 2, 4, 8,16,32, 0, 0, 0,
-		24, 5,10,20,40, 0, 0, 0
+		 2, 4, 8,16,32,
+		24, 5,10,20,40
 	};
 	
  	if (freq < 1100000)		/*  555uA */
@@ -161,9 +161,10 @@ int dbox2_pll_tsa5059_set_freq (struct pll_state *pll, struct dvb_frontend_param
 		if (diff == 0)
 			break;
 	}
-
+	if (r>4)
+		r+=3;
 	dprintk("dbox2_pll: tsa5059: Ref: %d kHz ofreq: %d kHz diff: %d Hz ref: %d kHz\n",
-				((pll_clk/ratio[r]<<pe)/1000),freq,diff,ref*(pll_clk/ratio[r]<<pe)/1000);
+				((pll_clk/ratio[r>4?r-3:r]<<pe)/1000),freq,diff,ref*(pll_clk/ratio[r>4?r-3:r]<<pe)/1000);
 	
 	buf[0] = (ref >> 8) & 0x7f;
 	buf[1] = ref & 0xff;
