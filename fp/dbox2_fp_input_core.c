@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_input_core.c,v 1.5 2003/07/15 05:16:37 obi Exp $
+ * $Id: dbox2_fp_input_core.c,v 1.5.4.1 2005/01/15 01:46:41 carjay Exp $
  *
  * Copyright (C) 2002 by Florian Schirmer <jolt@tuxbox.org>
  *
@@ -47,7 +47,11 @@ int __init dbox2_fp_input_init(void)
 	mid = tuxbox_dbox2_mid;
 
 	input_dev.name = "DBOX-2 FP IR";
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	input_dev.id.bustype = BUS_I2C;
+#else
 	input_dev.idbus = BUS_I2C;
+#endif
 	
 	dbox2_fp_button_init(&input_dev);
 	dbox2_fp_keyboard_init(&input_dev);

@@ -28,8 +28,17 @@
 #include <linux/module.h>
 #include <linux/poll.h>
 #include <linux/slab.h>
-#include <linux/tqueue.h>
 #include <linux/version.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#include <linux/moduleparam.h>
+#include <linux/workqueue.h>
+#include <linux/miscdevice.h>
+#else
+#include <linux/i2c_compat.h>
+#include <linux/tqueue.h>
+#endif
+
 #include <linux/wait.h>
 #include <linux/interrupt.h>
 
@@ -44,10 +53,11 @@
 #include <dbox/event.h>
 #include <dbox/fp.h>
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 #include <linux/devfs_fs_kernel.h>
-
 #ifndef CONFIG_DEVFS_FS
 #error no devfs
+#endif
 #endif
 
 #include <dbox/dbox2_fp_core.h>
@@ -59,13 +69,19 @@
 TUXBOX_INFO(dbox2_mid);
 tuxbox_dbox2_mid_t mid;
 static u8 fp_revision;
+static u8 cmdset;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 static devfs_handle_t devfs_handle;
+#endif
 
-static int debug;
 static int useimap = 1;
 
-#define dprintk(fmt, args...) if (debug) printk(fmt, ##args)
+#ifdef FP_DEBUG
+#define dprintk(fmt, args...) printk(fmt, ##args)
+#else
+#define dprintk(fmt, args...)
+#endif
 
 /*
 fp:
@@ -85,22 +101,35 @@ fp:
 #define I2C_FP_DRIVERID		0xF060
 #define FP_GETID		0x1D
 
-/* Scan 0x60 */
-static unsigned short normal_i2c[] = { 0x60 >> 1, I2C_CLIENT_END };
-static unsigned short normal_i2c_range[] = { 0x60 >> 1, 0x60 >> 1, I2C_CLIENT_END };
-I2C_CLIENT_INSMOD;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static struct i2c_driver fp_i2c_driver;
+#endif
+static struct i2c_client fp_client = {
+	.name		= "FP",
+	.id			= I2C_FP_DRIVERID,
+	.flags		= 0,
+	.addr		= (0x60 >> 1),
+	.adapter 	= NULL,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	.driver		= &fp_i2c_driver,
+#endif
+};
+struct fp_data fp_priv_data;
+int fp_major;
 
-static int fp_id;
-static struct fp_data *defdata;
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 static void fp_task(void * arg);
-
 struct tq_struct fp_tasklet = {
 	.routine = fp_task,
 	.data = NULL,
 };
+#endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static irqreturn_t fp_interrupt(int irq, void *dev, struct pt_regs *regs);
+#else
 static void fp_interrupt(int irq, void *dev, struct pt_regs *regs);
+#endif
 
 /*****************************************************************************\
  *   Generic Frontprocessor Functions
@@ -108,32 +137,44 @@ static void fp_interrupt(int irq, void *dev, struct pt_regs *regs);
 
 struct i2c_client *fp_get_i2c(void)
 {
-	return defdata->client;
+	return &fp_client;
 }
 
 int fp_cmd(struct i2c_client *client, u8 cmd, u8 *res, u32 size)
 {
 	int ret;
-	struct i2c_msg msg [] = { { addr: client->addr, flags: 0, buf: &cmd, len: 1 },
-			   { addr: client->addr, flags: I2C_M_RD, buf: res, len: size } };
-
+	struct i2c_msg msg [] = { 
+		{
+			addr: client->addr,
+			flags: 0, 
+			buf: &cmd,
+			len: 1 
+		},
+		{
+			addr: client->addr,
+			flags: I2C_M_RD,
+			buf: res,
+			len: size 
+		} 
+	};
 	ret = i2c_transfer(client->adapter, msg, 2);
 
 	if (ret != 2)
-		printk("%s: i2c_transfer error (ret == %d)\n", __FUNCTION__, ret);
+		printk("fp: fp_cmd error (ret == %d)\n", ret);
 
-	if (debug) {
-
+#ifdef FP_DEBUG
+	{
 		int i;
 
-		printk("fp.o: fp_cmd: %02x\n", cmd);
-		printk("fp.o: fp_recv:");
+		printk("fp: fp_cmd: %02x\n", cmd);
+		printk("fp: fp_recv:");
 
 		for (i = 0; i < size; i++)
 			printk(" %02x", res[i]);
 
 		printk("\n");
 	}
+#endif
 
 	return 0;
 }
@@ -143,14 +184,13 @@ int fp_sendcmd(struct i2c_client *client, u8 b0, u8 b1)
 {
 	u8 cmd [] = { b0, b1 };
 
-	dprintk("fp.o: fp_sendcmd: %02x %02x\n", b0, b1);
+	dprintk("fp: fp_sendcmd: %02x %02x\n", b0, b1);
 
 	if (i2c_master_send(client, cmd, sizeof(cmd)) != sizeof(cmd))
 		return -1;
 
 	return 0;
 }
-
 
 static int fp_getid(struct i2c_client *client)
 {
@@ -160,6 +200,13 @@ static int fp_getid(struct i2c_client *client)
 		return 0;
 
 	return id[0];
+}
+
+static void fp_getcmdset(struct i2c_client *client)
+{
+		u8 cmd [] = { 0x00 };
+		fp_cmd(client, 0x33, cmd, sizeof(cmd));
+		cmdset = cmd[0];
 }
 
 /*****************************************************************************\
@@ -172,13 +219,13 @@ static int fp_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 
 	switch (cmd) {
 	case FP_IOCTL_GETID:
-		return fp_getid(defdata->client);
+		return fp_getid(&fp_client);
 
 	case FP_IOCTL_POWEROFF:
 		if (fp_revision >= 0x80)
-			return fp_sendcmd(defdata->client, 0x00, 0x03);
+			return fp_sendcmd(&fp_client, 0x00, 0x03);
 		else
-			return fp_sendcmd(defdata->client, 0x00, 0x00);
+			return fp_sendcmd(&fp_client, 0x00, 0x00);
 
 	case FP_IOCTL_REBOOT:
 		dbox2_fp_restart("");
@@ -189,9 +236,9 @@ static int fp_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 			return -EFAULT;
 
 		if (fp_revision >= 0x80)
-			return fp_sendcmd(defdata->client, 0x18, val & 0xff);
+			return fp_sendcmd(&fp_client, 0x18, val & 0xff);
 		else
-			return fp_sendcmd(defdata->client, 0x06, val & 0xff);
+			return fp_sendcmd(&fp_client, 0x06, val & 0xff);
 
 	case FP_IOCTL_LCD_AUTODIMM:
 		/* only works on Sagem and Philips */
@@ -201,16 +248,16 @@ static int fp_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		if (fp_revision >= 0x80)
 			return 0;
 		else
-			return fp_sendcmd(defdata->client, 0x08, val & 0x01);
+			return fp_sendcmd(&fp_client, 0x08, val & 0x01);
 
 	case FP_IOCTL_LED:
 		if (copy_from_user(&val, (void*)arg, sizeof(val)) )
 			return -EFAULT;
 
 		if (fp_revision >= 0x80)
-			return fp_sendcmd(defdata->client, 0x00, 0x10 | ((~val) & 1));
+			return fp_sendcmd(&fp_client, 0x00, 0x10 | ((~val) & 1));
 		else
-			return fp_sendcmd(defdata->client, 0x10 | (val & 1), 0x00);
+			return fp_sendcmd(&fp_client, 0x10 | (val & 1), 0x00);
 	
 	case FP_IOCTL_GET_WAKEUP_TIMER:
 		val = dbox2_fp_timer_get();
@@ -241,10 +288,12 @@ static int fp_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 	case FP_IOCTL_CLEAR_WAKEUP_TIMER:
 		return dbox2_fp_timer_clear();
 	
-	case FP_IOCTL_GET_VCR:
-		if (copy_to_user((void *) arg, &defdata->fpVCR, sizeof(defdata->fpVCR)))
+	case FP_IOCTL_GET_VCR:{
+		int vcrstate = fp_priv_data.fpVCR;
+		if (copy_to_user((void *) arg, &vcrstate, sizeof(int)))
 			return -EFAULT;
 		return 0;
+	}
 
 	case FP_IOCTL_GET_REGISTER:
 	{
@@ -253,7 +302,7 @@ static int fp_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		if (copy_from_user(&val, (void *) arg, sizeof(val)))
 	                return -EFAULT;
 
-		fp_cmd(defdata->client, val & 0xFF, (u8 *) &foo, ((val >> 8) & 3) + 1);
+		fp_cmd(&fp_client, val & 0xFF, (u8 *) &foo, ((val >> 8) & 3) + 1);
 
 		if (copy_to_user((void*)arg, &foo, sizeof(foo)))
 			return -EFAULT;
@@ -266,7 +315,7 @@ static int fp_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		if (copy_from_user(&val, (void *) arg, sizeof(val)))
 	                return -EFAULT;
 
-		fp_sendcmd(defdata->client, val & 0xff, (val >> 8) & 0xff);
+		fp_sendcmd(&fp_client, val & 0xff, (val >> 8) & 0xff);
 		return 0;
 	}
 
@@ -275,143 +324,122 @@ static int fp_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 	}
 }
 
-static int fp_open(struct inode *inode, struct file *file)
-{
-	return 0;
-}
-
-static int fp_release(struct inode *inode, struct file *file)
-{
-	return 0;
-}
-
 static struct file_operations fp_fops = {
 	.owner = THIS_MODULE,
 	.ioctl = fp_ioctl,
-	.open = fp_open,
-	.release = fp_release,
 };
 
 /*****************************************************************************\
  *   I2C Functions
 \*****************************************************************************/
 
-static struct i2c_driver fp_driver;
-
 static int fp_detach_client(struct i2c_client *client)
 {
 	int err;
 
-	free_irq(FP_INTERRUPT, client->data);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
+	free_irq(FP_INTERRUPT, &fp_priv_data.fpID);
+#endif
 
 	if ((err=i2c_detach_client(client))) {
-		dprintk("fp.o: couldn't detach client driver.\n");
+		dprintk("fp: couldn't detach client driver.\n");
 		return err;
 	}
 
-	kfree(client);
 	return 0;
 }
 
-
-static int fp_detect_client(struct i2c_adapter *adapter, int address, unsigned short flags, int kind)
+static void fp_setup_client(void)
 {
-	int err = 0;
-	struct i2c_client *new_client;
-	struct fp_data *data;
-	const char *client_name = "DBox2 Frontprocessor client";
+	ppc_md.restart = dbox2_fp_restart;
+	ppc_md.power_off = dbox2_fp_power_off;
+	ppc_md.halt = dbox2_fp_power_off;
 
-	if (!(new_client = kmalloc(sizeof(struct i2c_client)+sizeof(struct fp_data), GFP_KERNEL)))
-		return -ENOMEM;
-
-	new_client->data = new_client+1;
-	defdata = data = (struct fp_data *) new_client->data;
-
-	/* init vcr value (off) */
-	defdata->fpVCR = 0;
-	new_client->addr = address;
-	data->client = new_client;
-	new_client->data = data;
-	new_client->adapter = adapter;
-	new_client->driver = &fp_driver;
-	new_client->flags = 0;
-
-	if (kind < 0) {
-
-		int fpid;
-		/*u8 buf[2];*/
-		volatile immap_t *immap = (volatile immap_t *)IMAP_ADDR;
-
-		/*
-		 * FP ID
-		 * -------------
-		 * NOKIA  : 0x5A
-		 * SAGEM  : 0x52
-		 * PHILIPS: 0x52
-		 */
-
-		fpid = fp_getid(new_client);
-
-		if ((fpid != 0x52) && (fpid != 0x5a)) {
-			dprintk("fp.o: bogus fpID %d\n", fpid);
-			kfree(new_client);
-			return -1;
-		}
-
-		if (useimap) {
-			immap->im_ioport.iop_papar &= ~0x0002;
-			immap->im_ioport.iop_paodr &= ~0x0002;
-			immap->im_ioport.iop_padir |=  0x0002;
-			immap->im_ioport.iop_padat &= ~0x0002;
-		}
-
-		/* sagem needs this (71) LNB-Voltage 51-V 71-H */
-		/*
-		fp_sendcmd(new_client, 0x04, 0x51);
-		*/
-
-		/*
-		fp_sendcmd(new_client, 0x22, 0xbf);
-		fp_cmd(new_client, 0x25, buf, 2);
-		fp_sendcmd(new_client, 0x19, 0x04);
-		fp_sendcmd(new_client, 0x18, 0xb3);
-		fp_cmd(new_client, 0x1e, buf, 2);
-		*/
-
-		/* disable (non-working) break code */
-		dprintk("fp.o: detect_client 0x26\n");
-		fp_sendcmd(new_client, 0x26, 0x00);
-
-		/*
-		fp_cmd(new_client, 0x23, buf, 1);
-		fp_cmd(new_client, 0x20, buf, 1);
-		fp_cmd(new_client, 0x01, buf, 2);
-		*/
-
+	if (fp_revision==0x23){
+		fp_getcmdset(&fp_client);	/* Sagem obviously has 2 cmdsets */
+		printk ("fp: using CmdSet: 0x%02x\n",cmdset);
 	}
 
-	strcpy(new_client->name, client_name);
-	new_client->id = fp_id++;
-
-	if ((err = i2c_attach_client(new_client))) {
-		kfree(new_client);
-		return err;
-	}
-
-	if (request_irq(FP_INTERRUPT, fp_interrupt, SA_ONESHOT, "fp", data) != 0)
-		panic("Could not allocate FP IRQ!");
-
-	return 0;
+	dbox2_fp_reset_init();
+	dbox2_fp_sec_init();
+	dbox2_fp_timer_init();
+	dbox2_fp_tuner_init();
 }
-
 
 static int fp_attach_adapter(struct i2c_adapter *adapter)
 {
-	return i2c_probe(adapter, &addr_data, &fp_detect_client);
+	volatile immap_t *immap = (volatile immap_t *)IMAP_ADDR;
+	int err = 0;
+
+	/*
+		driver is dbox2-specific and all known species
+		only feature one fp
+	*/
+	if (fp_client.adapter){
+		printk(KERN_ERR "fp: fp_attach_adapter can't be called more than once");
+		return -EIO;
+	}
+
+	fp_client.adapter = adapter;
+
+	/* init vcr value (off) */
+	fp_priv_data.fpVCR = 0;
+
+	/*
+	 * FP ID
+	 * -------------
+	 * NOKIA  : 0x5A
+	 * SAGEM  : 0x52
+	 * PHILIPS: 0x52
+	 */
+	fp_priv_data.fpID = fp_getid(&fp_client);
+	if ((fp_priv_data.fpID != 0x52) && (fp_priv_data.fpID != 0x5a)) {
+		printk("fp: unknown fpID %d\n", fp_priv_data.fpID);
+		fp_priv_data.fpID = 0x00;
+		return -EIO;
+	}
+	if (useimap) {
+		immap->im_ioport.iop_papar &= ~0x0002;
+		immap->im_ioport.iop_paodr &= ~0x0002;
+		immap->im_ioport.iop_padir |=  0x0002;
+		immap->im_ioport.iop_padat &= ~0x0002;
+	}
+	/* sagem needs this (71) LNB-Voltage 51-V 71-H */
+	/*
+		fp_sendcmd(&fp_client, 0x04, 0x51);
+	*/
+	/*
+		fp_sendcmd(&fp_client, 0x22, 0xbf);
+		fp_cmd(&fp_client, 0x25, buf, 2);
+		fp_sendcmd(&fp_client, 0x19, 0x04);
+		fp_sendcmd(&fp_client, 0x18, 0xb3);
+		fp_cmd(&fp_client, 0x1e, buf, 2);
+	*/
+	/* disable (non-working) break code */
+	dprintk("fp: detect_client 0x26\n");
+	fp_sendcmd(&fp_client, 0x26, 0x00);
+	/*
+		fp_cmd(&fp_client, 0x23, buf, 1);
+		fp_cmd(&fp_client, 0x20, buf, 1);
+		fp_cmd(&fp_client, 0x01, buf, 2);
+	*/
+
+	if ((err = i2c_attach_client(&fp_client)))
+		return err;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
+	if (request_irq(FP_INTERRUPT, fp_interrupt, SA_ONESHOT, "fp", &fp_priv_data.fpID) != 0)
+		panic("Could not allocate FP IRQ!");
+#endif
+
+	fp_setup_client();
+	return 0;
 }
 
-
-static struct i2c_driver fp_driver = {
+static struct i2c_driver fp_i2c_driver = {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	.owner			= THIS_MODULE,
+#endif
 	.name           = "DBox2 Frontprocessor driver",
 	.id             = I2C_FP_DRIVERID,
 	.flags          = I2C_DF_NOTIFY,
@@ -419,9 +447,6 @@ static struct i2c_driver fp_driver = {
 	.detach_client  = &fp_detach_client,
 	.command        = NULL
 };
-
-
-
 
 /*****************************************************************************\
  *   Interrupt Handler Functions
@@ -478,7 +503,7 @@ static void fp_handle_unknown(struct fp_data *dev)
 	u8 rc;
 
 	fp_cmd(dev->client, 0x24, (u8*)&rc, 1);
-	dprintk("fp.o: misterious interrupt source 0x40: %x\n", rc);
+	dprintk("fp: mysterious interrupt source 0x40: %x\n", rc);
 }
 #endif
 
@@ -488,11 +513,11 @@ static void fp_check_queues(void)
 	u8 status;
 	u8 queue_nr;
 
-	dprintk("fp.o: checking queues.\n");
-	fp_cmd(defdata->client, 0x23, &status, 1);
+	dprintk("fp: checking queues.\n");
+	fp_cmd(&fp_client, 0x23, &status, 1);
 
-	if (defdata->fpVCR != status)
-		fp_handle_vcr(defdata, status);
+	if (fp_priv_data.fpVCR != status)
+		fp_handle_vcr(&fp_priv_data, status);
 
 /*
  * fp status:
@@ -510,7 +535,7 @@ static void fp_check_queues(void)
 
 	do {
 
-		fp_cmd(defdata->client, 0x20, &status, 1);
+		fp_cmd(&fp_client, 0x20, &status, 1);
 
 		dprintk("status: %02x\n", status);
 		
@@ -534,19 +559,31 @@ static void fp_task(void *arg)
 
 	if (useimap)
 		immap->im_ioport.iop_padat &= ~2;
-
+	
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 	enable_irq(FP_INTERRUPT);
+#endif
 }
 
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static DECLARE_WORK(fp_work, fp_task, NULL);
+static irqreturn_t fp_interrupt(int irq, void *vdev, struct pt_regs *regs)
+#else
 static void fp_interrupt(int irq, void *vdev, struct pt_regs *regs)
+#endif
 {
 	volatile immap_t *immap = (volatile immap_t *)IMAP_ADDR;
 
 	if (useimap)
 		immap->im_ioport.iop_padat |= 2;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	schedule_work(&fp_work);
+	return IRQ_HANDLED;
+#else	
 	schedule_task(&fp_tasklet);
+#endif
 }
 
 
@@ -555,11 +592,57 @@ static void fp_interrupt(int irq, void *vdev, struct pt_regs *regs)
  *   Module Initialization / Module Cleanup
 \*****************************************************************************/
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static int fp_drv_probe(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	int ret,irq;
+	irq = platform_get_irq(pdev,0);
+
+	if (!irq){
+		printk(KERN_ERR "fp: no platform resources found.\n");
+		return -ENODEV;
+	}
+	
+	if ((ret = i2c_add_driver(&fp_i2c_driver))) {
+		printk(KERN_ERR "fp: I2C driver registration failed.\n");
+	}
+	
+	if (request_irq(irq, fp_interrupt, SA_ONESHOT, "fp", dev))
+		panic ("fp: could not allocate irq");
+
+	return ret;	
+}
+
+static int fp_drv_remove(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	int irq;
+
+	irq = platform_get_irq(pdev,0);
+
+	free_irq(irq, dev);
+	i2c_del_driver(&fp_i2c_driver);
+	
+	return 0;
+}
+
+static struct device_driver fp_dev_driver = {
+	.name		= "fp",
+	.bus		= &platform_bus_type,
+	.probe		= fp_drv_probe,
+	.remove		= fp_drv_remove,
+};
+
+static struct miscdevice fp_dev = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "frontprocessor",
+	.fops = &fp_fops
+};
+#endif
 
 static int __init fp_init(void)
 {
-	int res;
-
 	mid = tuxbox_dbox2_mid;
 
 	switch (mid) {
@@ -576,48 +659,44 @@ static int __init fp_init(void)
 		break;
 	}
 
-	if ((res = i2c_add_driver(&fp_driver))) {
-		dprintk("fp.o: Driver registration failed, module not inserted.\n");
-		return res;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	driver_register(&fp_dev_driver);
+	if (misc_register(&fp_dev)<0){
+		printk("fp: unable to register device\n");
+		return -EIO;
 	}
-
-	if (!defdata) {
-		i2c_del_driver(&fp_driver);
-		dprintk("fp.o: Couldn't find FP.\n");
-		return -EBUSY;
-	}
-
+#else
 	devfs_handle = devfs_register(NULL, "dbox/fp0", DEVFS_FL_DEFAULT, 0, FP_MINOR,
 		S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
 		&fp_fops, NULL);
 
 	if (!devfs_handle) {
-		i2c_del_driver(&fp_driver);
+		i2c_del_driver(&fp_i2c_driver);
 		return -EIO;
 	}
-
-	ppc_md.restart = dbox2_fp_restart;
-	ppc_md.power_off = dbox2_fp_power_off;
-	ppc_md.halt = dbox2_fp_power_off;
-
-	dbox2_fp_reset_init();
-	dbox2_fp_sec_init();
-	dbox2_fp_timer_init();
-	dbox2_fp_tuner_init();
-
+	{
+	int res;
+	if ((res = i2c_add_driver(&fp_driver))){
+		printk(KERN_ERR "fp: i2c_add_driver failed.\n");
+		return res;
+	}
+	if (!fp_data.fpID)
+		printk(KERN_ERR "fp: no i2c client found\n");
+		return -EBUSY;
+	}
+#endif
 	return 0;
 }
 
-
 static void __exit fp_exit(void)
 {
-	if (i2c_del_driver(&fp_driver)) {
-		dprintk("fp.o: Driver unregistration failed, module not removed.\n");
-		return;
-	}
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	driver_unregister(&fp_dev_driver);
+	misc_deregister(&fp_dev);
+#else
 	devfs_unregister(devfs_handle);
-
+#endif
+	
 	if (ppc_md.restart == dbox2_fp_restart)
 		ppc_md.restart = NULL;
 
@@ -634,9 +713,11 @@ module_exit(fp_exit);
 MODULE_AUTHOR("Felix Domke <tmbinc@gmx.net>");
 MODULE_DESCRIPTION("DBox2 Frontprocessor");
 MODULE_LICENSE("GPL");
-MODULE_PARM(debug,"i");
-MODULE_PARM(useimap,"i");
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+module_param(useimap,int,0);
+#else
+MODULE_PARM()
+#endif
 EXPORT_SYMBOL(dbox2_fp_queue_alloc);
 EXPORT_SYMBOL(dbox2_fp_queue_free);
 EXPORT_SYMBOL(fp_cmd);

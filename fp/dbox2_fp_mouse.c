@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_mouse.c,v 1.3 2003/03/05 09:52:17 waldi Exp $
+ * $Id: dbox2_fp_mouse.c,v 1.3.4.1 2005/01/15 01:46:41 carjay Exp $
  *
  * Copyright (C) 2002 by Florian Schirmer <jolt@tuxbox.org>
  *
@@ -21,10 +21,8 @@
 
 #include <linux/module.h>
 #include <linux/init.h>
-#include <linux/devfs_fs_kernel.h>
 #include <linux/wait.h>
 #include <linux/slab.h>
-#include <linux/tqueue.h>
 #include <linux/poll.h>
 #include <linux/input.h>
 

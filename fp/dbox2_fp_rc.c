@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_rc.c,v 1.23 2004/06/02 23:01:19 carjay Exp $
+ * $Id: dbox2_fp_rc.c,v 1.23.2.1 2005/01/15 01:46:41 carjay Exp $
  *
  * Copyright (C) 2002 by Florian Schirmer <jolt@tuxbox.org>
  *
@@ -151,7 +151,7 @@ static void dbox2_fp_new_rc_queue_handler(u8 queue_nr)
 		.toggle_bits=0xff
 	};
 	u16 rc_code;
-	u8 cmd;
+	u8 cmd=0x00;
 
 	switch (mid) {
 	case TUXBOX_DBOX2_MID_NOKIA:
@@ -196,8 +196,9 @@ int __init dbox2_fp_rc_init(struct input_dev *input_dev)
 {
 	struct rc_key *key;
 
+	init_timer(&keyup_timer);
 	rc_input_dev = input_dev;
-
+		
 	set_bit(EV_KEY, rc_input_dev->evbit);
 
 	for (key = rc_key_map; key < &rc_key_map[RC_KEY_COUNT]; key++)
