@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_lirc.c,v 1.14.4.1 2005/01/15 02:35:09 carjay Exp $
+ * $Id: avia_gt_lirc.c,v 1.14.4.2 2005/01/26 03:36:37 carjay Exp $
  *
  * lirc ir driver for AViA eNX/GTX (dbox-II-project)
  *
@@ -24,10 +24,9 @@
  */
 
 #include <linux/version.h>
+#include <linux/devfs_fs_kernel.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 #include <linux/miscdevice.h>
-#else
-#include <linux/devfs_fs_kernel.h>
 #endif
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -261,7 +260,7 @@ static int __init avia_gt_lirc_init(void)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 	int ret;
 #endif
-	printk(KERN_INFO "avia_gt_lirc: $Id: avia_gt_lirc.c,v 1.14.4.1 2005/01/15 02:35:09 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_lirc: $Id: avia_gt_lirc.c,v 1.14.4.2 2005/01/26 03:36:37 carjay Exp $\n");
 
 	if (avia_gt_ir_init() < 0)
 		return -EIO;
@@ -272,6 +271,9 @@ static int __init avia_gt_lirc_init(void)
 		printk("avia_gt_lirc: unable to register device\n");
 		return -EIO;
 	}
+	devfs_mk_cdev(MKDEV(MISC_MAJOR,avia_gt_lirc_device.minor),
+		S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
+		"lirc");
 #else
 	devfs_handle = devfs_register(NULL, "lirc", DEVFS_FL_DEFAULT, 0, 0, S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH, &avia_gt_lirc_fops, NULL);
 
@@ -290,6 +292,7 @@ static int __init avia_gt_lirc_init(void)
 static void __exit avia_gt_lirc_exit(void)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	devfs_remove("lirc");
 	misc_deregister(&avia_gt_lirc_device);
 #else
 	devfs_unregister (devfs_handle);
