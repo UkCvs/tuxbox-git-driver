@@ -1,5 +1,5 @@
 /*
- * $Id: event.c,v 1.12 2003/09/30 05:45:38 obi Exp $
+ * $Id: event.c,v 1.12.4.1 2005/01/15 01:36:54 carjay Exp $
  * 
  * global event driver (dbox-II-project)
  *
@@ -29,6 +29,11 @@
 #include <linux/module.h>
 #include <linux/poll.h>
 #include <linux/slab.h>
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#include <tuxbox/info.h>
+#include <linux/miscdevice.h>
+#endif
 
 #include <dbox/event.h>
 
@@ -52,7 +57,12 @@ static int open_handle;
 static struct event_private_t *event_private[5];
 static DECLARE_WAIT_QUEUE_HEAD(event_wait);
 static spinlock_t event_lock;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 static devfs_handle_t devfs_handle;
+#else
+int event_major;
+#endif
 
 #define dprintk(x...)
 //#define dprintk(x...) printk(x)
@@ -231,12 +241,26 @@ static struct file_operations event_fops = {
 	.poll = event_poll,
 };
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static struct miscdevice event_dev = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "tuxboxevent",
+	.fops = &event_fops
+};
+#endif
+
 static int __init event_init(void)
 {
-	printk(KERN_INFO "event: $Id: event.c,v 1.12 2003/09/30 05:45:38 obi Exp $\n");
+	printk(KERN_INFO "event: $Id: event.c,v 1.12.4.1 2005/01/15 01:36:54 carjay Exp $\n");
 
 	memset(event_private, 0, sizeof(event_private));
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	if (misc_register(&event_dev)<0){
+		printk("event: unable to register device\n");
+		return -EIO;
+	}
+#else
 	devfs_handle = devfs_register( NULL, "dbox/event0", DEVFS_FL_DEFAULT,
 		0, 0,
 		S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
@@ -244,13 +268,18 @@ static int __init event_init(void)
 
 	if (!devfs_handle)
 		return -EIO;
+#endif
 
 	return 0;
 }
 
 static void __exit event_exit(void)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 	devfs_unregister(devfs_handle);
+#else
+	misc_deregister(&event_dev);
+#endif
 }
 
 module_init(event_init);
