@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_core.c,v 1.48.2.3 2005/01/31 20:04:09 carjay Exp $
+ * $Id: avia_gt_core.c,v 1.48.2.4 2005/01/31 20:11:37 carjay Exp $
  *
  * AViA eNX/GTX core driver (dbox-II-project)
  *
@@ -139,7 +139,7 @@ static int __init avia_gt_init(void)
 {
 	int result = 0;
 	
-	printk(KERN_INFO "avia_gt_core: $Id: avia_gt_core.c,v 1.48.2.3 2005/01/31 20:04:09 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_core: $Id: avia_gt_core.c,v 1.48.2.4 2005/01/31 20:11:37 carjay Exp $\n");
 
 	if (chip_type == -1) {
 		printk(KERN_INFO "avia_gt_core: autodetecting chip type... ");
@@ -374,7 +374,7 @@ static void avia_gt_unwind(void)
 
 #if defined(CONFIG_AVIA_GT_IR)
 	if (init_state >= 15)
-		avia_gt_vbi_exit();
+		avia_gt_ir_exit();
 #endif
 	
 #if defined(CONFIG_AVIA_GT_DMX)
