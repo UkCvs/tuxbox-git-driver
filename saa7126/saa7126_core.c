@@ -1,5 +1,5 @@
 /*
- * $Id: saa7126_core.c,v 1.45 2004/12/01 02:51:42 carjay Exp $
+ * $Id: saa7126_core.c,v 1.45.2.1 2005/01/15 02:00:10 carjay Exp $
  * 
  * Philips SAA7126 digital video encoder
  *
@@ -32,20 +32,30 @@
 #include <linux/slab.h>
 #include <linux/video_encoder.h>
 #include <linux/videodev.h>
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#include <linux/list.h>
+#include <linux/miscdevice.h>
+#else
+#include <i2c_compat.h>	/* i2c_get_clientdata/i2c_set_clientdata */
+#endif
 
 #include <dbox/saa7126_core.h>
 
 #include <tuxbox/info_dbox2.h>
 
 TUXBOX_INFO(dbox2_mid);
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 #ifndef CONFIG_DEVFS_FS
 #error device filesystem required
 #endif
+#endif
 
-#define dprintk if (0) printk
-
-
+#ifdef SAA7126_DEBUG
+#define dprintk(fmt, args...) printk(fmt, ##args)
+#else
+#define dprintk(fmt, args...)
+#endif
 
 /*
  * id = (1 << (board_1 - 1)) | (1 << (board_n - 1))
@@ -55,12 +65,10 @@ TUXBOX_INFO(dbox2_mid);
  */
 
 struct saa7126_initdata {
-
 	u8 id;
 	u8 reg;
 	u8 len;
 	u8 buf[28];
-
 } __attribute__ ((packed));
 
 
@@ -168,11 +176,9 @@ static const unsigned char wss_data[8] =
  * i2c detection
  */
 
-static unsigned short normal_i2c[] = { 0x44, I2C_CLIENT_END };
-static unsigned short normal_i2c_range[] = { 0x44, 0x44, I2C_CLIENT_END };
+static unsigned short normal_i2c[] = { (0x88>>1), (0x8C>>1), I2C_CLIENT_END };
+static unsigned short normal_i2c_range[] = { I2C_CLIENT_END };
 I2C_CLIENT_INSMOD;
-
-
 
 /*
  * saa device
@@ -186,7 +192,6 @@ static struct file_operations saa7126_fops = {
 	ioctl:		saa7126_ioctl,
 	open:		saa7126_open,
 };
-
 
 
 /*
@@ -226,11 +231,16 @@ static int saa7126_id;
  * private data struct for each saa
  */
 
-struct saa7126
-{
+struct saa7126 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	struct list_head lhead;
+	struct miscdevice *mdev;
+	int minor;	/* needed to match minor to encoder */
+	char name[20];
+#else
 	devfs_handle_t devfs_handle;
+#endif
 	struct i2c_client *i2c_client;
-
 	u8 standby;
 	u8 reg_2d;
 	u8 reg_3a;
@@ -240,6 +250,9 @@ struct saa7126
 	int enable;
 };
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+LIST_HEAD(encoder_list);
+#endif
 
 static struct i2c_driver i2c_driver_saa7126;
 
@@ -254,7 +267,7 @@ static int saa7126_readbuf (struct i2c_client *client, char reg, char *buf, shor
 	ret = i2c_transfer(client->adapter, msg, 2);
 
 	if (ret != 2)
-		printk("%s: i2c read error (ret == %d)\n", __FUNCTION__, ret);
+		printk(KERN_WARNING "%s: i2c read error (ret == %d)\n", __FUNCTION__, ret);
 
 	return 0;
 }
@@ -305,7 +318,7 @@ static u8 saa7126_readreg(struct i2c_client *client, u8 reg)
 static int saa7126_write_inittab (struct i2c_client *client, char init)
 {
 	unsigned short i;
-	struct saa7126 *encoder = (struct saa7126 *) client->data;
+	struct saa7126 *encoder = (struct saa7126 *) i2c_get_clientdata(client);
 	struct saa7126_initdata *inittab;
 
 	switch (encoder->norm) {
@@ -342,7 +355,7 @@ static int saa7126_write_inittab (struct i2c_client *client, char init)
 
 static int saa7126_set_mode(struct i2c_client *client, int inp)
 {
-	struct saa7126 *encoder = (struct saa7126 *) client->data;
+	struct saa7126 *encoder = (struct saa7126 *) i2c_get_clientdata(client);
 	encoder->reg_3a = 0x03;		/* by default switch YUV to RGB-matrix on */
 
 	// reg_2D: VBS-EN1 VBS-EN0 CVBS-EN C-EN		CVBS-TRI R-TRI G-TRI B-TRI
@@ -376,7 +389,7 @@ static int saa7126_set_mode(struct i2c_client *client, int inp)
 
 static int saa7126_get_mode(struct i2c_client *client)
 {
-	struct saa7126 *encoder = (struct saa7126 *) client->data;
+	struct saa7126 *encoder = (struct saa7126 *) i2c_get_clientdata(client);
 
 	switch (encoder->reg_2d) {
 	case 0x0f:
@@ -400,7 +413,7 @@ static int saa7126_get_mode(struct i2c_client *client)
 
 static int saa7126_set_norm(struct i2c_client *client, u8 pal)
 {
-	struct saa7126 *encoder = (struct saa7126 *) client->data;
+	struct saa7126 *encoder = (struct saa7126 *) i2c_get_clientdata(client);
 
 	if (pal)
 		encoder->norm = VIDEO_MODE_PAL;
@@ -413,7 +426,7 @@ static int saa7126_set_norm(struct i2c_client *client, u8 pal)
 
 static int saa7126_set_standby(struct i2c_client *client, u8 enable)
 {
-	struct saa7126 *encoder = (struct saa7126 *) client->data;
+	struct saa7126 *encoder = (struct saa7126 *) i2c_get_clientdata(client);
 
 	if ((enable) && (!encoder->standby)) {
 
@@ -450,42 +463,51 @@ static int saa7126_set_standby(struct i2c_client *client, u8 enable)
  * -------------------------------------------------------------------------
  */
 
+static struct i2c_client i2c_client_template = {
+	.name	= "saa7126_denc",
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	.driver	= &i2c_driver_saa7126
+#endif
+};
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+static int saa7126_detect_client(struct i2c_adapter *adapter, int address,
+		int kind)
+#else
 static int saa7126_detect_client(struct i2c_adapter *adapter, int address,
 		unsigned short flags, int kind)
+#endif
 {
 	int ret;
+	u8 version;
 	struct i2c_client *client;
 	struct saa7126 *encoder;
-	char devfs_name[10];
-
+	
 	dprintk("[%s]: %s\n", __FILE__, __FUNCTION__);
 
 	client = kmalloc(sizeof(struct i2c_client) +
 			sizeof(struct saa7126), GFP_KERNEL);
-
 	if (!client)
 		return -ENOMEM;
+	memset(client+1, 0x00, sizeof(struct saa7126));
+	memcpy (client, &i2c_client_template, sizeof(struct i2c_client));
 
-	sprintf(devfs_name, "dbox/saa%d", saa7126_id);
-
-	client->data = client + 1;
-	encoder = (struct saa7126 *) (client->data);
-	memset(encoder, 0x00, sizeof(struct saa7126));
+	i2c_set_clientdata(client,client+1);
+	encoder = (struct saa7126 *) (client+1);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	snprintf(encoder->name, sizeof(encoder->name), "saa%d", saa7126_id);
+#else
+	snprintf(encoder->name, sizeof(encoder->name), "dbox/saa%d", saa7126_id);
+#endif
 	
 	client->addr = address;
-	client->data = encoder;
 	client->adapter = adapter;
-	client->driver = &i2c_driver_saa7126;
-	client->flags = 0;
-
-#if 0
-	if (kind < 0) {
-		/* TODO: detect */
-	}
-#endif
-
-	strcpy(client->name, "saa7126");
 	client->id = saa7126_id++;
+
+	/* check version */
+	version = (saa7126_readreg(client, 0x00))>>5;
+	if (version)
+		printk (KERN_INFO "saa7126: unknown chip version 0x%02x\n",version);
 
 	encoder->i2c_client = client;
 	encoder->enable = 1;
@@ -495,18 +517,43 @@ static int saa7126_detect_client(struct i2c_adapter *adapter, int address,
 	else
 		encoder->norm = VIDEO_MODE_PAL;
 
-	encoder->devfs_handle = devfs_register (NULL, devfs_name, DEVFS_FL_DEFAULT, 0, 0,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	struct miscdevice *pmd = kcalloc(1,sizeof(struct miscdevice), GFP_KERNEL);
+
+	if (!pmd){
+		ret = -ENOMEM;
+		goto out_client;
+	}
+
+	pmd->name = (const char*)&encoder->name; /* entry must not change */
+	pmd->fops = &saa7126_fops;
+	pmd->minor = MISC_DYNAMIC_MINOR;
+	if ((ret=misc_register(pmd))<0){
+		printk("saa: unable to register device: Error %d\n",ret);
+		goto out_pmd;
+	}
+	encoder->mdev = pmd;
+	encoder->minor = pmd->minor;
+
+#else
+	encoder->devfs_handle = devfs_register (NULL, encoder->name, DEVFS_FL_DEFAULT, 0, 0,
 			S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
 			&saa7126_fops, encoder);
 
 	if (!encoder->devfs_handle)
-		return -EIO;
+		ret = -EIO;
+		goto out_pmd;
+#endif
 
-	if ((ret = i2c_attach_client(client))) {
-		kfree(client);
-		return ret;
+	if ((ret = i2c_attach_client(client))<0){
+		printk(KERN_ERR "saa: unable to attach client: Error %d\n",ret);
+		ret = -EIO;
+		goto out_reg;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	list_add_tail(&encoder->lhead,&encoder_list);
+#endif
 	dprintk("[%s]: chip found @ 0x%x\n", __FILE__,  client->addr);
 
 	saa7126_write_inittab(client, 1); /* init */
@@ -514,16 +561,29 @@ static int saa7126_detect_client(struct i2c_adapter *adapter, int address,
 	saa7126_set_mode(client, mode);
 
 	return 0;
+/* start of unwind block */
+out_reg:
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+		misc_deregister(pmd);
+#else
+		devfs_unregister(encoder->devfs_handle);
+#endif
+out_pmd:
+		kfree(pmd);
+out_client:
+		kfree(client);
+		return ret;
 }
 
 /* ------------------------------------------------------------------------- */
 
 static int saa7126_attach(struct i2c_adapter *adapter)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 #ifdef MODULE
 	MOD_INC_USE_COUNT;
 #endif
-
+#endif
 	dprintk("[%s]: %s\n", __FILE__, __FUNCTION__);
 
 	return i2c_probe(adapter, &addr_data, saa7126_detect_client);
@@ -534,20 +594,21 @@ static int saa7126_attach(struct i2c_adapter *adapter)
 static int saa7126_detach(struct i2c_client *client)
 {
 	int ret;
-	struct saa7126 *encoder = (struct saa7126 *) client->data;
-
-	dprintk("[%s]: %s\n", __FILE__, __FUNCTION__);
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	struct saa7126 *encoder = (struct saa7126 *) i2c_get_clientdata(client);
+	misc_deregister(encoder->mdev);
+	kfree(encoder->mdev);
+#else
 	devfs_unregister(encoder->devfs_handle);
+#endif
 	saa7126_id--;
 
 	saa7126_set_standby(client, 1);
 
 	if ((ret = i2c_detach_client(client))) {
-		printk("[%s]: i2c_detach_client failed\n", __FILE__);
+		printk(KERN_ERR "saa: unable to detach client\n");
 		return ret;
 	}
-
 	kfree(client);
 	return 0;
 }
@@ -556,7 +617,7 @@ static int saa7126_detach(struct i2c_client *client)
 
 static int saa7126_command(struct i2c_client *client, unsigned int cmd, void *parg)
 {
-	struct saa7126 *encoder = client->data;
+	struct saa7126 *encoder = (struct saa7126 *) i2c_get_clientdata(client);
 	unsigned long arg = (unsigned long) parg;
 
 	dprintk("[%s]: %s\n", __FILE__, __FUNCTION__);
@@ -888,14 +949,29 @@ static int saa7126_ioctl (struct inode *inode, struct file *file, unsigned int c
 /* ------------------------------------------------------------------------- */
 
 static int saa7126_open (struct inode *inode, struct file *file)
-{
+{	/* with devfs the private_data could be set up in advance at register time */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	struct list_head *entry;
+	list_for_each(entry, &encoder_list){
+		struct saa7126 *encoder = (struct saa7126*)list_entry(entry, struct saa7126, lhead);
+		if (encoder->minor==MINOR(inode->i_rdev))
+			file->private_data = encoder;
+	}
+	if (!file->private_data){
+		printk(KERN_ERR "saa: no match for minor");
+		return -EBUSY;
+	}
+#endif
 	return 0;
 }
 
 /* ------------------------------------------------------------------------- */
 
 static struct i2c_driver i2c_driver_saa7126 = {
-	.name           = "saa7126",
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	.owner			= THIS_MODULE,
+#endif
+	.name           = "saa7126_denc",
 	.id             = I2C_DRIVERID_SAA7126,
 	.flags          = I2C_DF_NOTIFY,
 	.attach_adapter = &saa7126_attach,
@@ -922,5 +998,10 @@ module_exit(saa7126_exit);
 MODULE_DESCRIPTION("SAA7126 digital PAL/NTSC encoder");
 MODULE_AUTHOR("Gillem <htoa@gmx.net>, Andreas Oberritter <obi@saftware.de>");
 MODULE_LICENSE("GPL");
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+module_param(mode,int,0);
+module_param(ntsc,int,0);
+#else
 MODULE_PARM(mode,"i");
 MODULE_PARM(ntsc,"i");
+#endif
