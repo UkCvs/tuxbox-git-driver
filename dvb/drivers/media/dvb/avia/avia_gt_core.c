@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_core.c,v 1.48.2.1 2005/01/15 02:35:09 carjay Exp $
+ * $Id: avia_gt_core.c,v 1.48.2.2 2005/01/31 16:12:33 carjay Exp $
  *
  * AViA eNX/GTX core driver (dbox-II-project)
  *
@@ -146,7 +146,7 @@ int avia_gt_wdt_thread(void)
 	sigfillset(&current->blocked);
 	unlock_kernel();
 
-	printk ("avia_av_core: Starting avia_gt_wdt thread.\n");
+	printk ("avia_gt_core: Starting avia_gt_wdt thread.\n");
 	for(;;)
 	{
 
@@ -174,7 +174,7 @@ static int __init avia_gt_init(void)
 {
 	int result = 0;
 	
-	printk(KERN_INFO "avia_gt_core: $Id: avia_gt_core.c,v 1.48.2.1 2005/01/15 02:35:09 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_core: $Id: avia_gt_core.c,v 1.48.2.2 2005/01/31 16:12:33 carjay Exp $\n");
 
 	if (chip_type == -1) {
 		printk(KERN_INFO "avia_gt_core: autodetecting chip type... ");
