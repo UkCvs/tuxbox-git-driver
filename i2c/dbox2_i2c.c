@@ -31,9 +31,6 @@
 #include <asm/pgtable.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 #include <linux/dma-mapping.h>
-#include <dvb-core/dvbdev.h>
-#include <dvb-core/dvb_frontend.h>
-#include <avia/avia_napi.h>
 #endif
 
 static void i2c_interrupt(void *, struct pt_regs *regs);
@@ -610,27 +607,6 @@ static u32 p8xx_func(struct i2c_adapter *adap)
 	return I2C_FUNC_SMBUS_EMUL; //  | I2C_FUNC_10BIT_ADDR;  10bit auch erstmal nicht.
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-// XXX: dirty hack, but needed for current dvb-core as of 2004-07-27
-static int client_register(struct i2c_client *client)
-{
-	struct dvb_adapter *adap = avia_napi_get_adapter();
-
-	if (client->driver->command)
-		client->driver->command(client, FE_REGISTER, adap);
-	return 0;
-}
-
-static int client_unregister(struct i2c_client *client)
-{
-	struct dvb_adapter *adap = avia_napi_get_adapter();
-
-	if (client->driver->command)
-		client->driver->command(client, FE_UNREGISTER, adap);
-	return 0;
-}
-#endif
-
 static struct i2c_algorithm i2c_8xx_algo = {
 	.name = "PowerPC 8xx Algo",
 	.id = I2C_ALGO_EXP,
@@ -645,8 +621,6 @@ static struct i2c_adapter adap = {
 	.timeout = 100,
 	.retries = 3,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-	.client_register = client_register,
-	.client_unregister = client_unregister,
 	.class = I2C_CLASS_TV_DIGITAL,
 #endif
 };
