@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_core.c,v 1.98.2.2 2005/01/25 22:58:06 carjay Exp $
+ * $Id: avia_av_core.c,v 1.98.2.3 2005/01/26 03:38:09 carjay Exp $
  *
  * AViA 500/600 core driver (dbox-II-project)
  *
@@ -840,9 +840,10 @@ static int avia_av_set_ppc_siumcr(void)
 	}
 
 	if (sys_conf->sc_siumcr & (3 << 10)) {
-		cli();
+		unsigned long flags;
+		local_irq_save(flags);
 		sys_conf->sc_siumcr &= ~(3 << 10);
-		sti();
+		local_irq_restore(flags);
 	}
 
 	return 0;
@@ -1593,7 +1594,7 @@ static int __init avia_av_core_init(void)
 	avia_info.dram_start = res->start;
 #endif
 
-	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.2 2005/01/25 22:58:06 carjay Exp $\n");
+	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.3 2005/01/26 03:38:09 carjay Exp $\n");
 
 	if (tv_standard != AVIA_AV_VIDEO_SYSTEM_PAL)
 		tv_standard = AVIA_AV_VIDEO_SYSTEM_NTSC;

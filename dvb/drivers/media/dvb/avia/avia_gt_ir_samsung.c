@@ -127,14 +127,13 @@ static unsigned read_from_queue(void)
 	unsigned long flags;
 	unsigned wert = -1;
 
-	save_flags(flags);
-	cli();
+	local_irq_save(flags);
 	if (read_ptr != write_ptr)
 	{
 		wert = received[read_ptr];
 		read_ptr = (read_ptr + 1) & (MAX_RECV - 1);
 	}
-	restore_flags(flags);
+	local_irq_restore(flags);
 	return wert;
 }
 
