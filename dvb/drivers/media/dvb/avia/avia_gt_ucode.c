@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_ucode.c,v 1.14.2.5 2005/01/30 22:18:33 carjay Exp $
+ * $Id: avia_gt_ucode.c,v 1.14.2.6 2005/01/31 03:16:06 carjay Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -41,8 +41,7 @@
 #endif
 #include <asm/uaccess.h>
 
-#include "demux.h"
-#include "dvb_demux.h"
+#include "dvb-core/dvb_demux.h"
 
 #include "avia_gt.h"
 #include "avia_gt_dmx.h"

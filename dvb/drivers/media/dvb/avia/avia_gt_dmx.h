@@ -39,7 +39,7 @@
 #include <linux/version.h>
 #include <linux/workqueue.h>
 
-#include "demux.h"
+#include <dvb-core/demux.h>
 
 struct avia_gt_dmx_queue {
 	u8 index;

@@ -1,5 +1,5 @@
-#ifndef AVIA_GT_NAPI_H
-#define AVIA_GT_NAPI_H
+#ifndef TS_PES_HEADER_H
+#define TS_PES_HEADER_H
 
 struct ts_header {
 	unsigned sync_byte			: 8;

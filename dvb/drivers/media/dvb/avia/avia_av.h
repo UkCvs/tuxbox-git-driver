@@ -25,7 +25,7 @@
 #ifndef AVIA_AV_H
 #define AVIA_AV_H
 
-#include "avia_gt_napi.h"	/* struct pes_header */
+#include "ts_pes_header.h"	/* struct pes_header */
 
 #define AVIA_AV_PLAY_STATE_PAUSED	0x01
 #define AVIA_AV_PLAY_STATE_PLAYING	0x02

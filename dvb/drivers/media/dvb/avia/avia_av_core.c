@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_core.c,v 1.98.2.3 2005/01/26 03:38:09 carjay Exp $
+ * $Id: avia_av_core.c,v 1.98.2.4 2005/01/31 03:16:06 carjay Exp $
  *
  * AViA 500/600 core driver (dbox-II-project)
  *
@@ -49,8 +49,10 @@
 #include <asm/uaccess.h>
 
 #include "avia_av.h"
+#ifndef STANDALONE
 #include "avia_av_event.h"
 #include "avia_av_proc.h"
+#endif
 
 #include <dbox/fp.h>
 #include <tuxbox/info_dbox2.h>
@@ -497,8 +499,9 @@ int avia_av_standby(const int state)
 		dprintk(KERN_INFO "avia_av: wakeup ok\n");
 	}
 	else {
+#ifndef STANDALONE
 		avia_av_event_exit();
-
+#endif
 		/* disable interrupts */
 		avia_av_dram_write(INT_MASK, 0);
 
@@ -995,7 +998,9 @@ static int avia_av_init(void)
 	/* set siumcr for interrupt */
 	if (avia_av_set_ppc_siumcr() < 0) {
 		ret = -EIO;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+		release_firmware(fw);
+#else
 		vfree(microcode);
 #endif
 		goto out;
@@ -1005,7 +1010,9 @@ static int avia_av_init(void)
 	if (request_irq(avia_info.irq, avia_av_interrupt, 0, "avia", &dev) != 0) {
 		printk(KERN_ERR "avia_av: Failed to get interrupt.\n");
 		ret= -EIO;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+		release_firmware(fw);
+#else
 		vfree(microcode);
 #endif
 		goto out;
@@ -1139,8 +1146,10 @@ static int avia_av_init(void)
 		goto out_irq;
 	}
 
+#ifndef STANDALONE
 	avia_av_event_init();
-
+#endif
+	
 	/*
 	avia_av_dram_write(OSD_BUFFER_START, 0x1f0000);
 	avia_av_dram_write(OSD_BUFFER_END,   0x200000);
@@ -1594,7 +1603,7 @@ static int __init avia_av_core_init(void)
 	avia_info.dram_start = res->start;
 #endif
 
-	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.3 2005/01/26 03:38:09 carjay Exp $\n");
+	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.4 2005/01/31 03:16:06 carjay Exp $\n");
 
 	if (tv_standard != AVIA_AV_VIDEO_SYSTEM_PAL)
 		tv_standard = AVIA_AV_VIDEO_SYSTEM_NTSC;
@@ -1606,9 +1615,13 @@ static int __init avia_av_core_init(void)
 		return -EINVAL;
 #endif
 
-	if (!(err = avia_av_init()))
-		avia_av_proc_init();
+	err = avia_av_init();
 
+#ifndef STANDALONE
+	if (!err)
+		avia_av_proc_init();
+#endif
+	
 	return err;
 }
 
@@ -1618,7 +1631,9 @@ static int avia_av_drv_remove(struct device *dev)
 static void __exit avia_av_core_exit(void)
 #endif
 {
+#ifndef STANDALONE
 	avia_av_proc_exit();
+#endif
 
 	avia_av_standby(1);
 

@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_dmx.c,v 1.210.2.1 2005/01/15 02:35:09 carjay Exp $
+ * $Id: avia_gt_dmx.c,v 1.210.2.2 2005/01/31 03:16:06 carjay Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -43,15 +43,15 @@
 #include <linux/interrupt.h>
 #include <asm/uaccess.h>
 
-#include "demux.h"
-#include "dvb_demux.h"
+#include <dvb-core/demux.h>
+#include <dvb-core/dvb_demux.h>
 
 #include "avia_av.h"
 #include "avia_gt.h"
 #include "avia_gt_dmx.h"
 #include "avia_gt_accel.h"
-#include "avia_gt_napi.h"
 #include "avia_gt_ucode.h"
+#include "ts_pes_header.h"
 
 static void avia_gt_dmx_bh_task(void *tl_data);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
@@ -1333,7 +1333,7 @@ int __init avia_gt_dmx_init(void)
 	u32 queue_addr;
 	u8 queue_nr;
 	
-	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.210.2.1 2005/01/15 02:35:09 carjay Exp $\n");;
+	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.210.2.2 2005/01/31 03:16:06 carjay Exp $\n");;
 
 	gt_info = avia_gt_get_info();
 	ucode_info = avia_gt_dmx_get_ucode_info();
