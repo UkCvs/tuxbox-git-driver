@@ -23,6 +23,10 @@ endif
 EXTRA_CFLAGS	+= -I$(DRIVER_TOPDIR)/include \
 		    -I$(DRIVER_TOPDIR)/dvb/drivers/media/dvb
 
+ifeq ($(CONFIG_NAPI_DEBUG),y)
+EXTRA_CFLAGS	+= -DDEBUG
+endif
+
 # we do this to override the default "linux"-include dir
 CC		:= $(CROSS_COMPILE)gcc -I$(DRIVER_TOPDIR)/dvb/include
 endif

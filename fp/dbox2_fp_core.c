@@ -76,7 +76,7 @@ static devfs_handle_t devfs_handle;
 
 static int useimap = 1;
 
-#ifdef FP_DEBUG
+#ifdef DEBUG
 #define dprintk(fmt, args...) printk(fmt, ##args)
 #else
 #define dprintk(fmt, args...)
@@ -161,7 +161,7 @@ int fp_cmd(struct i2c_client *client, u8 cmd, u8 *res, u32 size)
 	if (ret != 2)
 		printk("fp: fp_cmd error (ret == %d)\n", ret);
 
-#ifdef FP_DEBUG
+#ifdef DEBUG
 	{
 		int i;
 

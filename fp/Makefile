@@ -11,4 +11,9 @@ dbox2_fp_input-objs	:= dbox2_fp_input_core.o dbox2_fp_rc.o dbox2_fp_keyboard.o\
 			     dbox2_fp_button.o dbox2_fp_mouse.o
 
 EXTRA_CFLAGS	:= -I$(DRIVER_TOPDIR)/dvb/drivers/media/dvb -I$(DRIVER_TOPDIR)/include
+
+ifeq ($(CONFIG_FP_DEBUG),y)
+EXTRA_CFLAGS	+= -DDEBUG
+endif
+
 endif

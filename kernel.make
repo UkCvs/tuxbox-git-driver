@@ -33,6 +33,11 @@ export KERNEL_LOCATION
 export INSTALL_MOD_PATH
 export DRIVER_TOPDIR
 
+CONFIGFILE := $(DRIVER_TOPDIR)/.config
+
+include $(CONFIGFILE)
+
+
 all:
 	@$(MAKE) -C $(KERNEL_LOCATION) M=$(DRIVER_TOPDIR) KBUILD_VERBOSE=0 modules
 
@@ -41,6 +46,15 @@ install: all
 
 clean:
 	@$(MAKE) -C $(KERNEL_LOCATION) M=$(shell pwd) KBUILD_VERBOSE=0 clean
+
+$(DRIVER_TOPDIR)/.config:
+	@echo export CONFIG_AVS_DEBUG=n 	> $(CONFIGFILE); \
+	echo export CONFIG_CAM_DEBUG=n		>> $(CONFIGFILE); \
+	echo export CONFIG_AVIA_DEBUG=n	>> $(CONFIGFILE); \
+	echo export CONFIG_NAPI_DEBUG=n	>> $(CONFIGFILE); \
+	echo export CONFIG_FP_DEBUG=n		>> $(CONFIGFILE); \
+	echo export CONFIG_LCD_DEBUG=n		>> $(CONFIGFILE); \
+	echo export CONFIG_SAA_DEBUG=n		>> $(CONFIGFILE);
 
 # for CDK compatibility, there is no useable distclean from here
 distclean:	clean

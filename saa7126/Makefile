@@ -6,4 +6,9 @@ obj-m		+= saa7126.o
 saa7126-objs	:= saa7126_core.o
 
 EXTRA_CFLAGS	:= -I$(DRIVER_TOPDIR)/include
+
+ifeq ($(CONFIG_SAA_DEBUG),y)
+EXTRA_CFLAGS	+= -DDEBUG
+endif
+
 endif

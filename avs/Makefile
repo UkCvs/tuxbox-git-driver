@@ -6,4 +6,9 @@ obj-m		+= avs.o
 avs-objs	:= stv6412.o cxa2092.o cxa2126.o avs_core.o
 
 EXTRA_CFLAGS	+= -I$(DRIVER_TOPDIR)/include
+
+ifeq ($(CONFIG_AVS_DEBUG),y)
+EXTRA_CFLAGS	+= -DDEBUG
+endif
+
 endif
