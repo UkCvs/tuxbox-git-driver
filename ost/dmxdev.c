@@ -113,6 +113,9 @@ DmxDevBufferRead(dmxdev_buffer_t *src, int non_blocking,
 	if (!src->data)
 	        return 0;
        	if ((error=src->error)) {
+#ifndef DO_NOT_RESET_BUFFER_WHEN_OVERFLOWING
+		if (src->error != -EBUFFEROVERFLOW)
+#endif
 	        src->error=0;
 		return error;
 	}
@@ -130,6 +133,9 @@ DmxDevBufferRead(dmxdev_buffer_t *src, int non_blocking,
 		        return count-todo;
 
 		if ((error=src->error)) {
+#ifndef DO_NOT_RESET_BUFFER_WHEN_OVERFLOWING
+			if (src->error != -EBUFFEROVERFLOW)
+#endif
 		        src->error=0;
 			return error; 
 		}
@@ -379,9 +385,7 @@ DmxDevSectionCallback(u8 *buffer1, size_t buffer1_len,
 	        ret=DmxDevBufferWrite(&dmxdevfilter->buffer, buffer2, buffer2_len);
 	}
         if (ret<0) {
-#ifndef DO_NOT_RESET_BUFFER_WHEN_OVERFLOWING
 	        dmxdevfilter->buffer.pwrite=dmxdevfilter->buffer.pread;
-#endif
 	        dmxdevfilter->buffer.error=-EBUFFEROVERFLOW;
 	}
 	if (dmxdevfilter->params.sec.flags&DMX_ONESHOT)
@@ -433,9 +437,7 @@ DmxDevTSCallback(u8 *buffer1, size_t buffer1_len,
         if (ret==buffer1_len) 
 	        ret=DmxDevBufferWrite(buffer, buffer2, buffer2_len);
         if (ret<0) {
-#ifndef DO_NOT_RESET_BUFFER_WHEN_OVERFLOWING
 	        buffer->pwrite=buffer->pread;
-#endif
 	        buffer->error=-EBUFFEROVERFLOW;
 	}
 	spin_unlock(&dmxdevfilter->dev->lock);
