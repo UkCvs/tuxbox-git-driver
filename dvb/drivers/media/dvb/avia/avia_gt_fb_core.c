@@ -1,11 +1,14 @@
 /*
- * $Id: avia_gt_fb_core.c,v 1.54 2004/03/17 18:42:18 zwen Exp $
+ * $Id: avia_gt_fb_core.c,v 1.54.2.1 2005/01/15 02:44:27 carjay Exp $
  *
  * AViA eNX/GTX framebuffer driver (dbox-II-project)
  *
  * Homepage: http://www.tuxbox.org
  *
- * Copyright (C) 2000-2001 Felix "tmbinc" Domke (tmbinc@gmx.net)
+ * - initial version
+ *   Copyright (C) 2000-2001 Felix "tmbinc" Domke (tmbinc@gmx.net)
+ * - kernel 2.6 version
+ *   Copyright (C) 2005 Carsten Juttner (carjay@gmx.net)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,16 +26,11 @@
  *
  */
 
-#include <linux/fb.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/vt_kern.h>
-#include <video/fbcon.h>
-#include <video/fbcon-cfb4.h>
-#include <video/fbcon-cfb8.h>
-#include <video/fbcon-cfb16.h>
-#include <video/fbcon-cfb32.h>
+#include <linux/fb.h>
+#include <linux/mm.h>
 #include <asm/uaccess.h>
 
 #include <linux/dvb/avia/avia_gt_fb.h>
@@ -47,111 +45,216 @@
 #endif
 
 static sAviaGtInfo *gt_info;
-static int console_transparent;
+//static int console_transparent;
 
-/* 720x576, 8 bpp */	       // TODO: NTSC
-static struct fb_var_screeninfo default_var = {
-	.xres = 720,
+struct pixelmode{
+	struct fb_bitfield red;
+	struct fb_bitfield green;
+	struct fb_bitfield blue;
+	struct fb_bitfield transp;
+	u8 bpp;
+	u8 avia_mode;
+};
+
+// all possible pixelmodes of the GTX)
+static const struct pixelmode gtx_pixmodes[] = {
+	{ .avia_mode = AVIA_GT_GV_INPUT_MODE_RGB4, 	// CLUT4 (ARGB1555)
+	  	.bpp = 4,
+		.red = 	 { .offset = 0, .length=5, .msb_right =0 },
+		.green = { .offset = 0, .length=5, .msb_right =0 },
+		.blue =  { .offset = 0, .length=5, .msb_right =0 },
+		.transp=  { .offset = 0, .length=1, .msb_right =0 }
+	},
+	{ .avia_mode = AVIA_GT_GV_INPUT_MODE_RGB8,	// CLUT8 (ARGB1555)
+		.bpp = 8,
+		.red = 	 { .offset = 0, .length=5, .msb_right =0 },
+		.green = { .offset = 0, .length=5, .msb_right =0 },
+		.blue =  { .offset = 0, .length=5, .msb_right =0 },
+		.transp=  { .offset = 0, .length=1, .msb_right =0 }
+	},
+	{ .avia_mode = AVIA_GT_GV_INPUT_MODE_ARGB1555, 	// ARGB1555
+		.bpp = 16,
+		.red = 	 { .offset = 10, .length=5, .msb_right =0 },
+		.green = { .offset = 5,  .length=5, .msb_right =0 },
+		.blue =  { .offset = 0,  .length=5, .msb_right =0 },
+		.transp=  { .offset = 15, .length=1, .msb_right =0 }
+	}
+};
+
+// All (liar!) possible pixelmodes of the eNX
+// NB: functionally the ARGB8888 and ARGB1555 CLUT-modes are the same, the modes are just
+// 	there for compatibility with existing GTX-software since the palette setting interface 
+//	is the same (using 16 Bit r,g,b,a-components)
+static const struct pixelmode enx_pixmodes[] = {
+	{ .avia_mode = AVIA_GT_GV_INPUT_MODE_RGB4, 	// CLUT4 (ARGB1555)
+		.bpp = 4,
+		.red = 	 { .offset = 0, .length=5, .msb_right =0 },
+		.green = { .offset = 0, .length=5, .msb_right =0 },
+		.blue =  { .offset = 0, .length=5, .msb_right =0 },
+		.transp=  { .offset = 0, .length=1, .msb_right =0 }
+	},
+	{ .avia_mode = AVIA_GT_GV_INPUT_MODE_RGB4, 	// CLUT4 (ARGB8888)
+		.bpp = 4,
+		.red = 	 { .offset = 0, .length=8, .msb_right =0 },
+		.green = { .offset = 0, .length=8, .msb_right =0 },
+		.blue =  { .offset = 0, .length=8, .msb_right =0 },
+		.transp=  { .offset = 0, .length=8, .msb_right =0 }
+	},
+	{ .avia_mode = AVIA_GT_GV_INPUT_MODE_RGB8,	// CLUT8 (ARGB1555)
+		.bpp = 8,
+		.red = 	 { .offset = 0, .length=5, .msb_right =0 },
+		.green = { .offset = 0, .length=5, .msb_right =0 },
+		.blue =  { .offset = 0, .length=5, .msb_right =0 },
+		.transp=  { .offset = 0, .length=1, .msb_right =0 }
+	},
+	{ .avia_mode = AVIA_GT_GV_INPUT_MODE_RGB8,	// CLUT8 (ARGB8888)
+		.bpp = 8,
+		.red = 	 { .offset = 0, .length=8, .msb_right =0 },
+		.green = { .offset = 0, .length=8, .msb_right =0 },
+		.blue =  { .offset = 0, .length=8, .msb_right =0 },
+		.transp=  { .offset = 0, .length=8, .msb_right =0 }
+	},
+	{ .avia_mode = AVIA_GT_GV_INPUT_MODE_RGB565, 	// RGB565
+		.bpp = 16,
+		.red = 	 { .offset = 11, .length=5, .msb_right =0 },
+		.green = { .offset = 5,  .length=6, .msb_right =0 },
+		.blue =  { .offset = 0,  .length=5, .msb_right =0 },
+		.transp=  { .offset = 0,  .length=0, .msb_right =0 }
+	},
+	{ .avia_mode = AVIA_GT_GV_INPUT_MODE_ARGB1555, 	// ARGB1555
+		.bpp = 16,
+		.red = 	 { .offset = 10, .length=5, .msb_right =0 },
+		.green = { .offset = 5,  .length=5, .msb_right =0 },
+		.blue =  { .offset = 0,  .length=5, .msb_right =0 },
+		.transp=  { .offset = 15, .length=1, .msb_right =0 }
+	},
+	{ .avia_mode = AVIA_GT_GV_INPUT_MODE_ARGB,	// 32 f*cking bits, the real McCoy :)
+		.bpp = 32,
+		.red = 	 { .offset = 16, .length=8, .msb_right =0 },
+		.green = { .offset = 8,  .length=8, .msb_right =0 },
+		.blue =  { .offset = 0,  .length=8, .msb_right =0 },
+		.transp=  { .offset = 24, .length=8, .msb_right =0 }
+	}
+};
+
+
+/* default: 720x576, 8 bpp, CLUT8 (PAL-compatible)*/
+// NB: this is not applied on its own, it just offers a reasonable (for both GTX/eNX) default for the FB-user */
+static const struct fb_var_screeninfo __initdata default_var = {
+	.xres = 720,		// size of graphics viewport
 	.yres = 576,
-	.xres_virtual = 720,
+	.xres_virtual = 720,	// size of graphics framebuffer, will be changed later on if there is more RAM
 	.yres_virtual = 576,
-	.xoffset = 0,
+	.xoffset = 0,		// offset from virtual to visible
 	.yoffset = 0,
 	.bits_per_pixel = 8,
-	.grayscale = 0,
-	.red = { .offset = 0, .length = 0, .msb_right = 0 },
-	.green = { .offset = 0, .length = 0, .msb_right = 0 },
-	.blue = { .offset = 0, .length = 0, .msb_right = 0 },
-	.transp = { .offset = 0, .length = 0, .msb_right = 0 },
+	.grayscale = 0,		// no grayscale mode supported, always colors
+	.red = { .offset = 0, .length = 5, .msb_right = 0 },	// CLUT8-entries, compatible to GTX
+	.green = { .offset = 0, .length = 5, .msb_right = 0 },
+	.blue = { .offset = 0, .length = 5, .msb_right = 0 },
+	.transp = { .offset = 0, .length = 1, .msb_right = 0 },
 	.nonstd = 0,
 	.activate = FB_ACTIVATE_NOW,
-	.height = -1,
+	.height = -1,		// size in mm, makes no sense
 	.width = -1,
 	.accel_flags = 0,
-	.pixclock = 20000,
-	.left_margin = 64,
-	.right_margin = 64,
-	.upper_margin = 32,
-	.lower_margin = 32,
-	.hsync_len = 64,
-	.vsync_len = 2,
-	.sync = 0,
+	.pixclock = 74074,		// BT.601: 864 pixels per line@15625 Hz (PAL) -> 13.5 MHz -> 74074E-12 s (pico seconds)
+	.left_margin = 126,
+	.right_margin = 18,
+	.upper_margin = 21,
+	.lower_margin = 5,
+	.hsync_len = 0,		
+	.vsync_len = 0,
+	.sync = FB_SYNC_EXT,
 	.vmode = FB_VMODE_INTERLACED
 };
 
-
-struct gtxfb_info {
-	struct fb_info_gen gen;
+/* holds all info about the current buffer */
+static struct {
+	struct fb_info info;
 	unsigned char *videobase;
 	int offset;
-	unsigned int videosize;
-	unsigned char *pvideobase;
+} avia_gt_fb_info;
+
+/* all the display specific information */
+struct avia_gt_fb_par {
+	int xres, yres, virtual_yres;
+	// offset from virtual to visible, for panning
+	int yoffset;
+	// index into pixmode-list
+	int pixmode;
 };
 
-struct gtxfb_par {
-	// 4, 8, 16
-	int bpp;
-	// 0: 720 or 640 pixels per line 1: 360 or 320 pixels per line
-	int lowres;
-	// 0: 480 or 576 lines interlaced 1: 240 or 288 lines non-interlaced
-	int interlaced;
-	// calculated of the above stuff
-	int xres, yres;
-	int vyres;
-	int stride;
-};
+static struct avia_gt_fb_par current_par;
 
-static struct gtxfb_info fb_info;
-static struct gtxfb_par current_par;
-static int current_par_valid;
-static struct display disp;
-
-static char default_fontname[40];
-
-#ifdef FBCON_HAS_CFB4
-static u16 fbcon_cfb4_cmap[16];
-#endif
-#ifdef FBCON_HAS_CFB8
-static u16 fbcon_cfb8_cmap[16];
-#endif
-#ifdef FBCON_HAS_CFB16
-static u16 fbcon_cfb16_cmap[16];
-#endif
-
-static int avia_gt_fb_encode_fix(struct fb_fix_screeninfo *fix, const void *fb_par, struct fb_info_gen *info);
-static int avia_gt_fb_decode_var(const struct fb_var_screeninfo *var, void *fb_par, struct fb_info_gen *info);
-static int avia_gt_fb_encode_var(struct fb_var_screeninfo *var, const void *fb_par, struct fb_info_gen *info);
-static void avia_gt_fb_get_par(void *fb_par, struct fb_info_gen *info);
-static void avia_gt_fb_set_par(const void *fb_par, struct fb_info_gen *info);
-static int avia_gt_fb_getcolreg(u_int regno, u_int *red, u_int *green, u_int *blue, u_int *transp, struct fb_info *info);
-static int avia_gt_fb_setcolreg(u_int regno, u_int red, u_int green, u_int blue, u_int transp, struct fb_info *info);
-static int avia_gt_fb_pan_display(const struct fb_var_screeninfo *var,struct fb_info_gen *info);
-static int avia_gt_fb_blank(int blank, struct fb_info_gen *info);
-static void avia_gt_fb_set_disp(const void *fb_par, struct display *disp, struct fb_info_gen *info);
-
-static
-void avia_gt_fb_detect(void)
-{
+static inline const struct pixelmode *avia_gt_fb_get_ppixelmodes(void){
+	if (avia_gt_chip(GTX))
+		return gtx_pixmodes;
+	else
+		return enx_pixmodes;
 }
 
-static
-int avia_gt_fb_encode_fix(struct fb_fix_screeninfo *fix, const void *fb_par, struct fb_info_gen *info)
-{
-	struct gtxfb_par *par = (struct gtxfb_par *)fb_par;
+/* compares mode to the modelist and returns the index if successful, otherwise the last entry that
+	fits the bits_per_pixel is returned. If no mode is found, -1 is returned */
+static int avia_gt_fb_pixelmode_compare (const struct pixelmode modelist[],
+			const struct fb_var_screeninfo *mode){
+	int i;
+	int retval=-1;
+	int modelistsize;
+	if (modelist == gtx_pixmodes)
+		modelistsize = ARRAY_SIZE(gtx_pixmodes);
+	else
+		modelistsize = ARRAY_SIZE(enx_pixmodes);
+	
+	for (i=0;i<modelistsize;i++){ /* default is the last(!) available entry */
+		if (modelist[i].bpp == mode->bits_per_pixel) retval = i;
+		/* all are checked for future compatibility */
+		if (modelist[i].bpp == mode->bits_per_pixel &&	
+				modelist[i].red.offset      == mode->red.offset &&
+				modelist[i].red.length      == mode->red.length &&
+				modelist[i].red.msb_right   == mode->red.msb_right &&
+				modelist[i].green.offset    == mode->green.offset &&
+				modelist[i].green.length    == mode->green.length &&
+				modelist[i].green.msb_right == mode->green.msb_right &&
+				modelist[i].blue.offset     == mode->blue.offset &&
+				modelist[i].blue.length     == mode->blue.length &&
+				modelist[i].blue.msb_right  == mode->blue.msb_right &&
+				modelist[i].transp.offset   == mode->transp.offset &&
+				modelist[i].transp.length   == mode->transp.length &&
+				modelist[i].transp.msb_right== mode->transp.msb_right){
+					retval = i;
+					break;
+				}
+	}
+	return retval;
+}
 
-	strcpy(fix->id, "AViA eNX/GTX Framebuffer improved version");
+static int avia_gt_fb_istruecolour(const struct pixelmode *pixm){
+	if (pixm->bpp==4||pixm->bpp==8) return 0;	// 4/8 Bit are always LUT
+	else return 1;
+}
+
+
+/* returns the fb_fix_screeninfo struct for the current mode */
+static int avia_gt_fb_encode_fix(struct fb_fix_screeninfo *fix, const struct avia_gt_fb_par *par)
+{
+	const struct pixelmode *pixm;
+
+	memset(fix,0,sizeof(fix));
+	strncpy(fix->id, "AViA eNX/GTX FB", sizeof(((struct fb_fix_screeninfo*)0)->id));
 
 	fix->type = FB_TYPE_PACKED_PIXELS;
 	fix->type_aux = 0;
 
-	if (par->bpp < 16)
+	pixm = avia_gt_fb_get_ppixelmodes();
+	if (pixm[par->pixmode].bpp <= 8)
 		fix->visual = FB_VISUAL_PSEUDOCOLOR;
 	else
 		fix->visual = FB_VISUAL_TRUECOLOR;
 
-	fix->line_length = par->stride;
-	fix->smem_start = (unsigned long)fb_info.pvideobase;
-	fix->smem_len = (AVIA_GT_MEM_GV_SIZE + PAGE_SIZE) & PAGE_MASK;
+	fix->line_length = (par->xres*pixm[par->pixmode].bpp)>>3;
+	fix->smem_start = (unsigned long)avia_gt_fb_info.info.screen_base;
+	fix->smem_len = (AVIA_GT_MEM_GV_SIZE+PAGE_SIZE)&PAGE_MASK;	/* page boundary for mmio */
 
 	fix->xpanstep = 0;
 	fix->ypanstep = 1;
@@ -160,294 +263,238 @@ int avia_gt_fb_encode_fix(struct fb_fix_screeninfo *fix, const void *fb_par, str
 	if (avia_gt_chip(GTX)) {
 		fix->accel = FB_ACCEL_CCUBE_AVIA_GTX;
 		fix->mmio_start = (unsigned long)GTX_REG_BASE;
-		fix->mmio_len = (GTX_REG_SIZE + PAGE_SIZE) & PAGE_MASK;
+		fix->mmio_len = (GTX_REG_SIZE+PAGE_SIZE)&PAGE_MASK;
 	}
 	else if (avia_gt_chip(ENX)) {
 		fix->accel = FB_ACCEL_CCUBE_AVIA_ENX;
 		fix->mmio_start = (unsigned long)ENX_REG_BASE;
-		fix->mmio_len = (ENX_REG_SIZE + PAGE_SIZE) & PAGE_MASK;
+		fix->mmio_len = (ENX_REG_SIZE+PAGE_SIZE)&PAGE_MASK;
 	}
-
 	return 0;
 }
 
-static
-int avia_gt_fb_decode_var(const struct fb_var_screeninfo *var, void *fb_par, struct fb_info_gen *info)
-{
-	struct gtxfb_par *par = (struct gtxfb_par *)fb_par;
-	int yres;
 
-	switch (var->bits_per_pixel) {
-	case 4:
-	case 8:
-	case 16:
-		break;
-	case 32:
-		if (info->info.fix.accel == FB_ACCEL_CCUBE_AVIA_GTX)
-			return -EINVAL;
+/* avia_gt_fb_decode_var - decode fb_var_screeninfo to hw-specific par
+	@var: the var that should be set, in case of a missing pixelformat it is set
+			to the last available entry in the pixelformat-table
+	@par: if not NULL we set up the hardware-specific parameters
+*/
+static int avia_gt_fb_decode_var(struct fb_var_screeninfo *var, struct avia_gt_fb_par *par)
+{
+	u32 bpp;
+	unsigned int frameram;
+	
+	switch (var->xres){
+	case 720:
+	case 640:
+	case 360:
+	case 320:
 		break;
 	default:
+		printk (KERN_INFO "avia_gt_fb_core: Unsupported xres:%d\n",var->xres);
+		return -EINVAL;
+	}
+	switch (var->yres){
+	case 576:
+	case 480:
+	case 288:
+	case 240:
+		break;
+	default:
+		printk (KERN_INFO "avia_gt_fb_core: Unsupported yres:%d\n",var->yres);
 		return -EINVAL;
 	}
 
-	par->bpp = var->bits_per_pixel;
 
-	yres = var->yres;
+	// check how much space we have for virtual resolution
+	bpp = var->bits_per_pixel;
+	frameram = ((var->xres*var->yres)*bpp)>>3;	// we can't divide bpp by 8 because of the 4 Bit mode
 
-	if (var->xres < 640)
-		par->lowres = 1;
-	else
-		par->lowres = 0;
+	// only integer values necessary, we only use this for single,double,triple buffering
 
-	if (var->yres >= 480) {
-		par->interlaced = 1;
-		yres >>= 1;
+	if (avia_gt_fb_info.info.screen_size < frameram){
+		printk (KERN_INFO "avia_gt_fb_core: Not enough graphics RAM"
+							" for requested resolution %dx%d\n",var->xres,var->yres);
+		return -EINVAL;
 	}
-	else {
-		par->interlaced = 0;
+	if (var->xres_virtual!=var->xres){
+		printk (KERN_INFO "avia_gt_fb_core: Virtual xres different from xres not supported\n");
+		return -EINVAL;
+	}
+	if ((((var->xres*var->yres_virtual)*bpp)>>3)>avia_gt_fb_info.info.screen_size){
+		printk (KERN_INFO "avia_gt_fb_core: Not enough graphics RAM for requested virtual resolution\n");
+		return -EINVAL;
 	}
 
-	par->xres = var->xres;
-	par->yres = var->yres;
-	par->vyres = var->yres_virtual;
-	par->stride = (var->xres * par->bpp) / 8;
+	/*
+		find a suitable mode, if bpp does not fit return an error, else
+		the returned mode is the last found that was valid
+	*/
+	const struct pixelmode *pmode;
+	pmode = avia_gt_fb_get_ppixelmodes();
+	int pixmode = avia_gt_fb_pixelmode_compare(pmode,var);
+	if (pixmode == -1){
+		printk (KERN_INFO "avia_gt_fb_core: Unsupported bits per pixels: %d\n",bpp);
+		return -EINVAL;
+	}
+	if (var->red.length!=pmode[pixmode].red.length||
+		var->green.length!=pmode[pixmode].green.length||
+		var->blue.length!=pmode[pixmode].blue.length||
+		var->transp.length!=pmode[pixmode].transp.length){
+			printk(KERN_INFO "avia_gt_fb: requested RGBA (%d %d %d %d)\n"
+				"granted RGBA (%d %d %d %d)\n",
+				var->red.length,var->green.length,var->blue.length,var->transp.length,
+				pmode[pixmode].red.length,pmode[pixmode].green.length,
+				pmode[pixmode].blue.length,pmode[pixmode].transp.length);
+	}
+
+	if (par){	/* set par if not NULL */
+		par->yoffset = 0;
+		par->pixmode = pixmode;
+		par->xres = var->xres;
+		par->yres = var->yres;
+ 		par->virtual_yres = var->yres_virtual;
+	}
 
 	return 0;
 }
 
-static
-int avia_gt_fb_encode_var(struct fb_var_screeninfo *var, const void *fb_par, struct fb_info_gen *info)
-{
-	struct gtxfb_par *par = (struct gtxfb_par *)fb_par;
+/***************************************/
+/* implementation for the fb_functions */
+/***************************************/
 
-	var->xres = par->xres;
-	var->yres = par->yres;
-	var->bits_per_pixel = par->bpp;
-	var->left_margin = 126;
-	var->right_margin = 18;
-	var->upper_margin = 21;
-	var->lower_margin = 5;
-	var->hsync_len = 0;
-	var->vsync_len = 0;
-	var->sync = 0;
-
-	var->xres_virtual = var->xres;
-	var->yres_virtual = par->vyres;
-
-	var->xoffset = 0;
-	var->yoffset = 0;
-
-	var->red.length = 5;
-	var->red.msb_right = 0;
-	var->red.offset = 10;
-
-	var->green.length = 5;
-	var->green.msb_right = 0;
-	var->green.offset = 5;
-
-	var->blue.length = 5;
-	var->blue.msb_right = 0;
-	var->blue.offset = 0;
-
-	var->transp.length = 1;
-	var->transp.msb_right = 0;
-	var->transp.offset = 15;
-
-	var->grayscale = 0;
-
-	var->xoffset = var->yoffset = 0;
-	var->pixclock = 0;
-	var->nonstd = 0;
-	var->activate = 0;
-	var->height = var->width - 1;
-	var->accel_flags = 0;
-
-	return 0;
+/* checks passed in fb_var_screeninfo for validity but does not change any
+	hardware state. Is allowed to correct var slightly if possible */
+static int avia_gt_fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info){
+	return avia_gt_fb_decode_var(var, NULL);
 }
 
-static
-void avia_gt_fb_get_par(void *fb_par, struct fb_info_gen *info)
+/* sets up the card using the current parameters */
+static int avia_gt_fb_set_par(struct fb_info *info)
 {
-	struct gtxfb_par *par = (struct gtxfb_par *)fb_par;
+	const struct pixelmode *pixm;
+	int xpos=0,ypos=0;
+	struct avia_gt_fb_par *ppar = info->par;
+	
+	/* decode var to par and correct var if possible */
+	avia_gt_fb_decode_var (&info->var, ppar);
+	
+	/* get modes for current chip */
+	pixm = avia_gt_fb_get_ppixelmodes();
+	avia_gt_gv_set_input_mode (pixm[ppar->pixmode].avia_mode);
+	avia_gt_gv_set_blevel(4, 0);
+	
+//	if (avia_gt_gv_50Hz()){	// TODO: sth to that effect	// center window on screen
+		if ((ppar->yres==480)||(ppar->yres==240)) 
+				ypos = (576-480)/2;
+		if (((ppar->xres==640)&&(ppar->yres!=480))||	// 640x480 and 320x240 are stretched
+			((ppar->xres==320)&&(ppar->yres!=240)))	// and must not be corrected
+				xpos = (720-640)/2;
+//	} else{	// 60 Hz mode
+		//TODO: what happens with graphics in this mode?
+//	}
+	avia_gt_gv_set_pos(xpos, ypos);
+	avia_gt_gv_set_input_size(ppar->xres, ppar->yres);
+	avia_gt_gv_set_size(ppar->xres, ppar->yres);
 
-	if (current_par_valid)
-		*par = current_par;
-	else
-		avia_gt_fb_decode_var(&default_var, par, info);
-}
-
-static
-void avia_gt_fb_set_par(const void *fb_par, struct fb_info_gen *info)
-{
-	struct gtxfb_par *par = (struct gtxfb_par *)fb_par;
-
-	switch (par->bpp) {
-	case 4:
-		avia_gt_gv_set_input_mode(AVIA_GT_GV_INPUT_MODE_RGB4);
-		break;
-	case 8:
-		avia_gt_gv_set_input_mode(AVIA_GT_GV_INPUT_MODE_RGB8);
-		break;
-	case 16:
-		avia_gt_gv_set_input_mode(AVIA_GT_GV_INPUT_MODE_RGB16);
-		break;
-	case 32:
-		avia_gt_gv_set_input_mode(AVIA_GT_GV_INPUT_MODE_RGB32);
-		break;
-	default:
-		printk(KERN_CRIT "avia_gt_fb: invalid bpp: %u\n", par->bpp);
-		return;
-	}
-
-	avia_gt_gv_set_blevel(0x5D, 0);
-	avia_gt_gv_set_pos(0, 0);
-	avia_gt_gv_set_input_size(par->xres, par->yres);
-
-	avia_gt_gv_set_size(par->xres, par->yres);
 	avia_gt_gv_show();
-
-	current_par = *par;
-	current_par_valid = 1;
-}
-
-static
-int avia_gt_fb_getcolreg(u_int regno, u_int *red, u_int *green, u_int *blue, u_int *transp, struct fb_info *info)
-{
-	if (regno > 255)
-		return 1;
-
-	avia_gt_gv_get_clut(regno, transp, red, green, blue);
-
 	return 0;
 }
 
-static
-int avia_gt_fb_setcolreg(u_int regno, u_int red, u_int green, u_int blue, u_int transp, struct fb_info *info)
+static int avia_gt_fb_setcolreg(unsigned regno,
+				unsigned red, unsigned green, unsigned blue, unsigned transp,
+				struct fb_info *info)
 {
-	unsigned short vc_text = 0;
+//	unsigned short vc_text = 0;
+	const struct pixelmode *pixm;
+	pixm = avia_gt_fb_get_ppixelmodes();
+	struct avia_gt_fb_par *ppar = info->par;
+
+	if (avia_gt_fb_istruecolour(&pixm[ppar->pixmode])){
+		printk (KERN_INFO "avia_gt_fb_core: setcolreg called for TRUECOLOR mode\n");
+		return 1;	// it's not a palette mode
+	}
 
 	if (regno > 255)
 		return 1;
-
-	if (info->display_fg)
+/*	if (info->display_fg)
 		vc_text = (vt_cons[info->display_fg->vc_num]->vc_mode == KD_TEXT);
-
-	switch (current_par.bpp) {
-#ifdef FBCON_HAS_CFB4
+*/
+	switch (pixm[current_par.pixmode].bpp) {
 	case 4:
-		if (regno == 0 && console_transparent && vc_text)
+/*		if (regno == 0 && console_transparent && vc_text)
 			avia_gt_gv_set_clut(0, 0xffff, 0, 0, 0);
 		else
-			avia_gt_gv_set_clut(regno, transp, red, green, blue);
+*/			avia_gt_gv_set_clut(regno, transp, red, green, blue);
 		break;
-#endif
-#ifdef FBCON_HAS_CFB8
 	case 8:
-		if ((regno == 0) && console_transparent && vc_text)
-			avia_gt_gv_set_clut(0, 0xFFFF, 0, 0, 0);
+/*		if ((regno == 0) && console_transparent && vc_text)
+			avia_gt_gv_set_clut(0, 0xffff, 0, 0, 0);
 		else
-			avia_gt_gv_set_clut(regno, transp, red, green, blue);
+*/			avia_gt_gv_set_clut(regno, transp, red, green, blue);
 		break;
-#endif
-#ifdef FBCON_HAS_CFB16
 	case 16:
 		red >>= 11;
 		green >>= 11;
 		blue >>= 11;
 		transp >>= 15;
 
-		if ((regno == 0) && console_transparent && vc_text)
+/*		if ((regno == 0) && console_transparent && vc_text)
 			fbcon_cfb16_cmap[0] = 0xfc0f;
-
 		if (regno < 16)
 			fbcon_cfb16_cmap[regno] = (transp << 15) | (red << 10) | (green << 5) | (blue);
+*/
 		break;
-#endif
 	default:
 		return 1;
 	}
-
 	return 0;
 }
 
-static 
-int avia_gt_fb_pan_display(const struct fb_var_screeninfo *var, struct fb_info_gen *info)
-{
-	/* FIXME: do not access registers directly here */
-	/* FIXME: enx support */
-
-	sAviaGtInfo *gt_info = avia_gt_get_info();
-	
-	__u32 display_start = fb_info.offset + (var->yoffset * var->xres_virtual);
-	
-	if (avia_gt_chip(GTX))
-		gtx_reg_32(GVSA) = display_start;
-	else
-		enx_reg_32(GVSA1) = display_start;
-
-	return 0;
-}
-
-static
-int avia_gt_fb_blank(int blank, struct fb_info_gen *info)
+/*
+static int avia_gt_fb_blank(int blank_mode, struct fb_info *info)
 {
 	return 0;
 }
+*/
 
-static
-void avia_gt_fb_set_disp(const void *fb_par, struct display *disp, struct fb_info_gen *info)
+static void avia_gt_fb_fillrect(struct fb_info *p, const struct fb_fillrect *region)
 {
-	struct gtxfb_par *par = (struct gtxfb_par *)fb_par;
-
-	disp->screen_base = (char *)fb_info.videobase;
-
-	switch (par->bpp) {
-#ifdef FBCON_HAS_CFB4
-	case 4:
-		disp->dispsw = &fbcon_cfb4;
-		disp->dispsw_data = &fbcon_cfb4_cmap;
-		break;
-#endif
-#ifdef FBCON_HAS_CFB8
-	case 8:
-		disp->dispsw = &fbcon_cfb8;
-		disp->dispsw_data = &fbcon_cfb8_cmap;
-		break;
-#endif
-#ifdef FBCON_HAS_CFB16
-	case 16:
-		disp->dispsw = &fbcon_cfb16;
-		disp->dispsw_data = &fbcon_cfb16_cmap;
-		break;
-#endif
-	default:
-		disp->dispsw = &fbcon_dummy;
-		break;
-	}
-
-#ifdef CONFIG_FBCON_SHIFT
-	disp->shift_x = 4;
-	disp->shift_y = 2;
-#endif /* CONFIG_FBCON_SHIFT */
-
-	disp->scrollmode = SCROLL_YREDRAW;
+	/* TODO - generic for now */
+	cfb_fillrect(p,region);
 }
 
-struct fbgen_hwswitch avia_gt_fb_switch = {
-	.blank = avia_gt_fb_blank,
-	.decode_var = avia_gt_fb_decode_var,
-	.detect = avia_gt_fb_detect,
-	.encode_fix = avia_gt_fb_encode_fix,
-	.encode_var = avia_gt_fb_encode_var,
-	.get_par = avia_gt_fb_get_par,
-	.getcolreg = avia_gt_fb_getcolreg,
-	.set_disp = avia_gt_fb_set_disp,
-	.set_par = avia_gt_fb_set_par,
-	.setcolreg = avia_gt_fb_setcolreg,
-	.pan_display = avia_gt_fb_pan_display
-};
+static void avia_gt_fb_copyarea(struct fb_info *p, const struct fb_copyarea *area)
+{
+	/* TODO */
+	cfb_copyarea(p,area);
+}
 
-static int avia_gt_fb_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg, int con, struct fb_info *info)
+static void avia_gt_fb_imageblit(struct fb_info *p, const struct fb_image *image)
+{
+	/* TODO */
+	cfb_imageblit(p,image);
+}
+
+static int avia_gt_fb_cursor(struct fb_info *p, struct fb_cursor *cursor)
+{
+	/* TODO */
+	soft_cursor(p,cursor);
+	return 0;
+}
+
+static int avia_gt_fb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info) {
+	struct avia_gt_fb_par *ppar = (struct avia_gt_fb_par *)info->par;
+	if ((var->vmode & FB_VMODE_YWRAP)||
+		(var->yoffset+var->yres > var->yres_virtual || var->xoffset))
+			return -EINVAL;
+	ppar->yoffset = var->yoffset;
+	avia_gt_gv_set_viewport (0, var->yoffset);
+	return 0;
+}
+
+static int avia_gt_fb_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg, 
+			struct fb_info *info)
 {
 	fb_copyarea copyarea;
 	unsigned int val;
@@ -492,60 +539,70 @@ static int avia_gt_fb_ioctl(struct inode *inode, struct file *file, unsigned int
 }
 
 static struct fb_ops avia_gt_fb_ops = {
-	.owner = THIS_MODULE,
-	.fb_open = NULL,
-	.fb_release = NULL,
-	.fb_get_fix = fbgen_get_fix,
-	.fb_get_var = fbgen_get_var,
-	.fb_set_var = fbgen_set_var,
-	.fb_get_cmap = fbgen_get_cmap,
-	.fb_set_cmap = fbgen_set_cmap,
-	.fb_pan_display = fbgen_pan_display,
-	.fb_ioctl = avia_gt_fb_ioctl,
-	.fb_mmap = NULL,
-	.fb_rasterimg = NULL,
+	.owner			= THIS_MODULE,
+	.fb_check_var	= avia_gt_fb_check_var,
+	.fb_set_par		= avia_gt_fb_set_par,
+	.fb_setcolreg	= avia_gt_fb_setcolreg,
+	/*.fb_blank		= avia_gt_fb_blank,*/
+	.fb_pan_display	= avia_gt_fb_pan_display,
+	.fb_fillrect	= avia_gt_fb_fillrect,
+	.fb_copyarea	= avia_gt_fb_copyarea,
+	.fb_imageblit	= avia_gt_fb_imageblit,
+	.fb_cursor		= avia_gt_fb_cursor,
+	.fb_ioctl		= avia_gt_fb_ioctl,
 };
+
+/* taking options makes only sense if it's part of the kernel */
+#ifndef MODULE
+static int __init avia_gt_fb_setup(char *options)
+{
+	/* TODO: think of some snazzy options... */
+}
+#endif
 
 int __init avia_gt_fb_init(void)
 {
-	printk(KERN_INFO "avia_gt_fb: $Id: avia_gt_fb_core.c,v 1.54 2004/03/17 18:42:18 zwen Exp $\n");
+#ifndef MODULE
+	char *option = NULL;
+#endif
+	u8 *fb_virmem;
+	u32 fb_size;
+	
+	printk(KERN_INFO "avia_gt_fb: $Id: avia_gt_fb_core.c,v 1.54.2.1 2005/01/15 02:44:27 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
 	if (!avia_gt_supported_chipset(gt_info))
 		return -ENODEV;
 
-	avia_gt_gv_get_info(&fb_info.pvideobase, &fb_info.videobase, &fb_info.videosize);
+	avia_gt_gv_get_info(&fb_virmem, NULL, &fb_size);
+	avia_gt_fb_info.info.screen_base = (char __iomem *)fb_virmem;
+	avia_gt_fb_info.info.screen_size = (unsigned long)fb_size;
+	
+#ifndef MODULE
+	if (fb_get_options("avia_gt_fb", &option))
+		return -ENODEV;
+	fb_setup(option);
+#endif
+	
+	avia_gt_fb_info.info.node = 0;	/* /dev/fb0 */
+	avia_gt_fb_info.info.flags = FBINFO_DEFAULT;
+	avia_gt_fb_info.info.fbops = &avia_gt_fb_ops;
+	avia_gt_fb_info.info.var = default_var;
+	avia_gt_fb_decode_var(&avia_gt_fb_info.info.var,&current_par);
+	avia_gt_fb_info.info.par = &current_par;
 
-	fb_info.offset = AVIA_GT_MEM_GV_OFFS;
+	avia_gt_fb_encode_fix(&avia_gt_fb_info.info.fix, avia_gt_fb_info.info.par);
 
-	fb_info.gen.info.node = NODEV;
-	fb_info.gen.info.flags = FBINFO_FLAG_DEFAULT;
-	fb_info.gen.info.fbops = &avia_gt_fb_ops;
-	fb_info.gen.info.disp = &disp;
-	fb_info.gen.info.changevar = NULL;
-	fb_info.gen.info.switch_con = &fbgen_switch;
-	fb_info.gen.info.updatevar = &fbgen_update_var;
-	fb_info.gen.info.blank = &fbgen_blank;
-	strcpy(fb_info.gen.info.fontname, default_fontname);
-	fb_info.gen.parsize = sizeof(struct gtxfb_par);
-	fb_info.gen.fbhw = &avia_gt_fb_switch;
+	/* mandatory, FIXME: is this the maximum or just what the current mode demands */
+	/* 256 entries RGB + A (transparency) */
+	fb_alloc_cmap(&avia_gt_fb_info.info.cmap, 256, 1);
 
-	strcpy(fb_info.gen.info.modename, "AViA eNX/GTX Framebuffer");
-
-	fbgen_get_var(&disp.var, -1, &fb_info.gen.info);
-	disp.var.activate = FB_ACTIVATE_NOW;
-	fbgen_do_set_var(&disp.var, 1, &fb_info.gen);
-	fbgen_set_disp(-1, &fb_info.gen);
-	fbgen_install_cmap(0, &fb_info.gen);
-
-	strcpy(fb_info.gen.info.fontname, "SUN8x16");
-
-	if (register_framebuffer(&fb_info.gen.info) < 0)
+	if (register_framebuffer(&avia_gt_fb_info.info) < 0)
 		return -EINVAL;
 
 	printk(KERN_INFO "avia_gt_fb: fb%d: %s frame buffer device\n",
-		GET_FB_IDX(fb_info.gen.info.node), fb_info.gen.info.modename);
+		avia_gt_fb_info.info.node, avia_gt_fb_info.info.fix.id);
 
 	avia_gt_gv_show();
 
@@ -554,14 +611,14 @@ int __init avia_gt_fb_init(void)
 
 void __exit avia_gt_fb_exit(void)
 {
-	unregister_framebuffer(&fb_info.gen.info);
+	unregister_framebuffer(&avia_gt_fb_info.info);
 }
 
-MODULE_AUTHOR("Felix Domke <tmbinc@gmx.net>");
+MODULE_AUTHOR("Carsten Juttner <carjay@gmx.net>,Felix Domke <tmbinc@gmx.net>");
 MODULE_DESCRIPTION("AViA eNX/GTX framebuffer driver");
 MODULE_LICENSE("GPL");
-MODULE_PARM(console_transparent, "i");
-MODULE_PARM_DESC(console_transparent, "1: black in text mode is transparent");
+//module_param(console_transparent, int, 0);
+//MODULE_PARM_DESC(console_transparent, "1: black in text mode is transparent");
 
 module_init(avia_gt_fb_init);
 module_exit(avia_gt_fb_exit);
