@@ -21,6 +21,9 @@
  *
  *
  *   $Log: dbox2_fp_core.c,v $
+ *   Revision 1.54.2.1  2002/03/02 17:03:43  tmbinc
+ *   modified reset delay
+ *
  *   Revision 1.54  2002/01/21 15:18:46  Hunz
  *   maybe keyboard fix
  *
@@ -176,7 +179,7 @@
  *   - some changes ...
  *
  *
- *   $Revision: 1.54 $
+ *   $Revision: 1.54.2.1 $
  *
  */
 
@@ -1158,7 +1161,7 @@ int fp_do_reset(int type)
 	}
 
 	/* TODO: make better */
-	udelay(100*1000);
+	udelay(1000);
 
 	msg[1]=0xBF;
 
