@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_fb_core.c,v 1.54.2.1 2005/01/15 02:44:27 carjay Exp $
+ * $Id: avia_gt_fb_core.c,v 1.54.2.2 2005/01/25 22:55:32 carjay Exp $
  *
  * AViA eNX/GTX framebuffer driver (dbox-II-project)
  *
@@ -239,7 +239,8 @@ static int avia_gt_fb_istruecolour(const struct pixelmode *pixm){
 static int avia_gt_fb_encode_fix(struct fb_fix_screeninfo *fix, const struct avia_gt_fb_par *par)
 {
 	const struct pixelmode *pixm;
-
+	u8 *phys_start;
+	
 	memset(fix,0,sizeof(fix));
 	strncpy(fix->id, "AViA eNX/GTX FB", sizeof(((struct fb_fix_screeninfo*)0)->id));
 
@@ -253,7 +254,8 @@ static int avia_gt_fb_encode_fix(struct fb_fix_screeninfo *fix, const struct avi
 		fix->visual = FB_VISUAL_TRUECOLOR;
 
 	fix->line_length = (par->xres*pixm[par->pixmode].bpp)>>3;
-	fix->smem_start = (unsigned long)avia_gt_fb_info.info.screen_base;
+	avia_gt_gv_get_info(&phys_start, NULL, NULL);
+	fix->smem_start = (unsigned long)phys_start;
 	fix->smem_len = (AVIA_GT_MEM_GV_SIZE+PAGE_SIZE)&PAGE_MASK;	/* page boundary for mmio */
 
 	fix->xpanstep = 0;
@@ -568,14 +570,14 @@ int __init avia_gt_fb_init(void)
 	u8 *fb_virmem;
 	u32 fb_size;
 	
-	printk(KERN_INFO "avia_gt_fb: $Id: avia_gt_fb_core.c,v 1.54.2.1 2005/01/15 02:44:27 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_fb: $Id: avia_gt_fb_core.c,v 1.54.2.2 2005/01/25 22:55:32 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
 	if (!avia_gt_supported_chipset(gt_info))
 		return -ENODEV;
 
-	avia_gt_gv_get_info(&fb_virmem, NULL, &fb_size);
+	avia_gt_gv_get_info(NULL, &fb_virmem, &fb_size);
 	avia_gt_fb_info.info.screen_base = (char __iomem *)fb_virmem;
 	avia_gt_fb_info.info.screen_size = (unsigned long)fb_size;
 	
