@@ -21,6 +21,9 @@
  *
  *
  *   $Log: fp.c,v $
+ *   Revision 1.72.2.2  2002/11/21 18:35:34  Zwen
+ *   - IS_WAKEUP ioctl is now compatible with dbox_fp (u8 vs. int)
+ *
  *   Revision 1.72.2.1  2002/10/22 20:20:43  Zwen
  *   Nokia needs an additional read from address 0x2A for the wakeup to be cleared
  *
@@ -240,7 +243,7 @@
  *   - some changes ...
  *
  *
- *   $Revision: 1.72.2.1 $
+ *   $Revision: 1.72.2.2 $
  *
  */
 
@@ -291,7 +294,7 @@
 static devfs_handle_t devfs_handle[2];
 static int sec_bus_status=0;
 static struct dbox_info_struct info;
-static int is_wakeup=0;
+static u8 is_wakeup=0;
 
 /* ---------------------------------------------------------------------- */
 
