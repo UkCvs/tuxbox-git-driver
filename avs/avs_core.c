@@ -1,5 +1,5 @@
 /*
- * $Id: avs_core.c,v 1.27.2.2 2005/01/26 03:34:46 carjay Exp $
+ * $Id: avs_core.c,v 1.27.2.3 2005/04/02 17:41:38 carjay Exp $
  * 
  * audio/video switch core driver (dbox-II-project)
  *
@@ -97,7 +97,7 @@ static struct i2c_client client_template = {
 	.driver = &avs_i2c_driver
 };
 
-static int this_adap;
+static int client_registered;
 static int avs_mixerdev;
 
 struct avs_type {
@@ -284,12 +284,12 @@ static int avs_attach(struct i2c_adapter *adap, int addr, unsigned short flags, 
 
 	dprintk("[AVS]: attach\n");
 
-	if (this_adap > 0) {
+	if (client_registered > 0) {
 		dprintk("[AVS]: attach failed\n");
 		return -1;
 	}
 
-	this_adap++;
+	client_registered++;
 
 	dprintk("[AVS]: chip found @ 0x%x\n",addr);
 
@@ -348,8 +348,6 @@ static int avs_probe(struct i2c_adapter *adap)
 		normal_i2c_range[0] = addr;
 		normal_i2c_range[1] = addr;
 	}
-
-	this_adap = 0;
 
 	ret = i2c_probe(adap, &addr_data, avs_attach);
 
@@ -619,6 +617,11 @@ int __init avs_core_init(void)
 		return res;
 	}
 
+	if (!client_registered){
+		printk(KERN_ERR "avs: no client found\n");
+		return -EIO;
+	}
+	
 	switch (type) {
 	case CXA2092:
 		cxa2092_init(&client_template);
@@ -630,7 +633,7 @@ int __init avs_core_init(void)
 		stv6412_init(&client_template);
 		break;
 	default:
-		printk("[AVS]: wrong type %d\n", type);
+		printk(KERN_ERR "avs: unknown type %d\n", type);
 		i2c_del_driver(&avs_i2c_driver);
 		return -EIO;
 	}
@@ -642,7 +645,7 @@ int __init avs_core_init(void)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 	if (misc_register(&avs_dev)<0){
-		printk("avs: unable to register device\n");
+		printk(KERN_ERR "avs: unable to register device\n");
 		return -EIO;
 	}
 	devfs_mk_cdev(MKDEV(MISC_MAJOR,avs_dev.minor),
