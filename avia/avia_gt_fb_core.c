@@ -21,6 +21,10 @@
  *
  *
  *   $Log: avia_gt_fb_core.c,v $
+ *   Revision 1.38.4.3  2003/02/28 16:09:38  obi
+ *   - fix mmio offset
+ *   - set accelerator id
+ *
  *   Revision 1.38.4.2  2003/02/19 23:15:44  thegoodguy
  *   Fix ENX Red <-> Blue problem
  *
@@ -165,7 +169,7 @@
  *   Revision 1.7  2001/01/31 17:17:46  tmbinc
  *   Cleaned up avia drivers. - tmb
  *
- *   $Revision: 1.38.4.2 $
+ *   $Revision: 1.38.4.3 $
  *
  */
 
@@ -314,14 +318,17 @@ static int gtx_encode_fix(struct fb_fix_screeninfo *fix, const void *fb_par, str
   fix->line_length=par->stride;
   fix->smem_start=(unsigned long)fb_info.pvideobase;
   fix->smem_len=1024*1024;			    // fix->line_length*par->yres;
-  fix->mmio_start=(unsigned long)fb_info.pvideobase;  // gtxmem;
-  fix->mmio_len=0x410000;
+  fix->mmio_start=(unsigned long)fb_info.pvideobase + 0x400000;
+  fix->mmio_len=0x10000;
 
   fix->xpanstep=0;
   fix->ypanstep=0;
   fix->ywrapstep=0;
 
-  fix->accel=0;
+  if (avia_gt_chip(GTX))
+	  fix->accel = FB_ACCEL_CCUBE_AVIA_GTX;
+  else if (avia_gt_chip(ENX))
+	  fix->accel = FB_ACCEL_CCUBE_AVIA_ENX;
 
   return 0;
 
@@ -652,7 +659,7 @@ static struct fb_ops avia_gt_fb_ops = {
 int __init avia_gt_fb_init(void)
 {
 
-    printk("avia_gt_fb: $Id: avia_gt_fb_core.c,v 1.38.4.2 2003/02/19 23:15:44 thegoodguy Exp $\n");
+    printk("avia_gt_fb: $Id: avia_gt_fb_core.c,v 1.38.4.3 2003/02/28 16:09:38 obi Exp $\n");
 
     gt_info = avia_gt_get_info();
 
