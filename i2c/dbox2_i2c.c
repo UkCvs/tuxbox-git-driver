@@ -26,8 +26,15 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/sched.h>
+#include <linux/version.h>
 #include <asm/commproc.h>
 #include <asm/pgtable.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#include <linux/dma-mapping.h>
+#include <dvb-core/dvbdev.h>
+#include <dvb-core/dvb_frontend.h>
+#include <avia/avia_napi.h>
+#endif
 
 static void i2c_interrupt(void *, struct pt_regs *regs);
 
@@ -71,17 +78,21 @@ static wait_queue_head_t i2c_wait;
 
 #define I2C_PPC_MASTER	1
 #define I2C_PPC_SLAVE	0
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#define I2C_BUF_LEN	PAGE_SIZE
+#else
 #define I2C_BUF_LEN     128
+#endif
 #define I2C_INTR_TIMOUT 500
 
 #define I2C_MAXBD	4
 
 /* ------------------------------------------------------------------------- */
 
-typedef volatile struct I2C_BD {
+typedef struct I2C_BD {
 	unsigned short status;
 	unsigned short length;
-	unsigned char  *addr;
+	dma_addr_t addr;
 } I2C_BD;
 
 typedef volatile struct RX_TX_BD {
@@ -208,7 +219,11 @@ static int i2c_init(int speed)
 	/* Set SDMA bus arbitration level to 5 (SDCR) */
 	immap->im_siu_conf.sc_sdcr = 0x0001;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	iip->iic_rbptr = iip->iic_rbase = cpm_dpalloc (I2C_MAXBD*sizeof(I2C_BD)*2, 8);
+#else
 	iip->iic_rbptr = iip->iic_rbase = m8xx_cpm_dpalloc (I2C_MAXBD*sizeof(I2C_BD)*2);
+#endif
 	iip->iic_tbptr = iip->iic_tbase = iip->iic_rbase + (I2C_MAXBD*sizeof(I2C_BD));
 
 	I2CBD.rxbd = (I2C_BD *)((unsigned char *)&cp->cp_dpmem[iip->iic_rbase]);
@@ -220,6 +235,19 @@ static int i2c_init(int speed)
 	dprintk("[i2c-8xx]: TXBD1 = %08x\n", (int)I2CBD.txbd);
 
 	for (i = 0; i < I2C_MAXBD; i++) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+		I2CBD.rxbuf[i] = (unsigned char*)dma_alloc_coherent(NULL, PAGE_SIZE, &I2CBD.rxbd[i].addr, GFP_KERNEL);
+		if (!I2CBD.rxbuf[i]) {
+			dprintk("[i2c-8xx]: No more mem available! Restart Kernel!\n");
+			return -ENOMEM;
+		}
+
+		I2CBD.txbuf[i] = (unsigned char*)dma_alloc_coherent(NULL, PAGE_SIZE, &I2CBD.txbd[i].addr, GFP_KERNEL);
+		if (!I2CBD.txbuf[i]) {
+			dprintk("[i2c-8xx]: No more mem available! Restart Kernel!\n");
+			return -ENOMEM;
+		}
+#else
 		I2CBD.rxbuf[i] = (unsigned char*)m8xx_cpm_hostalloc(I2C_BUF_LEN);
 		if (!I2CBD.rxbuf[i]) {
 			dprintk("[i2c-8xx]: No more mem available! Restart Kernel!\n");
@@ -232,9 +260,9 @@ static int i2c_init(int speed)
 			return -ENOMEM;
 		}
 
-		I2CBD.rxbd[i].addr = (unsigned char*)iopa((unsigned long)I2CBD.rxbuf[i]);
-		I2CBD.txbd[i].addr = (unsigned char*)iopa((unsigned long)I2CBD.txbuf[i]);
-
+		I2CBD.rxbd[i].addr = iopa((unsigned long)I2CBD.rxbuf[i]);
+		I2CBD.txbd[i].addr = iopa((unsigned long)I2CBD.txbuf[i]);
+#endif
 		I2CBD.rxbd[i].status = RXBD_E;
 		I2CBD.txbd[i].status = 0;
 		I2CBD.rxbd[i].length = 0;
@@ -583,6 +611,27 @@ static u32 p8xx_func(struct i2c_adapter *adap)
 	return I2C_FUNC_SMBUS_EMUL; //  | I2C_FUNC_10BIT_ADDR;  10bit auch erstmal nicht.
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+// XXX: dirty hack, but needed for current dvb-core as of 2004-07-27
+static int client_register(struct i2c_client *client)
+{
+	struct dvb_adapter *adap = avia_napi_get_adapter();
+
+	if (client->driver->command)
+		client->driver->command(client, FE_REGISTER, adap);
+	return 0;
+}
+
+static int client_unregister(struct i2c_client *client)
+{
+	struct dvb_adapter *adap = avia_napi_get_adapter();
+
+	if (client->driver->command)
+		client->driver->command(client, FE_UNREGISTER, adap);
+	return 0;
+}
+#endif
+
 static struct i2c_algorithm i2c_8xx_algo = {
 	.name = "PowerPC 8xx Algo",
 	.id = I2C_ALGO_EXP,
@@ -596,6 +645,11 @@ static struct i2c_adapter adap = {
 	.algo = &i2c_8xx_algo,
 	.timeout = 100,
 	.retries = 3,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	.client_register = client_register,
+	.client_unregister = client_unregister,
+	.class = I2C_CLASS_TV_DIGITAL,
+#endif
 };
 
 static int __init i2c_algo_8xx_init (void)
@@ -634,7 +688,7 @@ module_init(i2c_8xx_module_init);
 module_exit(i2c_8xx_module_exit);
 
 MODULE_AUTHOR("Felix Domke <tmbinc@gmx.net>, Gillem <htoa@gmx.net>");
-MODULE_DESCRIPTION("I2C-Bus MPC8xx Intgrated I2C");
+MODULE_DESCRIPTION("I2C-Bus MPC8xx Integrated I2C");
 MODULE_LICENSE("GPL");
 MODULE_PARM(debug,"i");
 MODULE_PARM_DESC(debug, "debug level - 0 off; 1 on");
