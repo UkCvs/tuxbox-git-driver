@@ -21,6 +21,9 @@
  *
  *
  *   $Log: avia_gt_gv.c,v $
+ *   Revision 1.25.4.3  2003/04/10 14:54:22  zwen
+ *   - fixed avia_gt_gv_get_clut (eNX)
+ *
  *   Revision 1.25.4.2  2003/03/04 08:44:39  zwen
  *   - Really fixed the eNX red and blue swapped problem ;-)
  *
@@ -97,7 +100,7 @@
  *   graphic viewport driver added
  *
  *
- *   $Revision: 1.25.4.2 $
+ *   $Revision: 1.25.4.3 $
  *
  */
 
@@ -157,7 +160,7 @@ void avia_gt_gv_get_clut(unsigned char clut_nr, unsigned int *transparency, unsi
 
 		mb();
 
-		val = enx_reg_16(CLUTD);
+		val = enx_reg_32(CLUTD);
 
 		if (transparency)
 			 *transparency = ((val & 0xFF000000) >> 24);
@@ -613,7 +616,7 @@ int avia_gt_gv_show(void) {
 int avia_gt_gv_init(void)
 {
 
-	printk("avia_gt_gv: $Id: avia_gt_gv.c,v 1.25.4.2 2003/03/04 08:44:39 zwen Exp $\n");
+	printk("avia_gt_gv: $Id: avia_gt_gv.c,v 1.25.4.3 2003/04/10 14:54:22 zwen Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
