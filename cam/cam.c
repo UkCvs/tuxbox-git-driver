@@ -21,6 +21,15 @@
  *
  *
  *   $Log: cam.c,v $
+ *   Revision 1.17.2.1  2002/11/17 01:59:13  obi
+ *   "backport" of latest dvb api version 1 drivers from HEAD branch
+ *
+ *   Revision 1.19  2002/11/08 01:25:52  obi
+ *   make cam work with dvb api v3 drivers
+ *
+ *   Revision 1.18  2002/10/21 11:38:58  obi
+ *   fp driver cleanup
+ *
  *   Revision 1.17  2002/05/06 02:18:18  obi
  *   cleanup for new kernel
  *
@@ -68,7 +77,7 @@
  *   - add option firmware,debug
  *
  *
- *   $Revision: 1.17 $
+ *   $Revision: 1.17.2.1 $
  *
  */
 
@@ -381,34 +390,17 @@ int cam_read_message( char * buf, size_t count )
 
 	if ((cam_queuerptr+cb)>CAM_QUEUE_SIZE)
 	{
-		if (copy_to_user(buf, cam_queue+cam_queuerptr, CAM_QUEUE_SIZE-cam_queuerptr))
-		{
-			printk("cam.o fault 1\n");
-			return -EFAULT;
-		}
-
-		if (copy_to_user(buf+(CAM_QUEUE_SIZE-cam_queuerptr), cam_queue, cb-(CAM_QUEUE_SIZE-cam_queuerptr)))
-		{
-			printk("cam.o fault 2\n");
-			return -EFAULT;
-		}
-
+		memcpy(buf, cam_queue+cam_queuerptr, CAM_QUEUE_SIZE-cam_queuerptr);
+		memcpy(buf+(CAM_QUEUE_SIZE-cam_queuerptr), cam_queue, cb-(CAM_QUEUE_SIZE-cam_queuerptr));
 		cam_queuerptr=cb-(CAM_QUEUE_SIZE-cam_queuerptr);
-
-		return cb;
-	} else
+	}
+	else
 	{
-		if (copy_to_user(buf, cam_queue+cam_queuerptr, cb))
-		{
-			printk("cam.o fault 3: %d %d\n",cb,count);
-			return -EFAULT;
-		}
+		memcpy(buf, cam_queue+cam_queuerptr, cb);
 		cam_queuerptr+=cb;
-
-		return cb;
 	}
 
-	return 0;
+	return cb;
 }
 
 /* ---------------------------------------------------------------------- */
