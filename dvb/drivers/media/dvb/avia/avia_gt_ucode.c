@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_ucode.c,v 1.14.2.3 2005/01/21 23:51:37 carjay Exp $
+ * $Id: avia_gt_ucode.c,v 1.14.2.4 2005/01/22 00:37:58 carjay Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -1049,11 +1049,11 @@ static void avia_gt_dmx_load_ucode(void)
 	u16 *ucode_buf = NULL;
 	int fd;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-	const struct firmware *fw;
+	const struct firmware *fw=0;
 	unsigned long file_size=0;
 	if ((request_firmware(&fw, "ucode.bin", gt_info->dev))>=0){
 		if (fw->size > 2048){
-			printk(KERN_ERR "avia_gt_ucode: firmware too big: %d\n", fw->size);
+			printk(KERN_ERR "avia_gt_ucode: firmware too big: %d, using built-in\n", fw->size);
 		} else {
 			ucode_buf = (u16 *)fw->data;
 			file_size = fw->size;
@@ -1102,7 +1102,10 @@ static void avia_gt_dmx_load_ucode(void)
 	if (riscram[DMX_VERSION_NO] == 0xb107)
 		avia_gt_dmx_memset16(&riscram[0x80], 0x0000, 4);
 	local_irq_restore(flags);
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	if (fw)
+		release_firmware(fw);
+#endif
 	printk(KERN_INFO "avia_gt_ucode: loaded ucode v%04X\n", riscram[DMX_VERSION_NO]);
 }
 
