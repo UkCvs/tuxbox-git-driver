@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_ir.c,v 1.30.4.3 2005/02/01 02:15:48 carjay Exp $
+ * $Id: avia_gt_ir.c,v 1.30.4.4 2005/02/05 23:52:13 carjay Exp $
  * 
  * AViA eNX/GTX ir driver (dbox-II-project)
  *
@@ -141,7 +141,7 @@ int avia_gt_ir_queue_pulse(u32 period_high, u32 period_low, u8 block)
 	return 0;
 }
 
-wait_queue_head_t *avia_gt_ir_receive_data(void)
+wait_queue_head_t *avia_gt_ir_get_receive_wq(void)
 {
 	return &rx_wait;
 }
@@ -348,7 +348,7 @@ int avia_gt_ir_unregister(int ir_handle){
 
 int avia_gt_ir_init(void)
 {
-	printk(KERN_INFO "avia_gt_ir: $Id: avia_gt_ir.c,v 1.30.4.3 2005/02/01 02:15:48 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_ir: $Id: avia_gt_ir.c,v 1.30.4.4 2005/02/05 23:52:13 carjay Exp $\n");
 
 	do_gettimeofday(&last_timestamp);
 	
@@ -375,7 +375,7 @@ MODULE_LICENSE("GPL");
 EXPORT_SYMBOL(avia_gt_ir_get_rx_buffer_read_position);
 EXPORT_SYMBOL(avia_gt_ir_get_rx_buffer_write_position);
 EXPORT_SYMBOL(avia_gt_ir_queue_pulse);
-EXPORT_SYMBOL(avia_gt_ir_receive_data);
+EXPORT_SYMBOL(avia_gt_ir_get_receive_wq);
 EXPORT_SYMBOL(avia_gt_ir_receive_pulse);
 EXPORT_SYMBOL(avia_gt_ir_send_buffer);
 EXPORT_SYMBOL(avia_gt_ir_send_pulse);

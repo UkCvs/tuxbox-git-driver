@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_lirc.c,v 1.14.4.4 2005/02/01 02:15:49 carjay Exp $
+ * $Id: avia_gt_lirc.c,v 1.14.4.5 2005/02/05 23:52:13 carjay Exp $
  *
  * lirc ir driver for AViA eNX/GTX (dbox-II-project)
  *
@@ -104,7 +104,7 @@ static u8 got_pulse;
 static unsigned int avia_gt_lirc_poll(struct file *file, poll_table *wait)
 {
 	if ((avia_gt_ir_get_rx_buffer_read_position() == avia_gt_ir_get_rx_buffer_write_position()) && (!got_pulse))
-		poll_wait(file, avia_gt_ir_receive_data(), wait);
+		poll_wait(file, avia_gt_ir_get_receive_wq(), wait);
 
 	if ((avia_gt_ir_get_rx_buffer_read_position() != avia_gt_ir_get_rx_buffer_write_position()) || (got_pulse))
 		return (POLLIN | POLLRDNORM);
@@ -261,7 +261,7 @@ static int __init avia_gt_lirc_init(void)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 	int ret;
 #endif
-	printk(KERN_INFO "avia_gt_lirc: $Id: avia_gt_lirc.c,v 1.14.4.4 2005/02/01 02:15:49 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_lirc: $Id: avia_gt_lirc.c,v 1.14.4.5 2005/02/05 23:52:13 carjay Exp $\n");
 
 	/* register the functionality (IR resource management) */
 	if ((ir_handle = avia_gt_ir_register(AVIA_GT_IR_TX | AVIA_GT_IR_RX)) < 0)
