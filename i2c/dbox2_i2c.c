@@ -489,8 +489,7 @@ static int dbox2_i2c_xfer(struct i2c_adapter *i2c_adap,
 		}
 	}
 
-	save_flags(flags);
-	cli();
+	local_irq_save(flags);
 
 	/* Clear interrupt. */
 	i2c->i2c_i2cer = 0xff;
@@ -516,7 +515,7 @@ static int dbox2_i2c_xfer(struct i2c_adapter *i2c_adap,
 
 	i = interruptible_sleep_on_timeout(&i2c_wait, I2C_INTR_TIMOUT);
 	dprintk("[i2c-8xx]: intrspeed:=%d\n", I2C_INTR_TIMOUT - i);
-	restore_flags(flags);
+	local_irq_restore(flags);
 
 	/*
 	dprintk("[i2c-8xx]: OFF MOD: %04X CER: %04X COM: %04X ADD: %04X BRG: %04X CMR: %04X\n", \
