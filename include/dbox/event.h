@@ -20,6 +20,9 @@
  *	Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  *	$Log: event.h,v $
+ *	Revision 1.5.6.1  2003/06/20 18:06:54  lucgas
+ *	from streamwd.cpp needed ;)
+ *	
  *	Revision 1.5  2002/03/02 18:33:13  tmbinc
  *	changed VCR_ON/OFF to _CHANGED, added IOCTL to get status
  *	
@@ -37,7 +40,7 @@
  *	- initial release
  *	
  *
- *	$Revision: 1.5 $
+ *	$Revision: 1.5.6.1 $
  *
  */
 
@@ -52,6 +55,7 @@
 #define EVENT_ARATIO_CHANGE	8
 #define EVENT_SBTV_CHANGE	16	/* avs event pin 8 tv */
 #define EVENT_SBVCR_CHANGE	32	/* avs event pin 8 vcr */
+#define EVENT_FRATE_CHANGE      64      /* framerate has changed */
 
 #define EVENT_SET_FILTER	1
 
