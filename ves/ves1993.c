@@ -1,5 +1,5 @@
 /* 
-  $Id: ves1993.c,v 1.25 2002/06/01 11:11:10 happydude Exp $
+  $Id: ves1993.c,v 1.25.2.1 2002/10/23 22:56:18 obi Exp $
 
 		VES1993	- Single Chip Satellite Channel Receiver driver module
 							 
@@ -20,6 +20,9 @@
 		Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
   $Log: ves1993.c,v $
+  Revision 1.25.2.1  2002/10/23 22:56:18  obi
+  bugfixes
+
   Revision 1.25  2002/06/01 11:11:10  happydude
   add module license
 
@@ -571,7 +574,7 @@ static int dvb_command(struct i2c_client *client, unsigned int cmd, void *arg)
 
 		*ber = readreg(client,0x15);
 		*ber|=(readreg(client,0x16)<<8);
-		*ber|=(readreg(client,0x17)<<16);
+		*ber|=((readreg(client,0x17)&0x0F)<<16);
 		*ber*=10;
 		break;
 	}
@@ -581,6 +584,7 @@ static int dvb_command(struct i2c_client *client, unsigned int cmd, void *arg)
 		s32 *signal=(s32 *) arg;
 
 		*signal=0xff-readreg(client,0x0b);
+		*signal=(*signal << 8) | *signal;
 		break;
 	}
 	case FE_READ_SNR:
@@ -588,7 +592,7 @@ static int dvb_command(struct i2c_client *client, unsigned int cmd, void *arg)
 		s32 *snr=(s32 *) arg;
 
 		*snr=(readreg(client,0x1c)<<8);
-		*snr=20000000+(10-(*snr>>8))*20000000/160;
+		*snr=(*snr << 8) | *snr;
 		break;
 	}
 	case FE_READ_UNCORRECTED_BLOCKS:

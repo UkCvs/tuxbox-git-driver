@@ -1,5 +1,5 @@
 /* 
-   $Id: ves1893.c,v 1.28 2002/09/05 22:06:07 obi Exp $
+   $Id: ves1893.c,v 1.28.2.1 2002/10/23 22:56:18 obi Exp $
 
     VES1893A - Single Chip Satellite Channel Receiver driver module
                used on the the Siemens DVB-S cards
@@ -22,6 +22,9 @@
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
     $Log: ves1893.c,v $
+    Revision 1.28.2.1  2002/10/23 22:56:18  obi
+    bugfixes
+
     Revision 1.28  2002/09/05 22:06:07  obi
     - FE_READ_SIGNAL_STRENGTH, FE_READ_SNR: return values in range 0 to 0xFFFF
     - return some EINVALs
@@ -462,7 +465,7 @@ static int dvb_command(struct i2c_client *client, unsigned int cmd, void *arg)
 
 		*ber = ves1893_readreg(client,0x15);
 		*ber|=(ves1893_readreg(client,0x16)<<8);
-		*ber|=(ves1893_readreg(client,0x17)<<16);
+		*ber|=((ves1893_readreg(client,0x17)&0x0F)<<16);
 		*ber*=10;
 		break;
 	}
