@@ -18,7 +18,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * $Id: tuxbox_core.c,v 1.2.2.1 2003/02/23 15:33:16 waldi Exp $
+ * $Id: tuxbox_core.c,v 1.2.2.2 2003/03/09 16:34:30 waldi Exp $
  */
 
 #include <linux/module.h>
@@ -26,9 +26,9 @@
 #include <linux/version.h>
 #include <linux/unistd.h>
 #include <linux/init.h>
-#include <linux/proc_fs.h>
-#include <tuxbox/tuxbox_info.h>
-#include <tuxbox/tuxbox_hardware.h>
+
+#include "tuxbox_internal.h"
+#include <tuxbox/info.h>
 
 #ifndef CONFIG_PROC_FS
 #error Please enable procfs support
@@ -44,57 +44,55 @@ tuxbox_vendor_t tuxbox_vendor;
 static int tuxbox_proc_create (void);
 static void tuxbox_proc_destroy (void);
 
-static int tuxbox_proc_read (char *buf, char **start, off_t offset, int len, int *eof, void *data)
+int tuxbox_proc_read (char *buf, char **start, off_t offset, int len, int *eof, void *data)
 {
 	int *_data = data;
 	return snprintf(buf, len, "%d\n", *_data);
 }
 
-static int tuxbox_proc_create (void)
+int tuxbox_proc_create_entry (const char *name, mode_t mode, struct proc_dir_entry *parent, void *data, read_proc_t *read_proc, write_proc_t *write_proc)
 {
 	struct proc_dir_entry *entry;
 
+	entry = create_proc_entry (name, mode, parent);
+
+	if (!entry) 
+		return -1;
+
+	entry->data = data;
+	entry->read_proc = read_proc;
+	entry->write_proc = write_proc;
+	entry->owner = THIS_MODULE;
+
+	return 0;
+}
+
+static int tuxbox_proc_create (void)
+{
 	if (!proc_bus) {
 		printk("tuxbox: /proc/bus does not exist\n");
 		return -ENOENT;
 	}
 
-	proc_bus_tuxbox = proc_mkdir ("tuxbox", proc_bus);
-	if (!proc_bus_tuxbox) goto error;
+	if (!(proc_bus_tuxbox = proc_mkdir ("tuxbox", proc_bus)))
+		goto error;
 
-	entry = create_proc_entry ("capabilities", 0444, proc_bus_tuxbox);
-	if (!entry) goto error;
-	entry->data = &tuxbox_capabilities;
-	entry->read_proc = &tuxbox_proc_read;
-	entry->write_proc = NULL;
-	entry->owner = THIS_MODULE;
+	if (tuxbox_proc_create_entry ("capabilities", 0444, proc_bus_tuxbox, &tuxbox_capabilities, &tuxbox_proc_read, NULL))
+		goto error;
 
-	entry = create_proc_entry ("model", 0444, proc_bus_tuxbox);
-	if (!entry) goto error;
-	entry->data = &tuxbox_model;
-	entry->read_proc = &tuxbox_proc_read;
-	entry->write_proc = NULL;
-	entry->owner = THIS_MODULE;
+	if (tuxbox_proc_create_entry ("model", 0444, proc_bus_tuxbox, &tuxbox_model, &tuxbox_proc_read, NULL))
+		goto error;
 
-	entry = create_proc_entry ("submodel", 0444, proc_bus_tuxbox);
-	if (!entry) goto error;
-	entry->data = &tuxbox_submodel;
-	entry->read_proc = &tuxbox_proc_read;
-	entry->write_proc = NULL;
-	entry->owner = THIS_MODULE;
+	if (tuxbox_proc_create_entry ("submodel", 0444, proc_bus_tuxbox, &tuxbox_submodel, &tuxbox_proc_read, NULL))
+		goto error;
 
-	entry = create_proc_entry ("vendor", 0444, proc_bus_tuxbox);
-	if (!entry) goto error;
-	entry->data = &tuxbox_vendor;
-	entry->read_proc = &tuxbox_proc_read;
-	entry->write_proc = NULL;
-	entry->owner = THIS_MODULE;
+	if (tuxbox_proc_create_entry ("vendor", 0444, proc_bus_tuxbox, &tuxbox_vendor, &tuxbox_proc_read, NULL))
+		goto error;
 
 	return 0;
 
 error:
 	printk("tuxbox: Could not create /proc/bus/tuxbox\n");
-	tuxbox_proc_destroy ();
 	return -ENOENT;
 }
 
@@ -108,7 +106,7 @@ static void tuxbox_proc_destroy (void)
 	remove_proc_entry ("tuxbox", proc_bus);
 }
 
-int __init tuxbox_init(void)
+int __init tuxbox_init (void)
 {
 	int ret;
 
@@ -118,13 +116,22 @@ int __init tuxbox_init(void)
 	}
 
 	if ((ret = tuxbox_proc_create ()))
-		return ret;
+		goto error;
+	if ((ret = tuxbox_hardware_proc_create ()))
+		goto error;
 
 	return 0;
+
+error:
+	tuxbox_hardware_proc_destroy ();
+	tuxbox_proc_destroy ();
+
+	return ret;
 }
 
-void __exit tuxbox_exit(void)
+void __exit tuxbox_exit (void)
 {
+	tuxbox_hardware_proc_destroy ();
 	tuxbox_proc_destroy ();
 }
 
@@ -132,6 +139,6 @@ module_init(tuxbox_init);
 module_exit(tuxbox_exit);
 
 MODULE_AUTHOR("Florian Schirmer <jolt@tuxbox.org>, Bastian Blank <waldi@tuxbox.org>");
-MODULE_DESCRIPTION("TuxBox info");
+MODULE_DESCRIPTION("TuxBox hardware info");
 MODULE_LICENSE("GPL");
 

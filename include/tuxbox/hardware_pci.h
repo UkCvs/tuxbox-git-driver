@@ -1,5 +1,5 @@
 /*
- * tuxbox_hardware_dbox2.h - TuxBox hardware info - dbox2
+ * tuxbox_hardware_dreambox.h - TuxBox hardware info - dreambox
  *
  * Copyright (C) 2003 Florian Schirmer <jolt@tuxbox.org>
  *                    Bastian Blank <waldi@tuxbox.org>
@@ -18,22 +18,17 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * $Id: tuxbox_hardware_dbox2.h,v 1.1.2.1 2003/02/23 15:33:15 waldi Exp $
+ * $Id: hardware_pci.h,v 1.1.2.1 2003/03/09 16:35:45 waldi Exp $
  */
 
-#ifndef TUXBOX_HARDWARE_DBOX2_H
-#define TUXBOX_HARDWARE_DBOX2_H
+#ifndef TUXBOX_HARDWARE_PCI_H
+#define TUXBOX_HARDWARE_PCI_H
 
 #include <tuxbox/tuxbox_hardware.h>
 
-#define TUXBOX_HARDWARE_DBOX2_MID_NOKIA			1
-#define TUXBOX_HARDWARE_DBOX2_MID_PHILIPS		2
-#define TUXBOX_HARDWARE_DBOX2_MID_SAGEM			3
+#define TUXBOX_HARDWARE_TTPCI_CAPABILITIES	\
+	(TUXBOX_CAPABILITIES_IR_RC | \
+	 TUXBOX_CAPABILITIES_NETWORK | \
+	 TUXBOX_CAPABILITIES_HDD)
 
-#define TUXBOX_HARDWARE_DBOX2_CAPABILITIES		( TUXBOX_CAPABILITIES_IR_RC | \
-							  TUXBOX_CAPABILITIES_IR_KEYBOARD | \
-		                                          TUXBOX_CAPABILITIES_LCD | \
-							  TUXBOX_CAPABILITIES_NETWORK | \
-							  TUXBOX_CAPABILITIES_CAM_EMBEDDED )
-
-#endif
+#endif /* TUXBOX_HARDWARE_PCI_H */

@@ -18,7 +18,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * $Id: tuxbox_hardware_dreambox.c,v 1.1.2.1 2003/02/23 15:33:16 waldi Exp $
+ * $Id: tuxbox_hardware_dreambox.c,v 1.1.2.2 2003/03/09 16:34:30 waldi Exp $
  */
 
 #include <linux/module.h>
@@ -41,14 +41,26 @@ int tuxbox_hardware_info_read (void)
 			tuxbox_submodel = TUXBOX_SUBMODEL_DREAMBOX_DM5600;
 			tuxbox_capabilities = TUXBOX_HARDWARE_DREAMBOX_DM5600_CAPABILITIES;
 			break;
+
 		case TUXBOX_HARDWARE_DREAMBOX_ID_DM7000:
 			tuxbox_submodel = TUXBOX_SUBMODEL_DREAMBOX_DM7000;
 			tuxbox_capabilities = TUXBOX_HARDWARE_DREAMBOX_DM7000_CAPABILITIES;
 			break;
+
 		default:
 			return -EINVAL
 	}
 
+	return 0;
+}
+
+int tuxbox_hardware_read (void)
+{
+	return 0;
+}
+
+int tuxbox_hardware_proc_create (void)
+{
 	return 0;
 }
 

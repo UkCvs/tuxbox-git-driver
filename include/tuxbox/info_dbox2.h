@@ -1,5 +1,5 @@
 /*
- * tuxbox_hardware_dreambox.h - TuxBox hardware info - dreambox
+ * tuxbox_info_dbox2.h - TuxBox hardware info - dbox2
  *
  * Copyright (C) 2003 Florian Schirmer <jolt@tuxbox.org>
  *                    Bastian Blank <waldi@tuxbox.org>
@@ -18,28 +18,27 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * $Id: tuxbox_hardware_dreambox.h,v 1.2.2.1 2003/02/23 15:33:15 waldi Exp $
+ * $Id: info_dbox2.h,v 1.2.2.1 2003/03/09 16:35:45 waldi Exp $
  */
 
-#ifndef TUXBOX_HARDWARE_DREAMBOX_H
-#define TUXBOX_HARDWARE_DREAMBOX_H
+#ifndef TUXBOX_INFO_DBOX2_H
+#define TUXBOX_INFO_DBOX2_H
 
-#include <tuxbox/tuxbox_hardware.h>
+#include <tuxbox/info.h>
 
-#define TUXBOX_HARDWARE_DREAMBOX_ID_DM5600		0x51510950
-#define TUXBOX_HARDWARE_DREAMBOX_ID_DM7000		0x418108D1
+typedef enum tuxbox_dbox2_gt
+{
+	TUXBOX_DBOX2_GT_GTX			= 1,
+	TUXBOX_DBOX2_GT_ENX			= 2,
+}
+tuxbox_dbox2_gt_t;
 
-#define TUXBOX_HARDWARE_DREAMBOX_DM5600_CAPABILITIES	\
-	(TUXBOX_CAPABILITIES_IR_RC | \
-	 TUXBOX_CAPABILITIES_IR_KEYBOARD | \
-	 TUXBOX_CAPABILITIES_CAM_CI)
-
-#define TUXBOX_HARDWARE_DREAMBOX_DM7000_CAPABILITIES	\
-	(TUXBOX_CAPABILITIES_IR_RC | \
-	 TUXBOX_CAPABILITIES_IR_KEYBOARD | \
-	 TUXBOX_CAPABILITIES_LCD | \
-	 TUXBOX_CAPABILITIES_NETWORK | \
-	 TUXBOX_CAPABILITIES_HDD | \
-	 TUXBOX_CAPABILITIES_CAM_CI)
+typedef enum tuxbox_dbox2_mid
+{
+	TUXBOX_DBOX2_MID_NOKIA			= 1,
+	TUXBOX_DBOX2_MID_PHILIPS		= 2,
+	TUXBOX_DBOX2_MID_SAGEM			= 3,
+}
+tuxbox_dbox2_mid_t;
 
 #endif
