@@ -69,7 +69,6 @@
 TUXBOX_INFO(dbox2_mid);
 tuxbox_dbox2_mid_t mid;
 static u8 fp_revision;
-static u8 cmdset;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 static devfs_handle_t devfs_handle;
@@ -202,13 +201,6 @@ static int fp_getid(struct i2c_client *client)
 	return id[0];
 }
 
-static void fp_getcmdset(struct i2c_client *client)
-{
-		u8 cmd [] = { 0x00 };
-		fp_cmd(client, 0x33, cmd, sizeof(cmd));
-		cmdset = cmd[0];
-}
-
 /*****************************************************************************\
  *   File Operations
 \*****************************************************************************/
@@ -297,12 +289,12 @@ static int fp_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 
 	case FP_IOCTL_GET_REGISTER:
 	{
-		unsigned long foo;
-
+		u32 foo=0;
 		if (copy_from_user(&val, (void *) arg, sizeof(val)))
 	                return -EFAULT;
-
-		fp_cmd(&fp_client, val & 0xFF, (u8 *) &foo, ((val >> 8) & 3) + 1);
+		int len = ((val>>8)&3)+1;
+		fp_cmd(&fp_client, val & 0xFF, (u8 *) &foo, len);
+		foo = foo >> (4-len)*8;
 
 		if (copy_to_user((void*)arg, &foo, sizeof(foo)))
 			return -EFAULT;
@@ -354,11 +346,6 @@ static void fp_setup_client(void)
 	ppc_md.restart = dbox2_fp_restart;
 	ppc_md.power_off = dbox2_fp_power_off;
 	ppc_md.halt = dbox2_fp_power_off;
-
-	if (fp_revision==0x23){
-		fp_getcmdset(&fp_client);	/* Sagem obviously has 2 cmdsets */
-		printk ("fp: using CmdSet: 0x%02x\n",cmdset);
-	}
 
 	dbox2_fp_reset_init();
 	dbox2_fp_sec_init();
@@ -719,7 +706,7 @@ MODULE_LICENSE("GPL");
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 module_param(useimap,int,0);
 #else
-MODULE_PARM()
+MODULE_PARM(useimap,"i");
 #endif
 EXPORT_SYMBOL(dbox2_fp_queue_alloc);
 EXPORT_SYMBOL(dbox2_fp_queue_free);
