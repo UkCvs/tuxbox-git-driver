@@ -1,25 +1,13 @@
-#################################################
-# some magic for using linux kernel settings
-# when compiling module(s)
+DRIVER_TOPDIR = ..
 
-M_OBJS    = saa7126.o
-SAA_OBJS  = saa7126_core.o
+include $(DRIVER_TOPDIR)/Config.make
 
-# 2.4.0 Kernel Option
-obj-m = $(M_OBJS)
+obj-m		:= saa7126.o
+export-objs	:= saa7126_core.o
 
-EXTRA_CFLAGS=-I../include -DEXPORT_SYMTAB
-
-here:
-	DIR=`pwd`; (cd $(KERNEL_LOCATION); make SUBDIRS=$$DIR modules)
-
-install:
-	cp -v $(M_OBJS) $(MODULE_DEST)
-
-clean:
-	-rm -f $(M_OBJS) $(O_TARGET) $(SAA_OBJS) .*.o.flags *~
+SAA_OBJS	:= saa7126_core.o
 
 saa7126.o: $(SAA_OBJS)
-	$(LD) -m elf32ppclinux -r -o $@ $(SAA_OBJS)
+	$(LD) -r -o $@ $(SAA_OBJS)
 
-include $(KERNEL_LOCATION)/Rules.make
+include $(DRIVER_TOPDIR)/Rules.make

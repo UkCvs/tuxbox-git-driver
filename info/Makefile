@@ -1,22 +1,21 @@
-#################################################
-# some magic for using linux kernel settings
-# when compiling module(s)
+DRIVER_TOPDIR = ..
 
-M_OBJS   = info.o
-obj-m    = info.o
+include $(DRIVER_TOPDIR)/Config.make
 
-EXTRA_CFLAGS=-I../include -I../cvs/driver/include -DEXPORT_SYMTAB
+obj-m				:= info.o
+obj-$(CONFIG_HARDWARE_DBOX2)	+= tuxbox.o
+export-objs			:= info.o
 
-#remove __ASSEMBLY__ option from kernel makefile
-AFLAGS=
+TUXBOX_OBJS			:= tuxbox_core.o
 
-here:
-	DIR=`pwd`; (cd $(KERNEL_LOCATION); make SUBDIRS=$$DIR modules)
+ifdef CONFIG_HARDWARE_DBOX2
+TUXBOX_OBJS			+= tuxbox_hardware_dbox2.o
+endif
+ifdef CONFIG_HARDWARE_DREAMBOX
+TUXBOX_OBJS			+= tuxbox_hardware_dreambox.o
+endif
 
-install:
-	cp -v $(M_OBJS) $(MODULE_DEST)
+tuxbox.o: $(TUXBOX_OBJS)
+	$(LD) -r -o $@ $(TUXBOX_OBJS)
 
-clean:
-	-rm -f $(M_OBJS) $(O_TARGET) .*.o.flags *~
-
-include $(KERNEL_LOCATION)/Rules.make
+include $(DRIVER_TOPDIR)/Rules.make

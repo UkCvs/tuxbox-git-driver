@@ -1,25 +1,13 @@
-#################################################
-# some magic for using linux kernel settings
-# when compiling module(s)
+DRIVER_TOPDIR = ..
 
-M_OBJS       = avs.o
-AVS_OBJS     = stv6412.o cxa2092.o cxa2126.o avs_core.o
+include $(DRIVER_TOPDIR)/Config.make
 
-# 2.4.0 Kernel Option
-obj-m = $(M_OBJS)
+obj-m		:= avs.o
+export-objs	:= avs_core.o
 
-EXTRA_CFLAGS=-I../include -DEXPORT_SYMTAB
-
-here:
-	DIR=`pwd`; (cd $(KERNEL_LOCATION); make SUBDIRS=$$DIR modules)
-
-install:
-	cp -v $(M_OBJS) $(MODULE_DEST)
-
-clean:
-	-rm -f $(M_OBJS) $(O_TARGET) $(AVS_OBJS) .*.o.flags *~
+AVS_OBJS	:= stv6412.o cxa2092.o cxa2126.o avs_core.o
 
 avs.o:	$(AVS_OBJS)
-	$(LD) -m elf32ppclinux -r -o $@ $(AVS_OBJS)
+	$(LD) -r -o $@ $(AVS_OBJS)
 
-include $(KERNEL_LOCATION)/Rules.make
+include $(DRIVER_TOPDIR)/Rules.make

@@ -4,16 +4,27 @@
 # modify to suit your setup
 #
 # usage:
-#    ./build.sh clean
+#   choose one or more of the following, depending on your intention:
+#
 #    ./build.sh
+#    ./build.sh dep
 #    ./build.sh install
+#    ./build.sh clean
+#    ./build.sh distclean
 #
-# can be called from any subdirectory
+#   view Makefile to see what the different targets do.
 #
 
-CDKROOT=/dbox2/cdkroot
-CVSROOT=${HOME}/tuxbox-cvs
-KERNEL_VERSION=2.4.19
+# TODO: create some kind of tuxboxcdk-config script and use it
+CDKROOT=${CDKPREFIX}/cdkroot
+PATH=${CDKPREFIX}/cdk/bin:${PATH}
 
-make KERNEL_LOCATION=${CVSROOT}/cdk/linux-${KERNEL_VERSION} MODULE_DEST=${CDKROOT}/lib/modules/${KERNEL_VERSION}/misc ${1}
+CVSROOT=${CVSROOT:-${HOME}/cvs/tuxbox}
+MAKE=/usr/bin/make
+
+${MAKE} ${1} \
+	ARCH=ppc \
+	CROSS_COMPILE=powerpc-tuxbox-linux-gnu- \
+	KERNEL_LOCATION=${CVSROOT}/cdk/linux \
+	INSTALL_MOD_PATH=${CDKROOT}
 

@@ -1,26 +1,8 @@
-KERNELRELEASE = \
-	$(shell \
-	for TAG in VERSION PATCHLEVEL SUBLEVEL EXTRAVERSION FLAVOUR ; do \
-		eval `sed -ne "/^$$TAG/s/[   ]//gp" $(KERNEL_LOCATION)/Makefile` ; \
-	done ; \
-	echo $$VERSION.$$PATCHLEVEL.$$SUBLEVEL$$EXTRAVERSION$${FLAVOUR:+-$$FLAVOUR})
+DRIVER_TOPDIR = .
 
-INSTALL_MOD_PATH =
-MODULE_DEST := $(INSTALL_MOD_PATH)/lib/modules/$(KERNELRELEASE)/misc
+include Config.make
 
-export KERNELRELEASE KERNEL_LOCATION INSTALL_MOD_PATH MODULE_DEST
+subdir-m			:= info
+subdir-$(CONFIG_HARDWARE_DBOX2)	+= avia avs cam event fp i2c lcd ost saa7126 ves
 
-mod-subdirs := avia avs cam event fp i2c info lcd ost saa7126 ves
-
-subdir-y := $(mod-subdirs)
-
-subdir-m := $(subdir-y)
-
-include $(KERNEL_LOCATION)/Rules.make
-
-clean:
-	@for dir in $(mod-subdirs) ; do $(MAKE) -C $$dir clean || exit 1 ; done
-
-install:
-	@mkdir -p $(MODULE_DEST)
-	@for dir in $(mod-subdirs) ; do $(MAKE) -C $$dir install || exit 1 ; done
+include Rules.make

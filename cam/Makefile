@@ -1,20 +1,8 @@
-#################################################
-# some magic for using linux kernel settings
-# when compiling module(s)
+DRIVER_TOPDIR = ..
 
-M_OBJS       = cam.o
+include $(DRIVER_TOPDIR)/Config.make
 
-obj-m = $(M_OBJS)
+obj-m		:= cam.o
+export-objs	:= cam.o
 
-EXTRA_CFLAGS=-I../include -DEXPORT_SYMTAB
-
-here:
-	DIR=`pwd`; (cd $(KERNEL_LOCATION); make SUBDIRS=$$DIR modules)
-
-install:
-	cp -v $(M_OBJS) $(MODULE_DEST)
-
-clean:
-	-rm -f $(M_OBJS) $(O_TARGET) .*.o.flags *~
-
-include $(KERNEL_LOCATION)/Rules.make
+include $(DRIVER_TOPDIR)/Rules.make

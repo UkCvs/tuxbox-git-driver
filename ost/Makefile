@@ -1,23 +1,10 @@
-#################################################
-# some magic for using linux kernel settings
-# when compiling module(s)
+DRIVER_TOPDIR = ..
 
-M_OBJS = dmxdev.o dvb.o dvb_demux.o dvb_filter.o dvb_frontend.o dvb_net.o dvbdev.o
+include $(DRIVER_TOPDIR)/Config.make
 
-# 2.4.0 Kernel Option
-obj-m = $(M_OBJS)
+obj-m		:= dmxdev.o dvb.o dvb_demux.o dvb_filter.o dvb_frontend.o dvb_net.o dvbdev.o
+export-objs	:= dvb.o dvbdev.o
 
-EXTRA_CFLAGS=-I../include -DEXPORT_SYMTAB -D__DVB_PACK__
+EXTRA_CFLAGS	:= -D__DVB_PACK__
 
-here:
-	DIR=`pwd`; (cd $(KERNEL_LOCATION); make SUBDIRS=$$DIR modules)
-
-install:
-	cp -v $(M_OBJS) $(MODULE_DEST)
-
-clean:
-	-rm -f $(M_OBJS) $(O_TARGET) .*.o.flags *~
-
-include $(KERNEL_LOCATION)/Rules.make
-
-
+include $(DRIVER_TOPDIR)/Rules.make
