@@ -21,6 +21,9 @@
  *
  *
  *   $Log: avia_gt_dmx.c,v $
+ *   Revision 1.139.2.1.2.2  2003/04/14 14:11:33  alexw
+ *   compiled-in ucode added
+ *
  *   Revision 1.139.2.1.2.1  2003/02/18 14:32:46  alexw
  *   update to image drivers
  *
@@ -215,7 +218,7 @@
  *
  *
  *
- *   $Revision: 1.139.2.1.2.1 $
+ *   $Revision: 1.139.2.1.2.2 $
  *
  */
 
@@ -253,6 +256,7 @@
 #include <dbox/avia_gt_dmx.h>
 #include <dbox/avia_gt_accel.h>
 #include <dbox/avia_gt_napi.h>
+#include "avia_gt_ucode.h"
 
 //#define dprintk printk
 
@@ -1018,9 +1022,11 @@ u16 avia_gt_dmx_get_queue_irq(u8 queue_nr)
 int avia_gt_dmx_load_ucode(void)
 {
 
-	int fd = (int)0;
+	int fd = 0;
 	loff_t file_size;
 	mm_segment_t fs;
+	u8 ucode_fs_buf[2048];
+	u8 *ucode_buf = ucode_fs_buf;
 
 	fs = get_fs();
 	set_fs(get_ds());
@@ -1031,42 +1037,118 @@ int avia_gt_dmx_load_ucode(void)
 
 		set_fs(fs);
 
-		return -EFAULT;
-
+		/* fall back to compiled-in ucode */
+		ucode_buf = (u8 *) avia_gt_dmx_ucode_img;
+		file_size = avia_gt_dmx_ucode_size;
 	}
+	else {
+		file_size = lseek(fd, 0L, 2);
 
-	file_size = lseek(fd, 0L, 2);
+		if ((file_size <= 0) || (file_size > 2048)) {
+			printk (KERN_ERR "avia_gt_dmx: Firmware wrong size '%s'\n", ucode);
 
-	if (file_size <= 0) {
+			sys_close(fd);
+			set_fs(fs);
 
-		printk (KERN_ERR "avia_gt_dmx: Firmware wrong size '%s'\n", ucode);
+			return -EFAULT;
+		}
 
-		sys_close(fd);
+		lseek(fd, 0L, 0);
+
+		if (read(fd, ucode_buf, file_size) != file_size) {
+			printk (KERN_ERR "avia_gt_dmx: Failed to read firmware file '%s', using compiled-in.\n", ucode);
+
+			sys_close(fd);
+			set_fs(fs);
+
+			return -EIO;
+		}
+
+		close(fd);
 		set_fs(fs);
-
-		return -EFAULT;
-
 	}
 
-	lseek(fd, 0L, 0);
+	/* queues should be stopped */
+	if (file_size > 0x400)
+		for (fd = 0x700; fd < 0x740;) {
+			ucode_buf[fd++] = 0xDF;
+			ucode_buf[fd++] = 0xFF;
+		}
 
-	if (read(fd, (void *)risc_mem_map, file_size) != file_size) {
-
-		printk (KERN_ERR "avia_gt_dmx: Failed to read firmware file '%s'\n", ucode);
-
-		sys_close(fd);
-		set_fs(fs);
-
-		return -EIO;
-
-	}
-
-	close(fd);
-	set_fs(fs);
+	avia_gt_dmx_risc_write(ucode_buf, risc_mem_map, file_size);
 
 	printk("avia_gt_dmx: Successfully loaded ucode V%X.%X\n", risc_mem_map->Version_no[0], risc_mem_map->Version_no[1]);
 
 	return 0;
+
+}
+
+void avia_gt_dmx_risc_write(void *src, void *dst, u16 count)
+{
+
+	if ((((u32)dst) < ((u32)risc_mem_map)) || (((u32)dst) > (((u32)risc_mem_map) + sizeof(sRISC_MEM_MAP)))) {
+
+		printk(KERN_CRIT "avia_gt_dmx: invalid risc write destination\n");
+
+		return;
+
+	}
+
+	avia_gt_dmx_risc_write_offs(src, ((u32)dst) - ((u32)risc_mem_map), count);
+
+}
+
+void avia_gt_dmx_risc_write_offs(void *src, u16 offset, u16 count)
+{
+
+	u32 pos;
+	//u32 flags;
+
+	if (count & 1) {
+
+		printk(KERN_CRIT "avia_gt_dmx: odd size risc write transfer detected\n");
+
+		return;
+
+	}
+
+	if ((offset + count) > sizeof(sRISC_MEM_MAP)) {
+
+		printk(KERN_CRIT "avia_gt_dmx: invalid risc write length detected\n");
+
+		return;
+
+	}
+
+	//local_irq_save(flags);
+
+	for (pos = 0; pos < count; pos += 2) {
+
+		if (avia_gt_chip(ENX)) {
+
+			if ((enx_reg_16n(TDP_INSTR_RAM + offset + pos)) != (((u16 *)src)[pos / 2])) {
+
+				enx_reg_16n(TDP_INSTR_RAM + offset + pos) = ((u16 *)src)[pos / 2];
+
+				mb();
+
+			}
+
+		} else if (avia_gt_chip(GTX)) {
+
+			if ((gtx_reg_16n(GTX_REG_RISC + offset + pos)) != (((u16 *)src)[pos / 2])) {
+
+				gtx_reg_16n(GTX_REG_RISC + offset + pos) = ((u16 *)src)[pos / 2];
+
+				mb();
+
+			}
+
+		}
+
+	}
+
+	//local_irq_restore(flags);
 
 }
 
@@ -1933,7 +2015,7 @@ int __init avia_gt_dmx_init(void)
 	u32 queue_addr;
 	u8 queue_nr;
 
-	printk("avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.139.2.1.2.1 2003/02/18 14:32:46 alexw Exp $\n");;
+	printk("avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.139.2.1.2.2 2003/04/14 14:11:33 alexw Exp $\n");;
 
 	gt_info = avia_gt_get_info();
 
