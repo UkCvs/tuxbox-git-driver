@@ -355,8 +355,6 @@ static void tda80xx_read_status_int(struct tda80xx_state* state)
 		state->status |= FE_HAS_SYNC;
 	if (val & 0x10) /* derandomizer lock (frame sync) */
 		state->status |= FE_HAS_LOCK;
-	if (val & 0x20) /* frontend can not lock */
-		state->status |= FE_TIMEDOUT;
 
 	if ((state->status & (FE_HAS_CARRIER)) && (state->afc_loop)) {
 		printk("tda80xx: closing loop\n");
