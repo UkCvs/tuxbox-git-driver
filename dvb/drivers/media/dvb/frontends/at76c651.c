@@ -1,8 +1,8 @@
 /*
 
-    $Id: at76c651.c,v 1.24.2.5 2002/02/15 23:21:49 TripleDES Exp $
+    $Id: at76c651.c,v 1.24.2.6 2002/02/15 23:47:50 TripleDES Exp $
 
-    AT76C651  - DVB demux driver (dbox-II-project)
+    AT76C651  - DVB frontend driver (dbox-II-project)
 
     Homepage: http://dbox2.elxsi.de
 
@@ -23,6 +23,9 @@
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
     $Log: at76c651.c,v $
+    Revision 1.24.2.6  2002/02/15 23:47:50  TripleDES
+    init fixed
+
     Revision 1.24.2.5  2002/02/15 23:21:49  TripleDES
     da ist das init irgendwie total kaputt - aber so gehts erstmal wieder
 
@@ -131,8 +134,6 @@ struct at76c651
 
 	dvb_front_t frontend;
 };
-
-// ------------------------------------ Tuner ---------------------------------------
 
 #define TUNER_I2C_DRIVERID  0xF0C2
 
@@ -383,8 +384,6 @@ static int tuner_set_freq(struct i2c_client *client, int freq)
 		return -1;
 }
 
-//---------------------------------------------------------
-
 // Tuner an i2c an/abhaengen
 static void ves_tuner_i2c(struct i2c_client *client, int an)
 {
@@ -403,8 +402,6 @@ static void ves_tuner_i2c(struct i2c_client *client, int an)
 
 static int init(struct i2c_client *client)
 {
-//	struct at76c651 *at=(struct at76c651 *) client->data;
-
 	dprintk("AT76C651: init chip %x\n", client);
 
 	// BBFREQ
@@ -425,20 +422,11 @@ static int init(struct i2c_client *client)
 	// Performance optimieren (laut Datenblatt)
 	writereg(client, 0x10, 0x06);
 	writereg(client, 0x11, 0x10);
-	writereg(client, 0x15, 0x28); // BBCFG
-//	writereg(client, 0x20, 0x09); // ?
-	writereg(client, 0x24, 0x90); // TIMLOOPCFG
-	writereg(client, 0x30, 0x90);
-//	writereg(client, 0x30, 0x94);
+	writereg(client, 0x15, 0x28); 
+	writereg(client, 0x20, 0x09); 
+	writereg(client, 0x24, 0x90); 
+	writereg(client, 0x30, 0x94); 
 
-// 	set_tuner_dword(client, 0x19628e06); // (370000)
-	// Und ein Restart
-//	at_restart(client); // Wird bei set_tuner_dword gemacht
-//	writereg(client, 0x07, 0x01);
-
-	/* mask interrupt */
-	// Moegliche Trigger: Pins LOCK1/LOCK2, singal loss, frame rate lost und per frame-timer
-	// Wird auch im ves_task gemacht, um den IRQ zurueckzusetzen
 	writereg(client, 0x0b, 0x0); // keine IRQs
 
 	return 0;
@@ -455,9 +443,7 @@ u32 expTab[] = {
 
 static int SetSymbolrate(struct i2c_client* client, u32 Symbolrate)
 {
-//	struct at76c651 *ves=(struct at76c651 *) client->data;
 #define FREF 57800000UL
-//#define FREF 69600000UL
 	u32 mantisse;
 	u8 exp;
 //	int i;
@@ -512,15 +498,6 @@ static int SetSymbolrate(struct i2c_client* client, u32 Symbolrate)
 		return 0;
 }
 
-/*
-typedef enum QAM_TYPE
-{	QAM_16,
-	QAM_32,
-	QAM_64,
-	QAM_128,
-	QAM_256
-} QAM_TYPE, *PQAM_TYPE;
-*/
 
 static const char *qamstr[6]= {
 	"QPSK",
@@ -560,8 +537,6 @@ static void inc_use (struct i2c_client *client)
 	MOD_INC_USE_COUNT;
 #endif
 }
-
-//-------------------------------------------------------------------------
 
 static int dvb_command(struct i2c_client *client, unsigned int cmd, void *arg)
 {
@@ -609,7 +584,7 @@ static int dvb_command(struct i2c_client *client, unsigned int cmd, void *arg)
 		{
 			FrontendParameters *param = (FrontendParameters *) arg;
 
-			init(client);
+			//init(client);
 			//SetQAM(client, param->u.qam.QAM);
 			//SetSymbolrate(client, param->u.qam.SymbolRate);
 			break;
@@ -627,15 +602,12 @@ static int dvb_command(struct i2c_client *client, unsigned int cmd, void *arg)
 	return 0;
 } 
 
-//-------------------------------------------------------------------------
-
 static void dec_use (struct i2c_client *client)
 {
 #ifdef MODULE
 	MOD_DEC_USE_COUNT;
 #endif
 }
-
 
 static struct i2c_driver dvbt_driver = {
 	"AT76C651 DVB DECODER",
@@ -734,13 +706,11 @@ static int detach_client(struct i2c_client *client)
 	return 0;
 }
 
-/* ---------------------------------------------------------------------- */
-
 #ifdef MODULE
 int init_module(void) {
 	int res;
 
-	dprintk("AT76C651: $Id: at76c651.c,v 1.24.2.5 2002/02/15 23:21:49 TripleDES Exp $\n");
+	dprintk("AT76C651: $Id: at76c651.c,v 1.24.2.6 2002/02/15 23:47:50 TripleDES Exp $\n");
 	if ((res = i2c_add_driver(&dvbt_driver)))
 	{
 		printk("AT76C651: Driver registration failed, module not inserted.\n");
