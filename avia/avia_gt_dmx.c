@@ -21,6 +21,9 @@
  *
  *
  *   $Log: avia_gt_dmx.c,v $
+ *   Revision 1.139.2.1.2.4  2003/06/03 00:06:21  lucgas
+ *   gcc-3.3 fix
+ *
  *   Revision 1.139.2.1.2.3  2003/05/03 13:21:51  alexw
  *   pcr fix from head added
  *
@@ -221,7 +224,7 @@
  *
  *
  *
- *   $Revision: 1.139.2.1.2.3 $
+ *   $Revision: 1.139.2.1.2.4 $
  *
  */
 
@@ -2016,7 +2019,7 @@ static void gtx_pcr_interrupt(unsigned short irq)
 	}
 	else
 	{
-		pcr_diff = pcr + 0x200000000 - last_pcr;
+		pcr_diff = pcr + 0x200000000ULL - last_pcr;
 	}
 
 	if (pcr_diff > MAX_PCR_DIFF)
@@ -2046,14 +2049,14 @@ static void gtx_pcr_interrupt(unsigned short irq)
 		}
 		else				/* kein Überlauf STC */
 		{
-			pcr_lstc_diff = lstc - pcr - 0x200000000;
+			pcr_lstc_diff = lstc - pcr - 0x200000000ULL;
 		}
 	}
 	else					/* kein Überlauf PCR */
 	{
 		if (lstc < last_lstc)	/* Überlauf STC */
 		{
-			pcr_lstc_diff = lstc + 0x200000000 - pcr;
+			pcr_lstc_diff = lstc + 0x200000000ULL - pcr;
 		}
 		else				/* kein Überlauf STC */
 		{
@@ -2146,7 +2149,7 @@ int __init avia_gt_dmx_init(void)
 	u32 queue_addr;
 	u8 queue_nr;
 
-	printk("avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.139.2.1.2.3 2003/05/03 13:21:51 alexw Exp $\n");;
+	printk("avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.139.2.1.2.4 2003/06/03 00:06:21 lucgas Exp $\n");;
 
 	gt_info = avia_gt_get_info();
 
