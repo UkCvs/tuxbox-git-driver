@@ -21,6 +21,9 @@
  *
  *
  *   $Log: avia_gt_fb_core.c,v $
+ *   Revision 1.38.4.4  2003/03/04 08:44:39  zwen
+ *   - Really fixed the eNX red and blue swapped problem ;-)
+ *
  *   Revision 1.38.4.3  2003/02/28 16:09:38  obi
  *   - fix mmio offset
  *   - set accelerator id
@@ -169,7 +172,7 @@
  *   Revision 1.7  2001/01/31 17:17:46  tmbinc
  *   Cleaned up avia drivers. - tmb
  *
- *   $Revision: 1.38.4.3 $
+ *   $Revision: 1.38.4.4 $
  *
  */
 
@@ -404,18 +407,10 @@ static int gtx_encode_var(struct fb_var_screeninfo *var, const void *fb_par, str
     var->xoffset = 0;
     var->yoffset = 0;
 
-    if (avia_gt_chip(GTX))
-    {
-	    var->red.offset = 10;
-	    var->blue.offset = 0;
-    }
-    else /* if (avia_gt_chip(ENX)) */
-    {
-	    var->red.offset = 0;
-	    var->blue.offset = 10;
-    }
   
+    var->red.offset = 10;
     var->green.offset = 5;
+    var->blue.offset = 0;
     var->transp.offset = 15;
     var->grayscale = 0;
     var->red.length = 5;
@@ -659,7 +654,7 @@ static struct fb_ops avia_gt_fb_ops = {
 int __init avia_gt_fb_init(void)
 {
 
-    printk("avia_gt_fb: $Id: avia_gt_fb_core.c,v 1.38.4.3 2003/02/28 16:09:38 obi Exp $\n");
+    printk("avia_gt_fb: $Id: avia_gt_fb_core.c,v 1.38.4.4 2003/03/04 08:44:39 zwen Exp $\n");
 
     gt_info = avia_gt_get_info();
 

@@ -21,6 +21,9 @@
  *
  *
  *   $Log: avia_gt_gv.c,v $
+ *   Revision 1.25.4.2  2003/03/04 08:44:39  zwen
+ *   - Really fixed the eNX red and blue swapped problem ;-)
+ *
  *   Revision 1.25.4.1  2003/02/18 14:32:46  alexw
  *   update to image drivers
  *
@@ -94,7 +97,7 @@
  *   graphic viewport driver added
  *
  *
- *   $Revision: 1.25.4.1 $
+ *   $Revision: 1.25.4.2 $
  *
  */
 
@@ -303,7 +306,7 @@ void avia_gt_gv_set_clut(unsigned char clut_nr, unsigned int transparency, unsig
 
 		mb();
 
-		enx_reg_32(CLUTD) = ((transparency << 24) | (blue << 16) | (green << 8) | (red));
+		enx_reg_32(CLUTD) = ((transparency << 24) | (red << 16) | (green << 8) | (blue));
 
 	} else if (avia_gt_chip(GTX)) {
 
@@ -610,7 +613,7 @@ int avia_gt_gv_show(void) {
 int avia_gt_gv_init(void)
 {
 
-	printk("avia_gt_gv: $Id: avia_gt_gv.c,v 1.25.4.1 2003/02/18 14:32:46 alexw Exp $\n");
+	printk("avia_gt_gv: $Id: avia_gt_gv.c,v 1.25.4.2 2003/03/04 08:44:39 zwen Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
@@ -695,7 +698,8 @@ int avia_gt_gv_init(void)
 		enx_reg_set(VBR, Cb, 0x00);
 
 		enx_reg_set(VCR, D, 0x1);
-		enx_reg_set(VCR, C, 0x1);
+		/* Chroma sense -> swap Cr & Cb, dont do this !!! */
+		/* enx_reg_set(VCR, C, 0x1); */
 
 		enx_reg_set(VMCR, FFM, 0x0);
 
