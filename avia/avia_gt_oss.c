@@ -21,6 +21,9 @@
  *
  *
  *   $Log: avia_gt_oss.c,v $
+ *   Revision 1.12.6.2  2003/07/02 16:23:39  ghostrider
+ *   add samplerate patch
+ *
  *   Revision 1.12.6.1  2003/07/02 15:56:42  ghostrider
  *   add lucgas enigma image driver to cvs
  *
@@ -59,7 +62,7 @@
  *
  *
  *
- *   $Revision: 1.12.6.1 $
+ *   $Revision: 1.12.6.2 $
  *
  */
 
@@ -81,8 +84,11 @@
 
 #include <dbox/avia_gt_pcm.h>
 
-int dsp_dev			= (int)0;
-int mixer_dev		= (int)0;
+int dsp_dev	= 0;
+int mixer_dev	= 0;
+
+extern int avia_standby(int state);
+extern u16 avia_get_sample_rate(void);
 
 static int avia_oss_dsp_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -188,8 +194,6 @@ static int avia_oss_dsp_ioctl(struct inode *inode, struct file *file, unsigned i
 
 		    return avia_gt_pcm_set_signed(1);
 
-		    return 0;
-
 		break;
 
 		case AFMT_S16_BE:
@@ -250,6 +254,12 @@ static int avia_oss_dsp_ioctl(struct inode *inode, struct file *file, unsigned i
 		return -EFAULT;
 
 	    dprintk("avia_oss: IOCTL: SNDCTL_DSP_SPEED (arg=%d)\n", val);
+	    
+	    if ((val != 48000) && (val != 24000) && (val != 12000) &&
+		(avia_get_sample_rate() != 44100)){
+		    avia_standby(1);
+		    avia_standby(0);
+	    }
 
 	    return avia_gt_pcm_set_rate(val);
 
@@ -349,7 +359,7 @@ static struct file_operations mixer_fops = {
 static int __init avia_oss_init(void)
 {
 
-    printk("avia_oss: $Id: avia_gt_oss.c,v 1.12.6.1 2003/07/02 15:56:42 ghostrider Exp $\n");
+    printk("avia_oss: $Id: avia_gt_oss.c,v 1.12.6.2 2003/07/02 16:23:39 ghostrider Exp $\n");
 
     avia_gt_pcm_set_pcm_attenuation(0x80, 0x80);
 

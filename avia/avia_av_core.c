@@ -21,6 +21,9 @@
  *
  *
  *   $Log: avia_av_core.c,v $
+ *   Revision 1.36.2.1.4.2  2003/07/02 16:23:38  ghostrider
+ *   add samplerate patch
+ *
  *   Revision 1.36.2.1.4.1  2003/07/02 15:56:40  ghostrider
  *   add lucgas enigma image driver to cvs
  *
@@ -155,7 +158,7 @@
  *   Revision 1.8  2001/01/31 17:17:46  tmbinc
  *   Cleaned up avia drivers. - tmb
  *
- *   $Revision: 1.36.2.1.4.1 $
+ *   $Revision: 1.36.2.1.4.2 $
  *
  */
 
@@ -221,6 +224,7 @@ static spinlock_t avia_register_lock;
 static wait_queue_head_t avia_cmd_wait;
 static wait_queue_head_t avia_cmd_state_wait;
 static u8 cmd_state;
+static u16 sample_rate = 44100;
 
 /* mutex stuff */
 //static DECLARE_MUTEX(avia_cmd_mutex);
@@ -538,13 +542,19 @@ avia_interrupt (int irq, void *vdev, struct pt_regs *regs)
 		if (sem & 7) {
 			switch (sem & 7) {
 			// 44.1
-			case 1: wDR (0xEC, (rDR (0xEC) & ~(7 << 2)) | (1 << 2));
-				break;
+			case 1: 
+				wDR (0xEC, (rDR (0xEC) & ~(7 << 2)) | (1 << 2));
+				sample_rate = 44100;
+    				break;
 			// 48
-			case 2: wDR (0xEC, (rDR (0xEC) & ~(7 << 2)));
-				break;
+			case 2: 
+				wDR (0xEC, (rDR (0xEC) & ~(7 << 2)));
+				sample_rate = 48000;
+	    			break;
 			// 32
-			case 7: wDR (0xEC, (rDR (0xEC) & ~(7 << 2)) | (2 << 2) );
+			case 7: 
+				wDR (0xEC, (rDR (0xEC) & ~(7 << 2)) | (2 << 2) );
+				sample_rate = 32000;
 				break;
 			}
 
@@ -842,6 +852,7 @@ static void avia_audio_init(void)
 
 	/* SET SCMS */
 	wDR(IEC_958_CHANNEL_STATUS_BITS, rDR(IEC_958_CHANNEL_STATUS_BITS)&~4);
+	sample_rate = 44100;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -1458,7 +1469,7 @@ void avia_event_func(unsigned long data)
 
 /* ---------------------------------------------------------------------- */
 
-static int avia_standby( int state )
+int avia_standby( int state )
 {
 	if (state == 0)
 	{
@@ -1489,12 +1500,21 @@ static int avia_standby( int state )
 
 /* ---------------------------------------------------------------------- */
 
+u16 avia_get_sample_rate(void)
+{
+    return sample_rate;
+}
+
+/* ---------------------------------------------------------------------- */
+
 EXPORT_SYMBOL(avia_wr);
 EXPORT_SYMBOL(avia_rd);
 EXPORT_SYMBOL(avia_wait);
 EXPORT_SYMBOL(avia_command);
 EXPORT_SYMBOL(avia_set_pcr);
 EXPORT_SYMBOL(avia_flush_pcr);
+EXPORT_SYMBOL(avia_standby);
+EXPORT_SYMBOL(avia_get_sample_rate);
 
 /* ---------------------------------------------------------------------- */
 
@@ -1512,7 +1532,7 @@ init_module (void)
 {
 	int err = (int)0;
 
-	printk ("AVIA: $Id: avia_av_core.c,v 1.36.2.1.4.1 2003/07/02 15:56:40 ghostrider Exp $\n");
+	printk ("AVIA: $Id: avia_av_core.c,v 1.36.2.1.4.2 2003/07/02 16:23:38 ghostrider Exp $\n");
 
 	aviamem = 0;
 

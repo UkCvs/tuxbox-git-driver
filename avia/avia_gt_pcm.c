@@ -21,6 +21,9 @@
  *
  *
  *   $Log: avia_gt_pcm.c,v $
+ *   Revision 1.19.6.2  2003/07/02 16:23:39  ghostrider
+ *   add samplerate patch
+ *
  *   Revision 1.19.6.1  2003/07/02 15:56:42  ghostrider
  *   add lucgas enigma image driver to cvs
  *
@@ -84,7 +87,7 @@
  *
  *
  *
- *   $Revision: 1.19.6.1 $
+ *   $Revision: 1.19.6.2 $
  *
  */
 
@@ -357,7 +360,7 @@ void avia_gt_pcm_set_pcm_attenuation(unsigned char left, unsigned char right)
 int avia_gt_pcm_set_rate(unsigned short rate)
 {
 
-	unsigned char divider_mode = (unsigned char)0;
+	unsigned char divider_mode = 3;
 
 	switch(rate) {
 
@@ -366,12 +369,14 @@ int avia_gt_pcm_set_rate(unsigned short rate)
 
 		divider_mode = 3;
 		break;
-
+		
+	case 24000:
 	case 22050:
 
 		divider_mode = 2;
 		break;
 
+	case 12000:
 	case 11025:
 
 		divider_mode = 1;
@@ -574,7 +579,7 @@ int avia_gt_pcm_init(void)
 	unsigned short irq_ad  = (unsigned short)0;
 	unsigned short irq_pf  = (unsigned short)0;
 
-	printk("avia_gt_pcm: $Id: avia_gt_pcm.c,v 1.19.6.1 2003/07/02 15:56:42 ghostrider Exp $\n");
+	printk("avia_gt_pcm: $Id: avia_gt_pcm.c,v 1.19.6.2 2003/07/02 16:23:39 ghostrider Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
