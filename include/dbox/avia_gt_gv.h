@@ -21,6 +21,9 @@
  *
  *
  *   $Log: avia_gt_gv.h,v $
+ *   Revision 1.8.4.2  2003/07/22 08:01:58  alexw
+ *   copyarea added
+ *
  *   Revision 1.8.4.1  2003/02/18 14:32:46  alexw
  *   update to image drivers
  *
@@ -46,7 +49,7 @@
  *   graphic viewport driver added
  *
  *
- *   $Revision: 1.8.4.1 $
+ *   $Revision: 1.8.4.2 $
  *
  */
 
@@ -59,6 +62,7 @@
 #define AVIA_GT_GV_INPUT_MODE_RGB16	0x03
 #define AVIA_GT_GV_INPUT_MODE_RGB32	0x04
 
+extern void avia_gt_gv_copyarea(u16 src_x, u16 src_y, u16 width, u16 height, u16 dst_x, u16 dst_y);
 extern void avia_gt_gv_cursor_hide(void);
 extern void avia_gt_gv_cursor_show(void);
 extern void avia_gt_gv_get_clut(unsigned char clut_nr, unsigned int *transparency, unsigned int *red, unsigned int *green, unsigned int *blue);

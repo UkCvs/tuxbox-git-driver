@@ -21,6 +21,9 @@
  *
  *
  *   $Log: avia_gt_fb_core.c,v $
+ *   Revision 1.38.4.6  2003/07/22 08:01:56  alexw
+ *   copyarea added
+ *
  *   Revision 1.38.4.5  2003/03/05 09:00:31  zwen
  *   fixed mmio address for eNX (by obi)
  *
@@ -175,7 +178,7 @@
  *   Revision 1.7  2001/01/31 17:17:46  tmbinc
  *   Cleaned up avia drivers. - tmb
  *
- *   $Revision: 1.38.4.5 $
+ *   $Revision: 1.38.4.6 $
  *
  */
 
@@ -617,7 +620,18 @@ struct fbgen_hwswitch gtx_switch = {
 static int fb_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg, int con, struct fb_info *info)
 {
 
+	fb_copyarea copyarea;
+
 	switch (cmd) {
+
+		case AVIA_GT_GV_COPYAREA:
+		
+			if (copy_from_user(&copyarea, (void *)arg, sizeof(copyarea)))
+				return -EFAULT;
+			
+			avia_gt_gv_copyarea(copyarea.sx, copyarea.sy, copyarea.width, copyarea.height, copyarea.dx, copyarea.dy);
+		
+			break;
 
 		case AVIA_GT_GV_SET_BLEV:
 
@@ -663,7 +677,7 @@ static struct fb_ops avia_gt_fb_ops = {
 int __init avia_gt_fb_init(void)
 {
 
-    printk("avia_gt_fb: $Id: avia_gt_fb_core.c,v 1.38.4.5 2003/03/05 09:00:31 zwen Exp $\n");
+    printk("avia_gt_fb: $Id: avia_gt_fb_core.c,v 1.38.4.6 2003/07/22 08:01:56 alexw Exp $\n");
 
     gt_info = avia_gt_get_info();
 

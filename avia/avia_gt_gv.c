@@ -21,6 +21,9 @@
  *
  *
  *   $Log: avia_gt_gv.c,v $
+ *   Revision 1.25.4.4  2003/07/22 08:01:56  alexw
+ *   copyarea added
+ *
  *   Revision 1.25.4.3  2003/04/10 14:54:22  zwen
  *   - fixed avia_gt_gv_get_clut (eNX)
  *
@@ -100,7 +103,7 @@
  *   graphic viewport driver added
  *
  *
- *   $Revision: 1.25.4.3 $
+ *   $Revision: 1.25.4.4 $
  *
  */
 
@@ -119,6 +122,7 @@
 
 #include <dbox/avia_gt.h>
 #include <dbox/avia_gt_gv.h>
+#include <dbox/avia_gt_accel.h>
 
 unsigned short input_height = 576;
 unsigned char input_mode = AVIA_GT_GV_INPUT_MODE_RGB16;
@@ -127,7 +131,20 @@ unsigned short input_width = 720;
 unsigned short output_x = 0;
 unsigned short output_y = 0;
 
+u8 avia_gt_get_bpp(void);
 void avia_gt_gv_set_stride(void);
+
+void avia_gt_gv_copyarea(u16 src_x, u16 src_y, u16 width, u16 height, u16 dst_x, u16 dst_y)
+{
+
+	u16 bpp = avia_gt_get_bpp();
+	u16 line;
+	u16 stride = avia_gt_gv_get_stride();
+	
+	for (line = 0; line < height; line++)
+		avia_gt_accel_copy(AVIA_GT_MEM_GV_OFFS + (src_y + line) * stride + src_x * bpp, AVIA_GT_MEM_GV_OFFS + (dst_y + line) * stride + dst_x * bpp, width * bpp, 0);
+
+}
 
 void avia_gt_gv_cursor_hide(void)
 {
@@ -146,6 +163,38 @@ void avia_gt_gv_cursor_show(void)
 		enx_reg_set(GMR1, C, 1);
 	else if (avia_gt_chip(GTX))
 		gtx_reg_set(GMR, C, 1);
+
+}
+
+u8 avia_gt_get_bpp(void) 
+{
+
+	switch(input_mode) {
+
+		case AVIA_GT_GV_INPUT_MODE_RGB4:
+
+			return 1;
+
+		break;
+		case AVIA_GT_GV_INPUT_MODE_RGB8:
+
+			return 1;
+
+		break;
+		case AVIA_GT_GV_INPUT_MODE_RGB16:
+
+			return 2;
+
+		break;
+		case AVIA_GT_GV_INPUT_MODE_RGB32:
+
+			return 4;
+
+		break;
+
+	}
+
+	return 2;
 
 }
 
@@ -523,37 +572,10 @@ void avia_gt_gv_set_size(unsigned short width, unsigned short height) {
 
 void avia_gt_gv_set_stride(void) {
 
-	unsigned char input_bpp = 2;
-
-	switch(input_mode) {
-
-		case AVIA_GT_GV_INPUT_MODE_RGB4:
-
-			input_bpp = 1;
-
-		break;
-		case AVIA_GT_GV_INPUT_MODE_RGB8:
-
-			input_bpp = 1;
-
-		break;
-		case AVIA_GT_GV_INPUT_MODE_RGB16:
-
-			input_bpp = 2;
-
-		break;
-		case AVIA_GT_GV_INPUT_MODE_RGB32:
-
-			input_bpp = 4;
-
-		break;
-
-	}
-
 	if (avia_gt_chip(ENX))
-		enx_reg_set(GMR1, STRIDE, ((input_width * input_bpp) + 3) >> 2);
+		enx_reg_set(GMR1, STRIDE, ((input_width * avia_gt_get_bpp()) + 3) >> 2);
 	else if (avia_gt_chip(GTX))
-		gtx_reg_set(GMR, STRIDE, ((input_width * input_bpp) + 1) >> 1);
+		gtx_reg_set(GMR, STRIDE, ((input_width * avia_gt_get_bpp()) + 1) >> 1);
 
 }
 
@@ -616,7 +638,7 @@ int avia_gt_gv_show(void) {
 int avia_gt_gv_init(void)
 {
 
-	printk("avia_gt_gv: $Id: avia_gt_gv.c,v 1.25.4.3 2003/04/10 14:54:22 zwen Exp $\n");
+	printk("avia_gt_gv: $Id: avia_gt_gv.c,v 1.25.4.4 2003/07/22 08:01:56 alexw Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
@@ -642,24 +664,13 @@ int avia_gt_gv_init(void)
 
 	//avia_gt_gv_hide();
 	avia_gt_gv_cursor_hide();
-#ifdef WORKAROUND_MEMORY_TIMING
-	udelay(100);
-#endif /* WORKAROUND_MEMORY_TIMING */
 	avia_gt_gv_set_pos(0, 0);
-#ifdef WORKAROUND_MEMORY_TIMING
-	udelay(100);
-#endif /* WORKAROUND_MEMORY_TIMING */
 	avia_gt_gv_set_input_size(720, 576);
-#ifdef WORKAROUND_MEMORY_TIMING
-	udelay(100);
-#endif /* WORKAROUND_MEMORY_TIMING */
 	avia_gt_gv_set_size(720, 576);
 
 	if (avia_gt_chip(ENX)) {
 
-#ifdef WORKAROUND_MEMORY_TIMING
-		udelay(1000);
-#endif /* WORKAROUND_MEMORY_TIMING */
+		udelay(3000);  // WORKAROUND_MEMORY_TIMING (some Philips only)
 
 		//enx_reg_set(GMR1, P, 1);
 		enx_reg_set(GMR1, S, 1);
@@ -675,10 +686,6 @@ int avia_gt_gv_init(void)
 		enx_reg_set(GBLEV1, BLEV11, 0x00);
 		enx_reg_set(GBLEV1, BLEV10, 0x20);
 
-#ifdef WORKAROUND_MEMORY_TIMING
-		udelay(1000);
-#endif /* WORKAROUND_MEMORY_TIMING */
-
 		// schwarzer consolen hintergrund nicht transpartent
 		enx_reg_set(TCR1, E, 0x1);
 		enx_reg_set(TCR1, Red, 0xFF);
@@ -690,10 +697,6 @@ int avia_gt_gv_init(void)
 		enx_reg_set(TCR2, Red, 0xFF);
 		enx_reg_set(TCR2, Green, 0x00);
 		enx_reg_set(TCR2, Blue, 0x7F);
-
-#ifdef WORKAROUND_MEMORY_TIMING
-		udelay(1000);
-#endif /* WORKAROUND_MEMORY_TIMING */
 
 		enx_reg_set(VBR, E, 0x0);
 		enx_reg_set(VBR, Y, 0x00);
@@ -765,6 +768,7 @@ void __exit avia_gt_gv_exit(void)
 }
 
 #ifdef MODULE
+EXPORT_SYMBOL(avia_gt_gv_copyarea);
 EXPORT_SYMBOL(avia_gt_gv_get_clut);
 EXPORT_SYMBOL(avia_gt_gv_get_info);
 EXPORT_SYMBOL(avia_gt_gv_set_blevel);
