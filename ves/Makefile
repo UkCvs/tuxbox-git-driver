@@ -2,7 +2,7 @@
 # some magic for using linux kernel settings
 # when compiling module(s)
 
-M_OBJS   = ves1820.o ves1893.o ves1993.o tda8044h.o
+M_OBJS   = ves1820.o ves1893.o ves1993.o tda8044h.o at76c651.o
 # at76c651.o tda8044h.o 
 obj-m  = $(M_OBJS)
 
