@@ -20,9 +20,9 @@ subdir-m := $(subdir-y)
 include $(KERNEL_LOCATION)/Rules.make
 
 clean:
-	@for dir in $(mod-subdirs) ; do $(MAKE) -C $$dir clean || exit 1 ; done
-#	find . \( -name '*.[oas]' -o -name core -o -name '.*.flags' \) -type f -print \
-#		| xargs rm -f
+#	@for dir in $(mod-subdirs) ; do $(MAKE) -C $$dir clean || exit 1 ; done
+	find . \( -name '*.[oas]' -o -name core -o -name '.*.flags' \) -type f -print \
+		| xargs rm -f
 
 install:
 	@mkdir -p $(MODULE_DEST)
