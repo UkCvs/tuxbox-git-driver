@@ -21,6 +21,9 @@
  *
  *
  *   $Log: fp.c,v $
+ *   Revision 1.72.2.4  2002/12/03 18:23:18  Zwen
+ *   - modified wakeup detection
+ *
  *   Revision 1.72.2.3  2002/11/27 19:24:26  Zwen
  *   - wakeup detection improved
  *
@@ -246,7 +249,7 @@
  *   - some changes ...
  *
  *
- *   $Revision: 1.72.2.3 $
+ *   $Revision: 1.72.2.4 $
  *
  */
 
@@ -1826,7 +1829,7 @@ static int fp_clear_wakeup_timer()
 			return -1;
 	}
 	dprintk("fp.o: clear_wakeup_timer [%x][%x]\n",id[0],id[1]);
-	if(id[0]==0x80)
+	if(id[0] & 0x80)
 		is_wakeup=1;
 	else
 		is_wakeup=0;
