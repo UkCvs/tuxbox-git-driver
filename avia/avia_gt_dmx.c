@@ -1,230 +1,25 @@
 /*
- *   avia_gt_dmx.c - AViA eNX/GTX dmx driver (dbox-II-project)
+ * $Id: avia_gt_dmx.c,v 1.139.2.1.2.5 2003/06/04 11:04:45 alexw Exp $
  *
- *   Homepage: http://dbox2.elxsi.de
+ * AViA eNX/GTX dmx driver (dbox-II-project)
  *
- *   Copyright (C) 2002 Florian Schirmer (jolt@tuxbox.org)
+ * Homepage: http://dbox2.elxsi.de
  *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
+ * Copyright (C) 2002 Florian Schirmer (jolt@tuxbox.org)
  *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
- *   You should have received a copy of the GNU General Public License
- *   along with this program; if not, write to the Free Software
- *   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *
- *   $Log: avia_gt_dmx.c,v $
- *   Revision 1.139.2.1.2.4  2003/06/03 00:06:21  lucgas
- *   gcc-3.3 fix
- *
- *   Revision 1.139.2.1.2.3  2003/05/03 13:21:51  alexw
- *   pcr fix from head added
- *
- *   Revision 1.139.2.1.2.2  2003/04/14 14:11:33  alexw
- *   compiled-in ucode added
- *
- *   Revision 1.139.2.1.2.1  2003/02/18 14:32:46  alexw
- *   update to image drivers
- *
- *   Revision 1.134  2002/09/21 00:00:08  Jolt
- *   Some queue changes
- *
- *   Revision 1.133  2002/09/19 11:37:01  Jolt
- *   Fixes
- *
- *   Revision 1.132  2002/09/18 15:57:24  Jolt
- *   Queue handling changes #3
- *
- *   Revision 1.131  2002/09/18 14:13:58  obi
- *   enable hw sections for ucode_0013
- *
- *   Revision 1.130  2002/09/18 13:17:28  Ghostrider
- *   fix Jolts fix
- *
- *   Revision 1.129  2002/09/18 12:13:20  Jolt
- *   Queue handling changes #2
- *
- *   Revision 1.128  2002/09/18 09:57:42  Jolt
- *   Queue handling changes
- *
- *   Revision 1.127  2002/09/18 09:26:58  Jolt
- *   Fixes
- *
- *   Revision 1.126  2002/09/17 18:06:09  Jolt
- *   DMX fixes and cleanups
- *
- *   Revision 1.125  2002/09/13 22:53:55  Jolt
- *   HW CRC support
- *
- *   Revision 1.124  2002/09/13 19:00:49  Jolt
- *   Changed queue handling
- *
- *   Revision 1.123  2002/09/13 17:07:44  Jolt
- *   Fixed section mode selection:
- *   0 - disabled
- *   1 - autodetect
- *   2 - force
- *
- *   Revision 1.122  2002/09/10 17:18:31  Jolt
- *   Grrrrr
- *
- *   Revision 1.121  2002/09/10 16:31:38  Jolt
- *   SW sections fix
- *
- *   Revision 1.120  2002/09/10 13:44:44  Jolt
- *   DMX/NAPI cleanup
- *
- *   Revision 1.119  2002/09/09 18:30:36  Jolt
- *   Symbol fix
- *
- *   Revision 1.118  2002/09/08 16:15:22  Jolt
- *   DMX fixes
- *
- *   Revision 1.117  2002/09/08 13:02:49  Jolt
- *   DMX fixes
- *
- *   Revision 1.116  2002/09/05 18:16:13  Jolt
- *   Fixes
- *
- *   Revision 1.115  2002/09/05 17:08:08  Jolt
- *   DMX fix
- *
- *   Revision 1.114  2002/09/05 13:00:30  Jolt
- *   DMX sanity checks
- *
- *   Revision 1.113  2002/09/05 12:42:51  Jolt
- *   DMX/NAPI cleanup
- *
- *   Revision 1.112  2002/09/05 10:35:13  Jolt
- *   Test
- *
- *   Revision 1.111  2002/09/05 10:00:47  Jolt
- *   DMX bugfix
- *
- *   Revision 1.110  2002/09/05 09:40:31  Jolt
- *   - DMX/NAPI cleanup
- *   - Bugfixes (Thanks obi)
- *
- *   Revision 1.109  2002/09/04 22:40:46  Jolt
- *   DMX/NAPI cleanup
- *
- *   Revision 1.108  2002/09/04 22:07:40  Jolt
- *   DMX/NAPI cleanup
- *
- *   Revision 1.107  2002/09/04 21:12:52  Jolt
- *   DMX/NAPI cleanup
- *
- *   Revision 1.106  2002/09/04 14:26:49  Jolt
- *   DMX/NAPI cleanup
- *
- *   Revision 1.105  2002/09/04 13:25:01  Jolt
- *   DMX/NAPI cleanup
- *
- *   Revision 1.104  2002/09/03 21:00:34  Jolt
- *   DMX/NAPI cleanup
- *
- *   Revision 1.103  2002/09/03 20:24:29  obi
- *   tp_pcr/stc/dir/diff: printk -> dprintk
- *
- *   Revision 1.102  2002/09/03 15:37:50  wjoost
- *   Ein Bug weniger
- *
- *   Revision 1.101  2002/09/03 14:02:05  Jolt
- *   DMX/NAPI cleanup
- *
- *   Revision 1.100  2002/09/03 13:17:34  Jolt
- *   - DMX/NAPI cleanup
- *   - HW sections workaround
- *
- *   Revision 1.99  2002/09/02 19:25:37  Jolt
- *   - DMX/NAPI cleanup
- *   - Compile fix
- *
- *   Revision 1.98  2002/08/27 21:53:09  Jolt
- *   New sync logic
- *
- *   Revision 1.97  2002/08/25 22:14:54  Jolt
- *   Sync logic is broken :(
- *
- *   Revision 1.96  2002/08/25 20:33:19  Jolt
- *   Enabled basic sync mode
- *
- *   Revision 1.95  2002/08/25 10:19:33  Jolt
- *   HW sections can be disabled
- *
- *   Revision 1.94  2002/08/25 09:38:26  wjoost
- *   Hardware Section Filtering
- *
- *   Revision 1.93  2002/08/24 00:14:19  Jolt
- *   PCR stuff (currently no sync logic)
- *
- *   Revision 1.92  2002/08/22 13:39:33  Jolt
- *   - GCC warning fixes
- *   - screen flicker fixes
- *   Thanks a lot to Massa
- *
- *   Revision 1.91  2002/07/08 15:12:47  wjoost
- *
- *   ein paar nicht benutzte Felder initialisiert (wie in avia_gt_napi.c 1.88)
- *
- *   Revision 1.90  2002/07/07 16:55:42  wjoost
- *
- *   Meine Sagem hustet mir sonst was :-(
- *
- *   Revision 1.89  2002/06/11 20:35:43  Jolt
- *   Sections cleanup
- *
- *   Revision 1.88  2002/06/07 18:06:03  Jolt
- *   GCC31 fixes 2nd shot (GTX version) - sponsored by Frankster (THX!)
- *
- *   Revision 1.87  2002/06/07 17:53:45  Jolt
- *   GCC31 fixes 2nd shot - sponsored by Frankster (THX!)
- *
- *   Revision 1.86  2002/05/09 07:29:21  waldi
- *   add correct license
- *
- *   Revision 1.85  2002/05/08 03:47:26  obi
- *   changed PRCPID to PCRPID
- *
- *   Revision 1.84  2002/05/07 16:59:19  Jolt
- *   Misc stuff and cleanups
- *
- *   Revision 1.83  2002/05/03 22:09:58  Jolt
- *   Do not require ucodes for framebuffer mode
- *
- *   Revision 1.82  2002/05/03 21:52:58  Jolt
- *   YEAH YEAH YEAH :(
- *
- *   Revision 1.81  2002/05/03 16:45:17  obi
- *   replaced r*() by gtx_reg_*()
- *   formatted source
- *
- *   Revision 1.80  2002/05/02 21:26:01  Jolt
- *   Test
- *
- *   Revision 1.79  2002/05/02 20:23:10  Jolt
- *   Fixes
- *
- *   Revision 1.78  2002/05/02 12:37:35  Jolt
- *   Merge
- *
- *   Revision 1.77  2002/05/02 04:56:47  Jolt
- *   Merge
- *
- *   Revision 1.76  2002/05/01 21:53:00  Jolt
- *   Merge
- *
- *
- *
- *
- *   $Revision: 1.139.2.1.2.4 $
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  */
 
@@ -240,10 +35,10 @@
 #include <linux/wait.h>
 #include <asm/irq.h>
 #include <asm/io.h>
-#include <asm/bitops.h>
 #include <asm/uaccess.h>
 #include <linux/init.h>
 #include <linux/byteorder/swab.h>
+#include <linux/bitops.h>
 
 #include <linux/fs.h>
 #include <linux/fcntl.h>
@@ -275,10 +70,10 @@ struct tq_struct avia_gt_dmx_queue_tasklet = {
 	
 };
 
-static int errno							= (int)0;
-static sAviaGtInfo *gt_info						= (sAviaGtInfo *)NULL;
-static sRISC_MEM_MAP *risc_mem_map				= (sRISC_MEM_MAP *)NULL;
-static char *ucode							= (char *)NULL;
+static int errno = 0;
+static sAviaGtInfo *gt_info = NULL;
+static sRISC_MEM_MAP *risc_mem_map = NULL;
+static char *ucode = NULL;
 static s32 hw_sections = 1;
 static u8 force_stc_reload = 0;
 static sAviaGtDmxQueue queue_list[AVIA_GT_DMX_QUEUE_COUNT];
@@ -323,7 +118,7 @@ s32 avia_gt_dmx_alloc_queue(u8 queue_nr, AviaGtDmxQueueProc *irq_proc, AviaGtDmx
 
 	if (queue_nr >= AVIA_GT_DMX_QUEUE_COUNT) {
 
-		printk("avia_gt_dmx: alloc_queue: queue %d out of bounce\n", queue_nr);
+		printk(KERN_CRIT "avia_gt_dmx: alloc_queue: queue %d out of bounce\n", queue_nr);
 
 		return -EINVAL;
 
@@ -331,7 +126,7 @@ s32 avia_gt_dmx_alloc_queue(u8 queue_nr, AviaGtDmxQueueProc *irq_proc, AviaGtDmx
 
 	if (queue_list[queue_nr].busy) {
 
-		printk("avia_gt_dmx: alloc_queue: queue %d busy\n", queue_nr);
+		printk(KERN_ERR "avia_gt_dmx: alloc_queue: queue %d busy\n", queue_nr);
 
 		return -EBUSY;
 
@@ -394,21 +189,14 @@ s32 avia_gt_dmx_alloc_queue_video(AviaGtDmxQueueProc *irq_proc, AviaGtDmxQueuePr
 
 s32 avia_gt_dmx_free_queue(u8 queue_nr)
 {
-
 	if (queue_nr >= AVIA_GT_DMX_QUEUE_COUNT) {
-    
-		printk("avia_gt_dmx:  free_queue: queue %d out of bounce\n", queue_nr);
-	
+		printk(KERN_CRIT "avia_gt_dmx: free_queue: queue %d out of bounce\n", queue_nr);
 		return -EINVAL;
-
 	}
 
 	if (!queue_list[queue_nr].busy) {
-    
-		printk("avia_gt_dmx: free_queue: queue %d not busy\n", queue_nr);
-	
+		printk(KERN_ERR "avia_gt_dmx: free_queue: queue %d not busy\n", queue_nr);
 		return -EFAULT;
-    
 	}
 	
 	avia_gt_dmx_queue_irq_disable(queue_nr);
@@ -420,29 +208,24 @@ s32 avia_gt_dmx_free_queue(u8 queue_nr)
 	queue_list[queue_nr].priv_data = NULL;
     
 	return 0;
-
 }
 
 u8 avia_gt_dmx_get_hw_sec_filt_avail(void)
 {
 
 	if ((hw_sections == 1) && (risc_mem_map->Version_no[0] == 0x00) &&  (avia_gt_chip(GTX))) {
-	
+	/* hw sections for enx disabled (alexW) */
 		switch (risc_mem_map->Version_no[1]) {
-		
-			case 0x13:
-			case 0x14:
-			
-				return 1;
-			
+		case 0x13:
+		case 0x14:
+			return 1;
+		default:
 			break;
-			
 		}
 		
-	} else if (hw_sections == 2) {
-	
+	}
+	else if (hw_sections == 2) {
 		return 1;
-		
 	}
 
 	return 0;
@@ -975,7 +758,7 @@ sAviaGtDmxQueue *avia_gt_dmx_get_queue_info(u8 queue_nr)
 
 	if (queue_nr >= AVIA_GT_DMX_QUEUE_COUNT) {
 
-		printk("avia_gt_dmx: get_queue_info: queue %d out of bounce\n", queue_nr);
+		printk(KERN_CRIT "avia_gt_dmx: get_queue_info: queue %d out of bounce\n", queue_nr);
 
 		return NULL;
 
@@ -1000,7 +783,7 @@ u16 avia_gt_dmx_get_queue_irq(u8 queue_nr)
 
 	if (queue_nr >= AVIA_GT_DMX_QUEUE_COUNT) {
 
-		printk("avia_gt_dmx: alloc_queue: queue %d out of bounce\n", queue_nr);
+		printk(KERN_CRIT "avia_gt_dmx: alloc_queue: queue %d out of bounce\n", queue_nr);
 
 		return 0;
 
@@ -1039,7 +822,7 @@ int avia_gt_dmx_load_ucode(void)
 
 	if ((fd = open(ucode, 0, 0)) < 0) {
 
-		printk (KERN_ERR "avia_gt_dmx: Unable to load firmware file '%s'\n", ucode);
+		printk (KERN_INFO "avia_gt_dmx: No firmware found at %s, using compiled-in version.\n", ucode);
 
 		set_fs(fs);
 
@@ -1051,7 +834,7 @@ int avia_gt_dmx_load_ucode(void)
 		file_size = lseek(fd, 0L, 2);
 
 		if ((file_size <= 0) || (file_size > 2048)) {
-			printk (KERN_ERR "avia_gt_dmx: Firmware wrong size '%s'\n", ucode);
+			printk (KERN_ERR "avia_gt_dmx: Failed to read firmware file '%s'\n", ucode);
 
 			sys_close(fd);
 			set_fs(fs);
@@ -1083,7 +866,7 @@ int avia_gt_dmx_load_ucode(void)
 
 	avia_gt_dmx_risc_write(ucode_buf, risc_mem_map, file_size);
 
-	printk("avia_gt_dmx: Successfully loaded ucode V%X.%X\n", risc_mem_map->Version_no[0], risc_mem_map->Version_no[1]);
+	printk(KERN_INFO "avia_gt_dmx: Successfully loaded ucode V%X.%X\n", risc_mem_map->Version_no[0], risc_mem_map->Version_no[1]);
 
 	return 0;
 
@@ -1163,7 +946,7 @@ void avia_gt_dmx_fake_queue_irq(u8 queue_nr)
 
 	if (queue_nr >= AVIA_GT_DMX_QUEUE_COUNT) {
 
-		printk("avia_gt_dmx: fake_queue_irq: queue %d out of bounce\n", queue_nr);
+		printk(KERN_CRIT "avia_gt_dmx: fake_queue_irq: queue %d out of bounce\n", queue_nr);
 
 		return;
 
@@ -1172,7 +955,6 @@ void avia_gt_dmx_fake_queue_irq(u8 queue_nr)
 	queue_list[queue_nr].irq_count++;
 	
 	schedule_task(&avia_gt_dmx_queue_tasklet);
-	
 }
 
 u32 avia_gt_dmx_queue_crc32(u8 queue_nr, u32 count, u32 seed)
@@ -1183,7 +965,7 @@ u32 avia_gt_dmx_queue_crc32(u8 queue_nr, u32 count, u32 seed)
 
 	if (queue_nr >= AVIA_GT_DMX_QUEUE_COUNT) {
 
-		printk("avia_gt_dmx: crc32: queue %d out of bounce\n", queue_nr);
+		printk(KERN_CRIT "avia_gt_dmx: crc32: queue %d out of bounce\n", queue_nr);
 
 		return 0;
 
@@ -1218,7 +1000,7 @@ u32 avia_gt_dmx_queue_data_get(u8 queue_nr, void *dest, u32 count, u8 peek)
 
 	if (queue_nr >= AVIA_GT_DMX_QUEUE_COUNT) {
 
-		printk("avia_gt_dmx: queue_data_move: queue %d out of bounce\n", queue_nr);
+		printk(KERN_CRIT "avia_gt_dmx: queue_data_move: queue %d out of bounce\n", queue_nr);
 
 		return 0;
 
@@ -1226,7 +1008,7 @@ u32 avia_gt_dmx_queue_data_get(u8 queue_nr, void *dest, u32 count, u8 peek)
 
 	if (count > bytes_avail) {
 	
-		printk("avia_gt_dmx: queue_data_move: %d bytes requested, %d available\n", count, bytes_avail);
+		printk(KERN_ERR "avia_gt_dmx: queue_data_move: %d bytes requested, %d available\n", count, bytes_avail);
 		
 		count = bytes_avail;
 		
@@ -1299,7 +1081,7 @@ u32 avia_gt_dmx_queue_data_put(u8 queue_nr, void *src, u32 count, u8 src_is_user
 		(queue_nr != AVIA_GT_DMX_QUEUE_AUDIO) &&
 		(queue_nr != AVIA_GT_DMX_QUEUE_TELETEXT)) {
 
-		printk("avia_gt_dmx: queue_data_put: queue %d out of bounce\n", queue_nr);
+		printk(KERN_CRIT "avia_gt_dmx: queue_data_put: queue %d out of bounce\n", queue_nr);
 
 		return 0;
 
@@ -1376,7 +1158,7 @@ u32 avia_gt_dmx_queue_get_write_pos(u8 queue_nr)
 
 	if (queue_nr >= AVIA_GT_DMX_QUEUE_COUNT) {
 
-		printk("avia_gt_dmx: queue_get_write_pos: queue %d out of bounce\n", queue_nr);
+		printk(KERN_CRIT "avia_gt_dmx: queue_get_write_pos: queue %d out of bounce\n", queue_nr);
 
 		return 0;
 
@@ -1414,12 +1196,12 @@ u32 avia_gt_dmx_queue_get_write_pos(u8 queue_nr)
 static void avia_gt_dmx_queue_interrupt(unsigned short irq)
 {
 
-    unsigned char nr = AVIA_GT_IRQ_REG(irq);
-    unsigned char bit = AVIA_GT_IRQ_BIT(irq);
+	u8 bit = AVIA_GT_IRQ_BIT(irq);
+	u8 nr = AVIA_GT_IRQ_REG(irq);
 
 	s32 queue_nr = -EINVAL;
 
-    if (avia_gt_chip(ENX)) {
+	if (avia_gt_chip(ENX)) {
 
 		if (nr == 3)
 			queue_nr = bit + 16;
@@ -1428,15 +1210,15 @@ static void avia_gt_dmx_queue_interrupt(unsigned short irq)
 		else if (nr == 5)
 			queue_nr = bit - 6;
 
-    } else if (avia_gt_chip(GTX)) {
+	} else if (avia_gt_chip(GTX)) {
 
 		queue_nr = (nr - 2) * 16 + bit;
 
-    }
+	}
 
 	if ((queue_nr < 0) || (queue_nr >= AVIA_GT_DMX_QUEUE_COUNT)) {
 
-		printk("avia_gt_dmx: unexpected queue irq (nr=%d, bit=%d)\n", nr, bit);
+		printk(KERN_ERR "avia_gt_dmx: unexpected queue irq (nr=%d, bit=%d)\n", nr, bit);
 
 		return;
 
@@ -1444,7 +1226,7 @@ static void avia_gt_dmx_queue_interrupt(unsigned short irq)
 
 	if (!queue_list[queue_nr].busy) {
 	
-		printk("avia_gt_dmx: irq on idle queue (queue_nr=%d)\n", queue_nr);
+		printk(KERN_ERR "avia_gt_dmx: irq on idle queue (queue_nr=%d)\n", queue_nr);
 		
 		return;
 
@@ -1478,7 +1260,7 @@ s32 avia_gt_dmx_queue_reset(u8 queue_nr)
 
 	if (queue_nr >= AVIA_GT_DMX_QUEUE_COUNT) {
 
-		printk("avia_gt_dmx: queue_reset: queue %d out of bounce\n", queue_nr);
+		printk(KERN_CRIT "avia_gt_dmx: queue_reset: queue %d out of bounce\n", queue_nr);
 
 		return -EINVAL;
 
@@ -1500,7 +1282,7 @@ void avia_gt_dmx_queue_set_write_pos(u8 queue_nr, u32 write_pos)
 
 	if (queue_nr >= AVIA_GT_DMX_QUEUE_COUNT) {
 
-		printk("avia_gt_dmx: set_queue queue (%d) out of bounce\n", queue_nr);
+		printk(KERN_CRIT "avia_gt_dmx: set_queue queue (%d) out of bounce\n", queue_nr);
 
 		return;
 
@@ -1562,10 +1344,6 @@ void avia_gt_dmx_set_pcr_pid(u16 pid)
 {
 
 	if (avia_gt_chip(ENX)) {
-
-		//enx_reg_set(PCR_PID, E, 0);
-		//enx_reg_set(PCR_PID, PID, pid);
-		//enx_reg_set(PCR_PID, E, 1);
 
 		enx_reg_16(PCR_PID) = (1 << 13) | pid;
 
@@ -1676,7 +1454,7 @@ u32 avia_gt_dmx_system_queue_get_read_pos(u8 queue_nr)
 		(queue_nr != AVIA_GT_DMX_QUEUE_AUDIO) &&
 		(queue_nr != AVIA_GT_DMX_QUEUE_TELETEXT)) {
 
-		printk("avia_gt_dmx: system_queue_get_read_pos: queue %d out of bounce\n", queue_nr);
+		printk(KERN_CRIT "avia_gt_dmx: system_queue_get_read_pos: queue %d out of bounce\n", queue_nr);
 
 		return 0;
 
@@ -1712,16 +1490,16 @@ u32 avia_gt_dmx_system_queue_get_read_pos(u8 queue_nr)
 	
 	if (read_pos > (queue_list[queue_nr].mem_addr + queue_list[queue_nr].size)) {
 	
-		printk("avia_gt_dmx: system_queue_get_read_pos: queue %d read_pos 0x%X > queue_end 0x%X\n", queue_nr, read_pos, queue_list[queue_nr].mem_addr + queue_list[queue_nr].size);
-		
+		printk(KERN_CRIT "avia_gt_dmx: system_queue_get_read_pos: queue %d read_pos 0x%X > queue_end 0x%X\n", queue_nr, read_pos, queue_list[queue_nr].mem_addr + queue_list[queue_nr].size);
+
 		read_pos = queue_list[queue_nr].mem_addr;
 	
 	}
 
 	if (read_pos < queue_list[queue_nr].mem_addr) {
 	
-		printk("avia_gt_dmx: system_queue_get_read_pos: queue %d read_pos 0x%X < queue_base 0x%X\n", queue_nr, read_pos, queue_list[queue_nr].mem_addr);
-		
+		printk(KERN_CRIT "avia_gt_dmx: system_queue_get_read_pos: queue %d read_pos 0x%X < queue_base 0x%X\n", queue_nr, read_pos, queue_list[queue_nr].mem_addr);
+
 		read_pos = queue_list[queue_nr].mem_addr;
 	
 	}
@@ -1740,7 +1518,7 @@ void avia_gt_dmx_system_queue_set_pos(u8 queue_nr, u32 read_pos, u32 write_pos)
 		(queue_nr != AVIA_GT_DMX_QUEUE_AUDIO) &&
 		(queue_nr != AVIA_GT_DMX_QUEUE_TELETEXT)) {
 
-		printk("avia_gt_dmx: queue_system_set_pointer: queue %d out of bounce\n", queue_nr);
+		printk(KERN_CRIT "avia_gt_dmx: queue_system_set_pos: queue %d out of bounce\n", queue_nr);
 
 		return;
 
@@ -1775,7 +1553,7 @@ void avia_gt_dmx_system_queue_set_read_pos(u8 queue_nr, u32 read_pos)
 		(queue_nr != AVIA_GT_DMX_QUEUE_AUDIO) &&
 		(queue_nr != AVIA_GT_DMX_QUEUE_TELETEXT)) {
 
-		printk("avia_gt_dmx: system_queue_set_read_pos: queue %d out of bounce\n", queue_nr);
+		printk(KERN_CRIT "avia_gt_dmx: system_queue_set_read_pos: queue %d out of bounce\n", queue_nr);
 
 		return;
 
@@ -1808,7 +1586,7 @@ void avia_gt_dmx_system_queue_set_write_pos(u8 queue_nr, u32 write_pos)
 		(queue_nr != AVIA_GT_DMX_QUEUE_AUDIO) &&
 		(queue_nr != AVIA_GT_DMX_QUEUE_TELETEXT)) {
 
-		printk("avia_gt_dmx: queue_system_set_write_pointer: queue %d out of bounce\n", queue_nr);
+		printk(KERN_CRIT "avia_gt_dmx: system_queue_set_write_pos: queue %d out of bounce\n", queue_nr);
 
 		return;
 
@@ -1858,7 +1636,7 @@ int avia_gt_dmx_risc_init(void)
 
 	if (avia_gt_dmx_load_ucode()) {
 
-		printk("avia_gt_dmx: No valid firmware found! TV mode disabled.\n");
+		printk(KERN_ERR "avia_gt_dmx: No valid firmware found! TV mode disabled.\n");
 
 		return 0;
 
@@ -2149,13 +1927,13 @@ int __init avia_gt_dmx_init(void)
 	u32 queue_addr;
 	u8 queue_nr;
 
-	printk("avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.139.2.1.2.4 2003/06/03 00:06:21 lucgas Exp $\n");;
+	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.139.2.1.2.5 2003/06/04 11:04:45 alexw Exp $\n");;
 
 	gt_info = avia_gt_get_info();
 
 	if ((!gt_info) || ((!avia_gt_chip(ENX)) && (!avia_gt_chip(GTX)))) {
 
-		printk("avia_gt_dmx: Unsupported chip type\n");
+		printk(KERN_ERR "avia_gt_dmx: Unsupported chip type\n");
 
 		return -EIO;
 
@@ -2163,24 +1941,19 @@ int __init avia_gt_dmx_init(void)
 
 //	avia_gt_dmx_reset(1);
 
-
 	if (avia_gt_chip(ENX)) {
-
 		enx_reg_32(RSTR0)|=(1<<31)|(1<<23)|(1<<22);
-
 		risc_mem_map = (sRISC_MEM_MAP *)enx_reg_o(TDP_INSTR_RAM);
 
-	} else if (avia_gt_chip(GTX)) {
-
+	}
+	else if (avia_gt_chip(GTX)) {
 		risc_mem_map = (sRISC_MEM_MAP *)gtx_reg_o(GTX_REG_RISC);
-
 	}
 
 	if ((result = avia_gt_dmx_risc_init()))
 		return result;
 
 	if (avia_gt_chip(ENX)) {
-
 		enx_reg_32(RSTR0) &= ~(1 << 27);
 		enx_reg_32(RSTR0) &= ~(1 << 13);
 		enx_reg_32(RSTR0) &= ~(1 << 11);
@@ -2196,29 +1969,31 @@ int __init avia_gt_dmx_init(void)
 		enx_reg_16(SYNC_HYST) = 0x21;
 		enx_reg_16(BQ) = 0x00BC;
 
-		enx_reg_32(CFGR0) |= 1 << 24;		// enable dac output
+		/* enable dac output */
+		enx_reg_32(CFGR0) |= 1 << 24;
 
-		enx_reg_16(AVI_0) = 0xF;					// 0x6CF geht nicht (ordentlich)
+		/* 0x6CF geht nicht (ordentlich) */
+		enx_reg_16(AVI_0) = 0xF;
 		enx_reg_16(AVI_1) = 0xA;
 
-		enx_reg_32(CFGR0) &= ~3;				// disable clip mode
+		/* disable clip mode */
+		enx_reg_32(CFGR0) &= ~3;
 
 		printk("ENX-INITed -> %x\n", enx_reg_16(FIFO_PDCT));
-
-		if (!enx_reg_16(FIFO_PDCT))
-			printk("there MIGHT be no TS :(\n");
-
-	} else if (avia_gt_chip(GTX)) {
-
-	//	rh(RR1)&=~0x1C;							 // take framer, ci, avi module out of reset
+	}
+	else if (avia_gt_chip(GTX)) {
+		// take framer, ci, avi module out of reset
+		// rh(RR1)&=~0x1C;
 		gtx_reg_set(RR1, DAC, 1);
 		gtx_reg_set(RR1, DAC, 0);
 
-		gtx_reg_16(RR0) = 0;						// autsch, das muss so. kann das mal wer überprüfen?
+		/* autsch, das muss so. kann das mal wer überprüfen? */
+		gtx_reg_16(RR0) = 0;
 		gtx_reg_16(RR1) = 0;
 		gtx_reg_16(RISCCON) = 0;
 
-		gtx_reg_16(FCR) = 0x9147;							 // byte wide input
+		/* byte wide input */
+		gtx_reg_16(FCR) = 0x9147;
 		gtx_reg_16(SYNCH) = 0x21;
 
 		gtx_reg_16(AVI) = 0x71F;
@@ -2235,12 +2010,9 @@ int __init avia_gt_dmx_init(void)
 		queue_list[queue_nr].size = (1 << queue_size_table[queue_nr]) * 64;
 		
 		if (queue_addr & (queue_list[queue_nr].size - 1)) {
-		
-			printk("avia_gt_dmx: warning, misaligned queue %d (is 0x%X, size %d), aligning...\n", queue_nr, queue_addr, queue_list[queue_nr].size);
-			
+			printk(KERN_WARNING "avia_gt_dmx: warning, misaligned queue %d (is 0x%X, size %d), aligning...\n", queue_nr, queue_addr, queue_list[queue_nr].size);
 			queue_addr += queue_list[queue_nr].size;
 			queue_addr &= ~(queue_list[queue_nr].size - 1);
-			
 		}
 		
 		queue_list[queue_nr].mem_addr = queue_addr;
