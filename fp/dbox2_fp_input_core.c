@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_input_core.c,v 1.5.4.1 2005/01/15 01:46:41 carjay Exp $
+ * $Id: dbox2_fp_input_core.c,v 1.5.4.2 2005/01/15 02:52:57 carjay Exp $
  *
  * Copyright (C) 2002 by Florian Schirmer <jolt@tuxbox.org>
  *
@@ -22,6 +22,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/input.h>
+#include <linux/version.h>
 
 #include <dbox/dbox2_fp_core.h>
 
