@@ -24,13 +24,27 @@
 #ifndef AVIA_GT_PIG_H
 #define AVIA_GT_PIG_H
 
+struct avia_gt_pig_info {
+	unsigned short top;
+	unsigned short left;
+	unsigned short width;
+	unsigned short height;
+};
+
 int avia_gt_pig_hide(unsigned char pig_nr);
 int avia_gt_pig_set_pos(unsigned char pig_nr, unsigned short x, unsigned short y);
 int avia_gt_pig_set_size(unsigned char pig_nr, unsigned short width, unsigned short height, unsigned char stretch);
-int avia_gt_pig_set_stack(unsigned char pig_nr, unsigned char stack_order);
+int avia_gt_pig_set_stack(unsigned char pig_nr, u8 stack_order);
 int avia_gt_pig_show(unsigned char pig_nr);
+void avia_gt_pig_get_info(unsigned char pig, struct avia_gt_pig_info *info);
 
 int avia_gt_pig_init(void);
 void avia_gt_pig_exit(void);
+
+enum stack_order{
+	AVIA_GT_PIG_STACK_BELOW_GFX=0,
+	AVIA_GT_PIG_STACK_BETWEEN_GFX,	// only eNX
+	AVIA_GT_PIG_STACK_ABOVE_GFX
+};
 	    
 #endif

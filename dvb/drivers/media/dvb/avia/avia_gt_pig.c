@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_pig.c,v 1.40 2003/09/30 05:45:35 obi Exp $
+ * $Id: avia_gt_pig.c,v 1.40.4.1 2005/01/24 19:46:40 carjay Exp $
  *
  * pig driver for AViA eNX/GTX (dbox-II-project)
  *
@@ -29,18 +29,27 @@
 #include <linux/module.h>
 
 #include "avia_gt.h"
-#include <linux/dvb/avia/avia_gt_capture.h>
+#include "avia_gt_capture.h"	// TODO: does pig have to know about capture? -> delegate knowledge to v4l2
+#include "avia_gt_pig.h"
 
 #define MAX_PIG_COUNT 2
 
 #define CAPTURE_WIDTH 720
 #define CAPTURE_HEIGHT 576
 
+static struct avia_gt_pig_info pig_info[2] = {
+	{.width = 720,
+	.height = 576},
+	{.width = 720,
+	.height = 576}
+};
+
 static sAviaGtInfo *gt_info;
-static unsigned char pig_busy[MAX_PIG_COUNT];
-static unsigned char *pig_buffer[MAX_PIG_COUNT];
+static unsigned char pig_busy[MAX_PIG_COUNT];	// TODO: hide in struct
+static unsigned long pig_buffer[MAX_PIG_COUNT];
+static unsigned long pig_oddoffset[MAX_PIG_COUNT];
 static unsigned char pig_count;
-static unsigned short pig_stride[MAX_PIG_COUNT];
+static unsigned long pig_stride[MAX_PIG_COUNT];
 
 int avia_gt_pig_hide(u8 pig_nr)
 {
@@ -49,7 +58,7 @@ int avia_gt_pig_hide(u8 pig_nr)
 
 	if (pig_busy[pig_nr]) {
 		avia_gt_reg_set(VPSA1, E, 0);
-		avia_gt_capture_stop(1);
+		avia_gt_capture_stop();
 		pig_busy[pig_nr] = 0;
 	}
 
@@ -60,6 +69,9 @@ int avia_gt_pig_set_pos(u8 pig_nr, u16 x, u16 y)
 {
 	if (pig_nr >= pig_count)
 		return -ENODEV;
+
+ 	pig_info[pig_nr].left = x;
+ 	pig_info[pig_nr].top = y;
 
 	if (avia_gt_chip(ENX)) {
 		enx_reg_set(VPP1, HPOS, 63 + (x / 2));
@@ -88,7 +100,7 @@ int avia_gt_pig_set_stack(u8 pig_nr, u8 stack_order)
 
 int avia_gt_pig_set_size(u8 pig_nr, u16 width, u16 height, u8 stretch)
 {
-	int result = 0;
+	struct avia_gt_capture_params capparams;
 
 	if (pig_nr >= pig_count)
 		return -ENODEV;
@@ -96,54 +108,57 @@ int avia_gt_pig_set_size(u8 pig_nr, u16 width, u16 height, u8 stretch)
 	if (pig_busy[pig_nr])
 		return -EBUSY;
 
-	result = avia_gt_capture_set_output_size(width, height, 1);
+	avia_gt_capture_get_params (&capparams);		// TODO: this must go to v4l2
+	capparams.captured_width = width;
+	capparams.captured_height = height;
+	if (avia_gt_capture_apply_params(&capparams,NULL)<0)
+		return 1;
+ 	pig_info[pig_nr].width = width = capparams.captured_width;
+ 	pig_info[pig_nr].width = height = capparams.captured_height;
+ 	
  
-	if (result < 0)
-		return result;
-
-	avia_gt_reg_set(VPSZ1, WIDTH, width / 2);
+	avia_gt_reg_set(VPSZ1, WIDTH, width/2);			// pixel pairs
 	avia_gt_reg_set(VPSZ1, S, stretch);
-	avia_gt_reg_set(VPSZ1, HEIGHT, height / 2);
+	avia_gt_reg_set(VPSZ1, HEIGHT, ((height+1)&~1)/2);	// scan lines per field
 
 	return 0;
 }
 
 int avia_gt_pig_show(u8 pig_nr)
 {
+	struct avia_gt_capture_params capparams;
+	struct avia_gt_capture_info info;
+
 	if (pig_nr >= pig_count)
 		return -ENODEV;
 	
 	if (pig_busy[pig_nr])
 		return -EBUSY;
 
-	if (avia_gt_capture_set_input_pos(0, 0, 1) < 0)
+	avia_gt_capture_get_params (&capparams);
+	avia_gt_capture_get_info(&info);
+
+	if (avia_gt_capture_start()<0)
 		return -EBUSY;
 
-	if (avia_gt_capture_set_input_size(CAPTURE_WIDTH, CAPTURE_HEIGHT, 1) < 0)
-		return -EBUSY;
+	pig_buffer[pig_nr] = info.drambufstart;
+	pig_stride[pig_nr] = info.bytesperline*((info.oddoffset)?1:2);	// if oddoffset is set, lines follow each other
+	pig_oddoffset[pig_nr] = (info.oddoffset)?info.oddoffset:info.bytesperline;
 
-	if (avia_gt_capture_start(&pig_buffer[pig_nr], &pig_stride[pig_nr], 1) < 0)
-		return -EBUSY;
-
+	// TODO: do correct inversion of capture process
 	if (avia_gt_chip(ENX)) {
-		//enx_reg_16(VPSTR1) = 0;
-
-		if (pig_stride[pig_nr] < 240)
-			enx_reg_16(VPSTR1) = pig_stride[pig_nr];
-		else
-			enx_reg_16(VPSTR1) = (pig_stride[pig_nr] * 2) & 0x7FF;
-
+		enx_reg_16(VPSTR1) = pig_stride[pig_nr]&~3 ;
 		//enx_reg_16(VPSTR1) |= 0;				// Enable hardware double buffering
 		enx_reg_set(VPSZ1, P, 0);
-		enx_reg_set(VPSA1, Addr, (unsigned long)pig_buffer[pig_nr] >> 2);	// Set buffer address (for non d-buffer mode)
-		enx_reg_set(VPOFFS1, OFFSET, pig_stride[pig_nr] >> 2);
+		enx_reg_set(VPSA1, Addr, pig_buffer[pig_nr] >> 2);	// Set buffer address (for non d-buffer mode)
+		enx_reg_set(VPOFFS1, OFFSET, pig_oddoffset[pig_nr] >> 2);
 		enx_reg_set(VPP1, U, 0);
 	}
 	else if (avia_gt_chip(GTX)) {
 		gtx_reg_set(VPO, OFFSET, pig_stride[pig_nr] >> 1);
 		gtx_reg_set(VPO, STRIDE, pig_stride[pig_nr] >> 1);
 		gtx_reg_set(VPO, B, 0);					// Enable hardware double buffering
-		gtx_reg_set(VPSA1, Addr, (unsigned long)pig_buffer[pig_nr] >> 1);	// Set buffer address (for non d-buffer mode)
+		gtx_reg_set(VPSA1, Addr, pig_buffer[pig_nr] >> 1);	// Set buffer address (for non d-buffer mode)
 	}
 
 	avia_gt_reg_set(VPP1, F, 0);
@@ -154,11 +169,15 @@ int avia_gt_pig_show(u8 pig_nr)
 	return 0;
 }
 
+void avia_gt_pig_get_info(unsigned char pig, struct avia_gt_pig_info *info){
+	*info = pig_info[pig];
+}
+
 int __init avia_gt_pig_init(void)
 {
 	u8 pig_nr;
 
-	printk(KERN_INFO "avia_gt_pig: $Id: avia_gt_pig.c,v 1.40 2003/09/30 05:45:35 obi Exp $\n");
+	printk(KERN_INFO "avia_gt_pig: $Id: avia_gt_pig.c,v 1.40.4.1 2005/01/24 19:46:40 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
@@ -213,3 +232,5 @@ EXPORT_SYMBOL(avia_gt_pig_set_pos);
 EXPORT_SYMBOL(avia_gt_pig_set_size);
 EXPORT_SYMBOL(avia_gt_pig_set_stack);
 EXPORT_SYMBOL(avia_gt_pig_show);
+EXPORT_SYMBOL(avia_gt_pig_get_info);
+
