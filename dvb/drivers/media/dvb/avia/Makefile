@@ -16,7 +16,8 @@ obj-m		:= avia_av.o avia_gt.o
 
 avia_av-objs	:= avia_av_core.o avia_av_ksyms.o
 av-misc		:= avia_av_event.o avia_av_proc.o
-avia_gt-objs	:= avia_gt_core.o avia_gt_enx.o avia_gt_gtx.o avia_gt_ucode.o avia_gt_ucode_firmware.o
+avia_gt-objs	:= avia_gt_core.o avia_gt_enx.o avia_gt_gtx.o\
+		    avia_gt_ucode.o avia_gt_ucode_firmware.o
 avia_gt_fb-objs	:= avia_gt_fb_core.o
 
 gt-misc		:= avia_gt_accel.o
@@ -35,7 +36,8 @@ obj-m		+= avia_gt_fb.o
 endif
 ifeq ($(CONFIG_AVIA_GT_IR),y)
 gt-misc		+= avia_gt_ir.o
-obj-m		+= avia_gt_ir_samsung.o avia_gt_lirc.o
+avia_gt_ir_rc-objs = avia_gt_ir_rc_core.o avia_gt_ir_rc_nokia.o
+obj-m		+= avia_gt_ir_samsung.o avia_gt_lirc.o avia_gt_ir_rc.o
 endif
 ifeq ($(CONFIG_AVIA_GT_PCM),y)
 gt-misc		+= avia_gt_pcm.o
