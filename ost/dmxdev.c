@@ -41,6 +41,8 @@ MODULE_PARM(debug,"i");
 #endif
 static int debug = 0;
 
+#define DO_NOT_RESET_BUFFER_WHEN_OVERFLOWING 1
+
 #define dprintk	if (debug) printk
 
 inline dmxdev_filter_t *
@@ -377,7 +379,9 @@ DmxDevSectionCallback(u8 *buffer1, size_t buffer1_len,
 	        ret=DmxDevBufferWrite(&dmxdevfilter->buffer, buffer2, buffer2_len);
 	}
         if (ret<0) {
+#ifndef DO_NOT_RESET_BUFFER_WHEN_OVERFLOWING
 	        dmxdevfilter->buffer.pwrite=dmxdevfilter->buffer.pread;
+#endif
 	        dmxdevfilter->buffer.error=-EBUFFEROVERFLOW;
 	}
 	if (dmxdevfilter->params.sec.flags&DMX_ONESHOT)
@@ -429,7 +433,9 @@ DmxDevTSCallback(u8 *buffer1, size_t buffer1_len,
         if (ret==buffer1_len) 
 	        ret=DmxDevBufferWrite(buffer, buffer2, buffer2_len);
         if (ret<0) {
-	        buffer->pwrite=buffer->pread;    
+#ifndef DO_NOT_RESET_BUFFER_WHEN_OVERFLOWING
+	        buffer->pwrite=buffer->pread;
+#endif
 	        buffer->error=-EBUFFEROVERFLOW;
 	}
 	spin_unlock(&dmxdevfilter->dev->lock);
