@@ -1,12 +1,9 @@
-DRIVER_TOPDIR = ..
+ifeq ($(KERNELRELEASE),)
+DRIVER_TOPDIR:=$(PWD)/..
+include $(DRIVER_TOPDIR)/kernel.make
+else
+obj-m		+= lcd.o
+lcd-objs	:= lcd-console.o lcd-font.o lcd-ks0713.o
 
-include $(DRIVER_TOPDIR)/Config.make
-
-obj-m		:= lcd.o
-
-LCD_OBJS	:= lcd-console.o lcd-font.o lcd-ks0713.o
-
-lcd.o: $(LCD_OBJS)
-	$(LD) -r -o $@ $(LCD_OBJS)
-
-include $(DRIVER_TOPDIR)/Rules.make
+EXTRA_CFLAGS	:= -I$(DRIVER_TOPDIR)/include
+endif

@@ -1,12 +1,9 @@
-DRIVER_TOPDIR = ..
+ifeq ($(KERNELRELEASE),)
+DRIVER_TOPDIR:=$(PWD)/..
+include $(DRIVER_TOPDIR)/kernel.make
+else
+obj-m		+= saa7126.o
+saa7126-objs	:= saa7126_core.o
 
-include $(DRIVER_TOPDIR)/Config.make
-
-obj-m		:= saa7126.o
-
-SAA_OBJS	:= saa7126_core.o
-
-saa7126.o: $(SAA_OBJS)
-	$(LD) -r -o $@ $(SAA_OBJS)
-
-include $(DRIVER_TOPDIR)/Rules.make
+EXTRA_CFLAGS	:= -I$(DRIVER_TOPDIR)/include
+endif

@@ -1,19 +1,10 @@
-DRIVER_TOPDIR = ..
+ifeq ($(KERNELRELEASE),)
+DRIVER_TOPDIR:=$(PWD)/..
+include $(DRIVER_TOPDIR)/kernel.make
+else
+obj-m				+= tuxbox.o
 
-include $(DRIVER_TOPDIR)/Config.make
+tuxbox-objs			:= tuxbox_core.o tuxbox_hardware_dbox2.o
 
-obj-m				:= tuxbox.o
-
-TUXBOX_OBJS			:= tuxbox_core.o
-
-ifdef CONFIG_HARDWARE_DBOX2
-TUXBOX_OBJS			+= tuxbox_hardware_dbox2.o
+EXTRA_CFLAGS	:= -I$(DRIVER_TOPDIR)/include
 endif
-ifdef CONFIG_HARDWARE_DREAMBOX
-TUXBOX_OBJS			+= tuxbox_hardware_dreambox.o
-endif
-
-tuxbox.o: $(TUXBOX_OBJS)
-	$(LD) -r -o $@ $(TUXBOX_OBJS)
-
-include $(DRIVER_TOPDIR)/Rules.make

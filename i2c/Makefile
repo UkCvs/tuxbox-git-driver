@@ -1,7 +1,7 @@
-DRIVER_TOPDIR = ..
-
-include $(DRIVER_TOPDIR)/Config.make
-
-obj-m		:= dbox2_i2c.o
-
-include $(DRIVER_TOPDIR)/Rules.make
+ifeq ($(KERNELRELEASE),)
+DRIVER_TOPDIR:=$(PWD)/..
+include $(DRIVER_TOPDIR)/kernel.make
+else
+obj-m		+= dbox2_i2c.o
+EXTRA_CFLAGS	:= -I$(DRIVER_TOPDIR)/include -I$(DRIVER_TOPDIR)/dvb/drivers/media/dvb
+endif

@@ -1,46 +1,45 @@
-DRIVER_TOPDIR = ../../../../..
+ifeq ($(KERNELRELEASE),)
+DRIVER_TOPDIR:=$(PWD)/../../../../..
+include $(DRIVER_TOPDIR)/kernel.make
+else
 
-include $(DRIVER_TOPDIR)/Config.make
-
-export-objs	:= avia_av_ksyms.o avia_av_napi.o avia_gt_accel.o avia_gt_core.o
 obj-m		:= avia_av.o avia_av_napi.o avia_gt.o avia_napi.o
 
-av-core-objs	:= avia_av_core.o avia_av_ksyms.o
+avia_av-objs	:= avia_av_core.o avia_av_ksyms.o
 av-misc-objs	:= avia_av_event.o avia_av_proc.o
 
-gt-core-objs	:= avia_gt_core.o avia_gt_enx.o avia_gt_gtx.o avia_gt_ucode.o avia_gt_ucode_firmware.o
-gt-fb-objs	:= avia_gt_fb_core.o fbgen.o
+avia_gt-objs	:= avia_gt_core.o avia_gt_enx.o avia_gt_gtx.o avia_gt_ucode.o avia_gt_ucode_firmware.o
+gt-fb-objs	:= avia_gt_fb_core.o
 gt-misc-objs	:= avia_gt_accel.o
 
-include .config
+include $(DRIVER_TOPDIR)/dvb/drivers/media/dvb/avia/.config
 
 ifeq ($(CONFIG_AVIA_GT_CAPTURE),y)
-export-objs	+= avia_gt_capture.o avia_gt_pig.o
 gt-misc-objs	+= avia_gt_capture.o avia_gt_pig.o
 obj-m		+= avia_gt_v4l2.o
 endif
 ifeq ($(CONFIG_AVIA_GT_DMX),y)
-export-objs	+= avia_gt_dmx.o avia_gt_vbi.o avia_gt_napi.o
 gt-misc-objs	+= avia_gt_dmx.o avia_gt_vbi.o
 obj-m		+= avia_gt_napi.o
 endif
 ifeq ($(CONFIG_AVIA_GT_GV),y)
-export-objs	+= avia_gt_gv.o fbgen.o
 gt-misc-objs	+= avia_gt_gv.o
 obj-m		+= avia_gt_fb.o
 endif
 ifeq ($(CONFIG_AVIA_GT_IR),y)
-export-objs	+= avia_gt_ir.o
 gt-misc-objs	+= avia_gt_ir.o
 obj-m		+= avia_gt_ir_samsung.o avia_gt_lirc.o
 endif
 ifeq ($(CONFIG_AVIA_GT_PCM),y)
-export-objs	+= avia_gt_pcm.o
 gt-misc-objs	+= avia_gt_pcm.o
 obj-m		+= avia_gt_oss.o
 endif
 
-EXTRA_CFLAGS    += -I$(DRIVER_TOPDIR)/dvb/drivers/media/dvb/dvb-core
+CC		:= $(CROSS_COMPILE)gcc -I$(TOPDIR)/dvb/include
+
+EXTRA_CFLAGS	+= -I$(DRIVER_TOPDIR)/include -I$(DRIVER_TOPDIR)/dvb/include \
+		    -I$(DRIVER_TOPDIR)/dvb/drivers/media/dvb/dvb-core
+		    
 
 ifeq ($(CONFIG_AVIA_DEBUG),y)
 EXTRA_CFLAGS	+= -DDEBUG
@@ -50,21 +49,13 @@ ifeq ($(CONFIG_AVIA_STANDALONE),y)
 obj-m		+= $(av-misc-objs) $(gt-misc-objs)
 EXTRA_CFLAGS	+= -DSTANDALONE
 else
-av-core-objs	+= $(av-misc-objs)
-gt-core-objs	+= $(gt-misc-objs)
+avia_av-objs	+= $(av-misc-objs)
+avia_gt-objs	+= $(gt-misc-objs)
 endif
 
-avia_av.o: $(av-core-objs)
-	$(LD) -r -o $@ $(av-core-objs)
-
-avia_gt.o: $(gt-core-objs)
-	$(LD) -r -o $@ $(gt-core-objs)
-
-avia_gt_fb.o: $(gt-fb-objs)
-	$(LD) -r -o $@ $(gt-fb-objs)
-
-fbgen.c: $(KERNEL_LOCATION)/drivers/video/fbgen.c
-	ln -s $(KERNEL_LOCATION)/drivers/video/fbgen.c
+avia_av-objs	+= $(av-core-objs)
+avia_gt-objs	+= $(gt-core-objs)
+avia_gt_fb-objs	+= $(gt-fb-objs)
 
 #
 # all modules depend on the configuration file
@@ -118,7 +109,4 @@ avia_gt_config.h: .config
 	fi
 	@echo \#endif					>> avia_gt_config.h
 
-uninstall:
-	rm $(MODLIB)/misc/avia*.o
-
-include $(DRIVER_TOPDIR)/Rules.make
+endif

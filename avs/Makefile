@@ -1,12 +1,9 @@
-DRIVER_TOPDIR = ..
+ifeq ($(KERNELRELEASE),)
+DRIVER_TOPDIR:=$(PWD)/..
+include $(DRIVER_TOPDIR)/kernel.make
+else
+obj-m		+= avs.o
+avs-objs	:= stv6412.o cxa2092.o cxa2126.o avs_core.o
 
-include $(DRIVER_TOPDIR)/Config.make
-
-obj-m		= avs.o
-
-AVS_OBJS	= stv6412.o cxa2092.o cxa2126.o avs_core.o
-
-avs.o:	$(AVS_OBJS)
-	$(LD) -r -o $@ $(AVS_OBJS)
-
-include $(DRIVER_TOPDIR)/Rules.make
+EXTRA_CFLAGS	+= -I$(DRIVER_TOPDIR)/include
+endif

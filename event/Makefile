@@ -1,9 +1,8 @@
-DRIVER_TOPDIR = ..
+ifeq ($(KERNELRELEASE),)
+DRIVER_TOPDIR:=$(PWD)/..
+include $(DRIVER_TOPDIR)/kernel.make
+else
+obj-m	+= event.o
 
-include $(DRIVER_TOPDIR)/Config.make
-
-obj-m		:= event.o
-export-objs	:= event.o
-
-include $(DRIVER_TOPDIR)/Rules.make
-
+EXTRA_CFLAGS	:= -I$(DRIVER_TOPDIR)/include
+endif

@@ -1,10 +1,10 @@
-DRIVER_TOPDIR = ..
+ifeq ($(KERNELRELEASE),)
+DRIVER_TOPDIR:=$(PWD)/..
+include $(DRIVER_TOPDIR)/kernel.make
+else
 
-include $(DRIVER_TOPDIR)/Config.make
+obj-m	:= cam.o cam_napi.o
 
-obj-m		:= cam.o cam_napi.o
-export-objs	:= cam.o
+EXTRA_CFLAGS	+= -I$(DRIVER_TOPDIR)/include -I$(DRIVER_TOPDIR)/dvb/drivers/media/dvb
 
-EXTRA_CFLAGS	:= -I$(DRIVER_TOPDIR)/dvb/drivers/media/dvb
-
-include $(DRIVER_TOPDIR)/Rules.make
+endif
