@@ -24,6 +24,8 @@
 #ifndef AVIA_GT_IR_H
 #define AVIA_GT_IR_H
 
+#include <linux/interrupt.h>
+
 #define AVIA_GT_IR_MAX_PULSE_COUNT	(128 + 1)
 
 #define USEC_TO_CWP(period)		((((period) * frequency) + 500000) / 1000000)
@@ -77,7 +79,13 @@ enum {
 	AVIA_GT_IR_TX = 1,	/* what functionality does the client need? */
 	AVIA_GT_IR_RX = 2
 };
+struct ir_client {
+	u32 flags;						/* from the enum above */
+	struct tasklet_struct *rx_task; /* receive IRQ tasklet (or NULL)*/
+	struct tasklet_struct *tx_task; /* transmit IRQ tasklet (or NULL) */
+};
+
 /* returns a simple handle-like value */
-extern int avia_gt_ir_register(u32 flags);
+extern int avia_gt_ir_register(struct ir_client*);
 extern int avia_gt_ir_unregister(int handle);
 #endif
