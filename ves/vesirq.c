@@ -1,3 +1,14 @@
+/*
+
+    $Id: vesirq.c,v 1.1.1.1.4.1 2002/01/22 22:58:04 fnbrd Exp $
+    
+    $Log: vesirq.c,v $
+    Revision 1.1.1.1.4.1  2002/01/22 22:58:04  fnbrd
+    Id und Log bei manchen Quellen eingefuegt.
+
+    
+*/
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/ioport.h>
