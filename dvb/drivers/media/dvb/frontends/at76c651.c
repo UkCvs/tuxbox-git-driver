@@ -401,10 +401,10 @@ struct dvb_frontend* at76c651_attach(const struct at76c651_config* config,
 	state->qam = 0;
 
 	/* check if the demod is there */
+	state->i2c = i2c;
 	if (at76c651_readreg(state, 0x0e) != 0x65) goto error;
 
 	/* finalise state setup */
-	state->i2c = i2c;
 	state->revision = at76c651_readreg(state, 0x0f) & 0xfe;
 	memcpy(&state->ops, &at76c651_ops, sizeof(struct dvb_frontend_ops));
 
