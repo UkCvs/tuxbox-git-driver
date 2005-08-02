@@ -63,7 +63,9 @@ static struct i2c_driver cam_i2c_driver = {
 
 static struct i2c_client client_template = {
 	.name		= "DBox2-CAM",
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,12)
 	.id		= I2C_DRIVERID_CAM,
+#endif
 	.flags		= 0,
 	.addr		= (0x6E >> 1),
 	.adapter	= NULL,
@@ -400,7 +402,7 @@ static struct device_driver cam_driver = {
 
 static int __init cam_init(void)
 {
-	printk(KERN_INFO "$Id: cam.c,v 1.30.2.2 2005/01/15 22:22:11 carjay Exp $\n");
+	printk(KERN_INFO "$Id: cam.c,v 1.30.2.3 2005/08/02 20:37:27 carjay Exp $\n");
 
 	return driver_register(&cam_driver);
 }

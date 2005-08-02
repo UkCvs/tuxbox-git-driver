@@ -1,5 +1,5 @@
 /*
- * $Id: avs_core.c,v 1.27.2.3 2005/04/02 17:41:38 carjay Exp $
+ * $Id: avs_core.c,v 1.27.2.4 2005/08/02 20:38:03 carjay Exp $
  * 
  * audio/video switch core driver (dbox-II-project)
  *
@@ -92,7 +92,9 @@ static struct i2c_client_address_data addr_data = {
 static struct i2c_driver avs_i2c_driver;
 static struct i2c_client client_template = {
 	.name = "AVS",
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,12)
 	.id = I2C_DRIVERID_AVS,
+#endif
 	.flags = 0,
 	.driver = &avs_i2c_driver
 };
