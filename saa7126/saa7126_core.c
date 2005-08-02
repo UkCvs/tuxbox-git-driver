@@ -1,5 +1,5 @@
 /*
- * $Id: saa7126_core.c,v 1.45.2.5 2005/02/01 19:55:59 carjay Exp $
+ * $Id: saa7126_core.c,v 1.45.2.6 2005/08/02 21:14:04 carjay Exp $
  * 
  * Philips SAA7126 digital video encoder
  *
@@ -248,6 +248,7 @@ struct saa7126 {
 
 	int norm;
 	int enable;
+	int id;
 };
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
@@ -502,13 +503,13 @@ static int saa7126_detect_client(struct i2c_adapter *adapter, int address,
 	
 	client->addr = address;
 	client->adapter = adapter;
-	client->id = saa7126_id++;
-
+	
 	/* check version */
 	version = (saa7126_readreg(client, 0x00))>>5;
 	if (version)
 		printk (KERN_INFO "saa7126: unknown chip version 0x%02x\n",version);
 
+	encoder->id = saa7126_id++;
 	encoder->i2c_client = client;
 	encoder->enable = 1;
 
@@ -552,7 +553,7 @@ static int saa7126_detect_client(struct i2c_adapter *adapter, int address,
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 	if ((ret = devfs_mk_cdev(MKDEV(MISC_MAJOR,pmd->minor), 
-			S_IFCHR | S_IRUGO | S_IWUGO, "dbox/saa%d", client->id))) {
+			S_IFCHR | S_IRUGO | S_IWUGO, "dbox/saa%d", encoder->id))) {
 		goto out_reg;
 	}
 	list_add_tail(&encoder->lhead,&encoder_list);
@@ -599,7 +600,7 @@ static int saa7126_detach(struct i2c_client *client)
 	int ret;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 	struct saa7126 *encoder = (struct saa7126 *) i2c_get_clientdata(client);
-	devfs_remove("dbox/saa%d",client->id);
+	devfs_remove("dbox/saa%d",encoder->id);
 	misc_deregister(encoder->mdev);
 	kfree(encoder->mdev);
 #else
