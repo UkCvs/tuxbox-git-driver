@@ -105,7 +105,9 @@ static struct i2c_driver fp_i2c_driver;
 #endif
 static struct i2c_client fp_client = {
 	.name		= "FP",
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,12)
 	.id			= I2C_FP_DRIVERID,
+#endif
 	.flags		= 0,
 	.addr		= (0x60 >> 1),
 	.adapter 	= NULL,
