@@ -1,5 +1,5 @@
 /*
- * $Id: avs_core.c,v 1.27.2.4 2005/08/02 20:38:03 carjay Exp $
+ * $Id: avs_core.c,v 1.27.2.5 2005/08/27 18:40:07 carjay Exp $
  * 
  * audio/video switch core driver (dbox-II-project)
  *
@@ -61,7 +61,6 @@
 
 TUXBOX_INFO(dbox2_mid);
 
-static int addr;
 static int type = CXAAUTO;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
@@ -71,23 +70,8 @@ static devfs_handle_t devfs_handle;
 /*
  * Addresses to scan
  */
-static unsigned short normal_i2c[]		= {I2C_CLIENT_END};
-static unsigned short normal_i2c_range[]	= { 0x90>>1,0x94>>1,I2C_CLIENT_END};
-static unsigned short probe[2]			= { I2C_CLIENT_END, I2C_CLIENT_END };
-static unsigned short probe_range[2]		= { I2C_CLIENT_END, I2C_CLIENT_END };
-static unsigned short ignore[2]			= { I2C_CLIENT_END, I2C_CLIENT_END };
-static unsigned short ignore_range[2]		= { I2C_CLIENT_END, I2C_CLIENT_END };
-static unsigned short force[2]			= { I2C_CLIENT_END, I2C_CLIENT_END };
-
-static struct i2c_client_address_data addr_data = {
-	normal_i2c,
-	normal_i2c_range,
-	probe,
-	probe_range,
-	ignore,
-	ignore_range,
-	force
-};
+static unsigned short normal_i2c[] = {0x90>>1, 0x91>>1, 0x92>>1, 0x93>>1, 0x94>>1,  I2C_CLIENT_END};
+I2C_CLIENT_INSMOD;
 
 static struct i2c_driver avs_i2c_driver;
 static struct i2c_client client_template = {
@@ -345,11 +329,6 @@ static int avs_probe(struct i2c_adapter *adap)
 #endif
 	
 	dprintk("[AVS]: probe\n");
-
-	if (addr) {
-		normal_i2c_range[0] = addr;
-		normal_i2c_range[1] = addr;
-	}
 
 	ret = i2c_probe(adap, &addr_data, avs_attach);
 
@@ -691,9 +670,7 @@ MODULE_AUTHOR("Gillem <gillem@berlios.de>");
 MODULE_DESCRIPTION("dbox2 audio/video switch core driver");
 MODULE_LICENSE("GPL");
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-module_param(addr,int,0);
 module_param(type,int,0);
 #else
-MODULE_PARM(addr,"i");
 MODULE_PARM(type,"i");
 #endif
