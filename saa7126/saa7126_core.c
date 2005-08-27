@@ -1,5 +1,5 @@
 /*
- * $Id: saa7126_core.c,v 1.45.2.7 2005/08/26 21:19:25 carjay Exp $
+ * $Id: saa7126_core.c,v 1.45.2.8 2005/08/27 18:41:31 carjay Exp $
  * 
  * Philips SAA7126 digital video encoder
  *
@@ -177,7 +177,6 @@ static const unsigned char wss_data[8] =
  */
 
 static unsigned short normal_i2c[] = { (0x88>>1), (0x8C>>1), I2C_CLIENT_END };
-static unsigned short normal_i2c_range[] = { I2C_CLIENT_END };
 I2C_CLIENT_INSMOD;
 
 /*
