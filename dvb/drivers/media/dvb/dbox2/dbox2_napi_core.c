@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_napi_core.c,v 1.1.2.6 2005/02/08 17:31:24 carjay Exp $
+ * $Id: dbox2_napi_core.c,v 1.1.2.7 2005/08/27 18:51:06 carjay Exp $
  *
  * Dbox2 DVB Adapter driver
  *
@@ -134,7 +134,7 @@ static int ves1x93_get_identity (int *id)
 
 	ret = i2c_transfer (fe_state.i2c_adap, msg, 2);
 	if (ret != 2){
-		printk(KERN_ERR "dbox2_napi: i2c error  in ves1x93_getidentity");
+		printk(KERN_ERR "dbox2_napi: i2c error in ves1x93_getidentity");
 		return -EIO;	
 	}
 	if (id)
@@ -204,6 +204,25 @@ int dbox2_probe_nokia_S_frontend(struct dbox2_fe *state){
 }
 
 int dbox2_probe_nokia_C_frontend(struct dbox2_fe *state){
+#if 0
+	struct ves1820_config *cfg = kmalloc(sizeof(struct ves1820_config),GFP_KERNEL);
+	if (!cfg)
+		return -ENOMEM;
+	cfg->demod_address = >>1;
+	cfg->xin = 69600000UL;
+	cfg->invert = 0;
+	cfg->selagc = 0;
+	cfg->pll_init = dbox2_napi_pll_init;
+	cfg->pll_set = dbox2_napi_pll_set;
+	if ((state->dvb_fe = ves1820_attach(cfg,state->i2c_adap, ))==0){
+		kfree(cfg);
+		return -ENODEV;
+	}
+	state->fe_config = cfg;
+	state->pll_init = NULL; 
+	state->pll_set = dbox2_fp_napi_qam_set_freq;
+	return 0;
+#endif
 	return -ENODEV;
 }
 
@@ -279,7 +298,7 @@ static int dbox2_fe_probe(struct device *dev)
     /* find out board manufacturer */
 	int ret;
 	struct platform_device *pdev = to_platform_device(dev);
-    manuf_id = (int)pdev->dev.platform_data;
+	manuf_id = (int)pdev->dev.platform_data;
 	fe_state.irq = platform_get_irq(pdev,0);
 	
     switch (manuf_id){
@@ -311,21 +330,21 @@ static int dbox2_fe_probe(struct device *dev)
 	    return -ENODEV;	
     }
 
-	/* We want to quicky restart the framer if the signal gets interrupted, so we
-		listen in on the status. Not all ucodes report errors so this might
-		be necessary */
+    /* We want to quicky restart the framer if the signal gets interrupted, so we
+	listen in on the status. Not all ucodes report errors so this might
+	be necessary */
 
-	fe_state.fe_read_status = fe_state.dvb_fe->ops->read_status;
-	fe_state.dvb_fe->ops->read_status = dbox2_napi_status_monitor;
-	
-	if ((ret = dvb_register_frontend(fe_state.dvb_adap, fe_state.dvb_fe))<0){
-		printk(KERN_ERR "dbox2_napi: error registering frontend\n");
+    fe_state.fe_read_status = fe_state.dvb_fe->ops->read_status;
+    fe_state.dvb_fe->ops->read_status = dbox2_napi_status_monitor;
+
+    if ((ret = dvb_register_frontend(fe_state.dvb_adap, fe_state.dvb_fe))<0){
+    	printk(KERN_ERR "dbox2_napi: error registering frontend\n");
 		if (fe_state.fe_config){
 			kfree(fe_state.fe_config);
 			fe_state.fe_config = NULL;
 		}
 		return ret;
-	}
+    }
     return 0;
 }
 
@@ -348,11 +367,15 @@ static struct device_driver dbox2_fe_driver = {
 static int __init dbox2_napi_init(void)
 {
 	int res;
-	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.6 2005/02/08 17:31:24 carjay Exp $\n");
+	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.7 2005/08/27 18:51:06 carjay Exp $\n");
 
-	if ((res = dvb_register_adapter(&fe_state.dvb_adap, "C-Cube AViA GTX/eNX with AViA 500/600",THIS_MODULE))<0){
+	fe_state.dvb_adap = kmalloc (sizeof(struct dvb_adapter),GFP_KERNEL);
+	if (!fe_state.dvb_adap)
+		return -ENOMEM;
+
+	if ((res = dvb_register_adapter(fe_state.dvb_adap, "C-Cube AViA GTX/eNX with AViA 500/600",THIS_MODULE))<0){
 		printk(KERN_ERR "dbox2_napi: error registering adapter\n");
-		return res;
+		goto out_adap;
 	}
 
 	fe_state.i2c_adap = i2c_get_adapter(0);
@@ -407,6 +430,9 @@ out_i2c:
 	i2c_put_adapter(fe_state.i2c_adap);
 out_dvb:
 	dvb_unregister_adapter(fe_state.dvb_adap);
+out_adap:
+	kfree(fe_state.dvb_adap);
+
 	return res;
 }
 
@@ -421,6 +447,7 @@ static void __exit dbox2_napi_exit(void)
 	driver_unregister(&dbox2_fe_driver);
 	dvb_unregister_adapter(fe_state.dvb_adap);
 	i2c_put_adapter(fe_state.i2c_adap);
+	kfree(fe_state.dvb_adap);
 }
 
 module_init(dbox2_napi_init);
