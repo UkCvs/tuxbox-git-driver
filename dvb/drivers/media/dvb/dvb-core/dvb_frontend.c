@@ -35,11 +35,14 @@
 #include <linux/moduleparam.h>
 #include <linux/list.h>
 #include <linux/suspend.h>
+#include <linux/jiffies.h>
 #include <asm/processor.h>
 #include <asm/semaphore.h>
 
 #include "dvb_frontend.h"
 #include "dvbdev.h"
+
+// #define DEBUG_LOCKLOSS 1
 
 static int dvb_frontend_debug;
 static int dvb_shutdown_timeout = 5;
@@ -48,7 +51,7 @@ static int dvb_override_tune_delay;
 static int dvb_powerdown_on_sleep = 1;
 
 module_param_named(frontend_debug, dvb_frontend_debug, int, 0644);
-MODULE_PARM_DESC(dvb_frontend_debug, "Turn on/off frontend core debugging (default:off).");
+MODULE_PARM_DESC(frontend_debug, "Turn on/off frontend core debugging (default:off).");
 module_param(dvb_shutdown_timeout, int, 0444);
 MODULE_PARM_DESC(dvb_shutdown_timeout, "wait <shutdown_timeout> seconds after close() before suspending hardware");
 module_param(dvb_force_auto_inversion, int, 0444);
@@ -112,12 +115,13 @@ struct dvb_frontend_private {
 	int exit;
 	int wakeup;
 	fe_status_t status;
+	fe_sec_tone_mode_t tone;
 };
 
 
 static void dvb_frontend_add_event(struct dvb_frontend *fe, fe_status_t status)
 {
-	struct dvb_frontend_private *fepriv = (struct dvb_frontend_private*) fe->frontend_priv;
+	struct dvb_frontend_private *fepriv = fe->frontend_priv;
 	struct dvb_fe_events *events = &fepriv->events;
 	struct dvb_frontend_event *e;
 	int wp;
@@ -155,7 +159,7 @@ static void dvb_frontend_add_event(struct dvb_frontend *fe, fe_status_t status)
 static int dvb_frontend_get_event(struct dvb_frontend *fe,
 			    struct dvb_frontend_event *event, int flags)
 {
-	struct dvb_frontend_private *fepriv = (struct dvb_frontend_private*) fe->frontend_priv;
+	struct dvb_frontend_private *fepriv = fe->frontend_priv;
 	struct dvb_fe_events *events = &fepriv->events;
 
 	dprintk ("%s\n", __FUNCTION__);
@@ -234,7 +238,7 @@ static int dvb_frontend_autotune(struct dvb_frontend *fe, int check_wrapped)
 {
 	int autoinversion;
 	int ready = 0;
-	struct dvb_frontend_private *fepriv = (struct dvb_frontend_private*) fe->frontend_priv;
+	struct dvb_frontend_private *fepriv = fe->frontend_priv;
 	int original_inversion = fepriv->parameters.inversion;
 	u32 original_frequency = fepriv->parameters.frequency;
 
@@ -321,13 +325,14 @@ static int dvb_frontend_autotune(struct dvb_frontend *fe, int check_wrapped)
 
 static int dvb_frontend_is_exiting(struct dvb_frontend *fe)
 {
-	struct dvb_frontend_private *fepriv = (struct dvb_frontend_private*) fe->frontend_priv;
+	struct dvb_frontend_private *fepriv = fe->frontend_priv;
 
 	if (fepriv->exit)
 		return 1;
 
 	if (fepriv->dvbdev->writers == 1)
-		if (jiffies - fepriv->release_jiffies > dvb_shutdown_timeout * HZ)
+		if (time_after(jiffies, fepriv->release_jiffies +
+					dvb_shutdown_timeout * HZ))
 			return 1;
 
 	return 0;
@@ -335,7 +340,7 @@ static int dvb_frontend_is_exiting(struct dvb_frontend *fe)
 
 static int dvb_frontend_should_wakeup(struct dvb_frontend *fe)
 {
-	struct dvb_frontend_private *fepriv = (struct dvb_frontend_private*) fe->frontend_priv;
+	struct dvb_frontend_private *fepriv = fe->frontend_priv;
 
 	if (fepriv->wakeup) {
 		fepriv->wakeup = 0;
@@ -346,7 +351,7 @@ static int dvb_frontend_should_wakeup(struct dvb_frontend *fe)
 
 static void dvb_frontend_wakeup(struct dvb_frontend *fe)
 {
-	struct dvb_frontend_private *fepriv = (struct dvb_frontend_private*) fe->frontend_priv;
+	struct dvb_frontend_private *fepriv = fe->frontend_priv;
 
 	fepriv->wakeup = 1;
 	wake_up_interruptible(&fepriv->wait_queue);
@@ -357,8 +362,8 @@ static void dvb_frontend_wakeup(struct dvb_frontend *fe)
  */
 static int dvb_frontend_thread(void *data)
 {
-	struct dvb_frontend *fe = (struct dvb_frontend *) data;
-	struct dvb_frontend_private *fepriv = (struct dvb_frontend_private*) fe->frontend_priv;
+	struct dvb_frontend *fe = data;
+	struct dvb_frontend_private *fepriv = fe->frontend_priv;
 	unsigned long timeout;
 	char name [15];
 	int quality = 0, delay = 3*HZ;
@@ -389,8 +394,7 @@ static int dvb_frontend_thread(void *data)
 			break;
 		}
 
-		if (current->flags & PF_FREEZE)
-			refrigerator(PF_FREEZE);
+		try_to_freeze();
 
 		if (down_interruptible(&fepriv->sem))
 			break;
@@ -433,9 +437,26 @@ static int dvb_frontend_thread(void *data)
 			/* we're tuned, and the lock is still good... */
 			if (s & FE_HAS_LOCK)
 				continue;
-			else {
-				/* if we _WERE_ tuned, but now don't have a lock,
-				 * need to zigzag */
+			else { /* if we _WERE_ tuned, but now don't have a lock */
+#ifdef DEBUG_LOCKLOSS
+				/* first of all try setting the tone again if it was on - this
+				 * sometimes works around problems with noisy power supplies */
+				if (fe->ops->set_tone && (fepriv->tone == SEC_TONE_ON)) {
+					fe->ops->set_tone(fe, fepriv->tone);
+					mdelay(100);
+					s = 0;
+					fe->ops->read_status(fe, &s);
+					if (s & FE_HAS_LOCK) {
+						printk("DVB%i: Lock was lost, but regained by setting "
+						       "the tone. This may indicate your power supply "
+						       "is noisy/slightly incompatable with this DVB-S "
+						       "adapter\n", fe->dvb->num);
+						fepriv->state = FESTATE_TUNED;
+						continue;
+					}
+				}
+#endif
+				/* some other reason for losing the lock - start zigzagging */
 				fepriv->state = FESTATE_ZIGZAG_FAST;
 				fepriv->started_auto_step = fepriv->auto_step;
 				check_wrapped = 0;
@@ -520,7 +541,7 @@ static int dvb_frontend_thread(void *data)
 static void dvb_frontend_stop(struct dvb_frontend *fe)
 {
 	unsigned long ret;
-	struct dvb_frontend_private *fepriv = (struct dvb_frontend_private*) fe->frontend_priv;
+	struct dvb_frontend_private *fepriv = fe->frontend_priv;
 
 	dprintk ("%s\n", __FUNCTION__);
 
@@ -559,7 +580,7 @@ static void dvb_frontend_stop(struct dvb_frontend *fe)
 static int dvb_frontend_start(struct dvb_frontend *fe)
 {
 	int ret;
-	struct dvb_frontend_private *fepriv = (struct dvb_frontend_private*) fe->frontend_priv;
+	struct dvb_frontend_private *fepriv = fe->frontend_priv;
 
 	dprintk ("%s\n", __FUNCTION__);
 
@@ -597,7 +618,7 @@ static int dvb_frontend_ioctl(struct inode *inode, struct file *file,
 {
 	struct dvb_device *dvbdev = file->private_data;
 	struct dvb_frontend *fe = dvbdev->priv;
-	struct dvb_frontend_private *fepriv = (struct dvb_frontend_private*) fe->frontend_priv;
+	struct dvb_frontend_private *fepriv = fe->frontend_priv;
 	int err = -EOPNOTSUPP;
 
 	dprintk ("%s\n", __FUNCTION__);
@@ -615,7 +636,7 @@ static int dvb_frontend_ioctl(struct inode *inode, struct file *file,
 
 	switch (cmd) {
 	case FE_GET_INFO: {
-		struct dvb_frontend_info* info = (struct dvb_frontend_info*) parg;
+		struct dvb_frontend_info* info = parg;
 		memcpy(info, &fe->ops->info, sizeof(struct dvb_frontend_info));
 
 		/* Force the CAN_INVERSION_AUTO bit on. If the frontend doesn't
@@ -625,11 +646,21 @@ static int dvb_frontend_ioctl(struct inode *inode, struct file *file,
 		break;
 	}
 
-	case FE_READ_STATUS:
-		if (fe->ops->read_status)
-			err = fe->ops->read_status(fe, (fe_status_t*) parg);
-		break;
+	case FE_READ_STATUS: {
+		fe_status_t* status = parg;
 
+		/* if retune was requested but hasn't occured yet, prevent
+		 * that user get signal state from previous tuning */
+		if(fepriv->state == FESTATE_RETUNE) {
+			err=0;
+			*status = 0;
+			break;
+		}
+
+		if (fe->ops->read_status)
+			err = fe->ops->read_status(fe, status);
+		break;
+	}
 	case FE_READ_BER:
 		if (fe->ops->read_ber)
 			err = fe->ops->read_ber(fe, (__u32*) parg);
@@ -680,6 +711,7 @@ static int dvb_frontend_ioctl(struct inode *inode, struct file *file,
 			err = fe->ops->set_tone(fe, (fe_sec_tone_mode_t) parg);
 			fepriv->state = FESTATE_DISEQC;
 			fepriv->status = 0;
+			fepriv->tone = (fe_sec_tone_mode_t) parg;
 		}
 		break;
 
@@ -793,7 +825,7 @@ static unsigned int dvb_frontend_poll(struct file *file, struct poll_table_struc
 {
 	struct dvb_device *dvbdev = file->private_data;
 	struct dvb_frontend *fe = dvbdev->priv;
-	struct dvb_frontend_private *fepriv = (struct dvb_frontend_private*) fe->frontend_priv;
+	struct dvb_frontend_private *fepriv = fe->frontend_priv;
 
 	dprintk ("%s\n", __FUNCTION__);
 
@@ -809,7 +841,7 @@ static int dvb_frontend_open(struct inode *inode, struct file *file)
 {
 	struct dvb_device *dvbdev = file->private_data;
 	struct dvb_frontend *fe = dvbdev->priv;
-	struct dvb_frontend_private *fepriv = (struct dvb_frontend_private*) fe->frontend_priv;
+	struct dvb_frontend_private *fepriv = fe->frontend_priv;
 	int ret;
 
 	dprintk ("%s\n", __FUNCTION__);
@@ -833,7 +865,7 @@ static int dvb_frontend_release(struct inode *inode, struct file *file)
 {
 	struct dvb_device *dvbdev = file->private_data;
 	struct dvb_frontend *fe = dvbdev->priv;
-	struct dvb_frontend_private *fepriv = (struct dvb_frontend_private*) fe->frontend_priv;
+	struct dvb_frontend_private *fepriv = fe->frontend_priv;
 
 	dprintk ("%s\n", __FUNCTION__);
 
@@ -873,7 +905,7 @@ int dvb_register_frontend(struct dvb_adapter* dvb,
 		up(&frontend_mutex);
 		return -ENOMEM;
 	}
-	fepriv = (struct dvb_frontend_private*) fe->frontend_priv;
+	fepriv = fe->frontend_priv;
 	memset(fe->frontend_priv, 0, sizeof(struct dvb_frontend_private));
 
 	init_MUTEX (&fepriv->sem);
@@ -882,6 +914,7 @@ int dvb_register_frontend(struct dvb_adapter* dvb,
 	init_MUTEX (&fepriv->events.sem);
 	fe->dvb = dvb;
 	fepriv->inversion = INVERSION_OFF;
+	fepriv->tone = SEC_TONE_OFF;
 
 	printk ("DVB: registering frontend %i (%s)...\n",
 		fe->dvb->num,
@@ -897,7 +930,7 @@ EXPORT_SYMBOL(dvb_register_frontend);
 
 int dvb_unregister_frontend(struct dvb_frontend* fe)
 {
-	struct dvb_frontend_private *fepriv = (struct dvb_frontend_private*) fe->frontend_priv;
+	struct dvb_frontend_private *fepriv = fe->frontend_priv;
 	dprintk ("%s\n", __FUNCTION__);
 
 	down (&frontend_mutex);
@@ -908,8 +941,7 @@ int dvb_unregister_frontend(struct dvb_frontend* fe)
 	else
 		printk("dvb_frontend: Demodulator (%s) does not have a release callback!\n", fe->ops->info.name);
 	/* fe is invalid now */
-	if (fepriv)
-		kfree(fepriv);
+	kfree(fepriv);
 	up (&frontend_mutex);
 	return 0;
 }

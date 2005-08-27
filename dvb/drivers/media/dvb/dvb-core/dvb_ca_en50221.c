@@ -35,7 +35,7 @@
 #include <linux/moduleparam.h>
 #include <linux/vmalloc.h>
 #include <linux/delay.h>
-#include <linux/rwsem.h>
+#include <linux/spinlock.h>
 
 #include "dvb_ca_en50221.h"
 #include "dvb_ringbuffer.h"
@@ -47,7 +47,7 @@ MODULE_PARM_DESC(cam_debug, "enable verbose debug messages");
 
 #define dprintk if (dvb_ca_en50221_debug) printk
 
-#define INIT_TIMEOUT_SECS 5
+#define INIT_TIMEOUT_SECS 10
 
 #define HOST_LINK_BUF_SIZE 0x200
 
@@ -110,8 +110,8 @@ struct dvb_ca_slot {
 	/* size of the buffer to use when talking to the CAM */
 	int link_buf_size;
 
-	/* semaphore for syncing access to slot structure */
-	struct rw_semaphore sem;
+	/* spinlock for syncing access to slot structure */
+	rwlock_t lock;
 
 	/* buffer for incoming packets */
 	struct dvb_ringbuffer rx_buffer;
@@ -148,13 +148,13 @@ struct dvb_ca_private {
 	wait_queue_head_t thread_queue;
 
 	/* Flag indicating when thread should exit */
-	int exit:1;
+	unsigned int exit:1;
 
 	/* Flag indicating if the CA device is open */
-	int open:1;
+	unsigned int open:1;
 
 	/* Flag indicating the thread should wake up now */
-	int wakeup:1;
+	unsigned int wakeup:1;
 
 	/* Delay the main thread should use */
 	unsigned long delay;
@@ -594,6 +594,7 @@ static int dvb_ca_en50221_read_data(struct dvb_ca_private *ca, int slot, u8 * eb
 	int status;
 	u8 buf[HOST_LINK_BUF_SIZE];
 	int i;
+	unsigned long irqsave;
 
 	dprintk("%s\n", __FUNCTION__);
 
@@ -601,14 +602,14 @@ static int dvb_ca_en50221_read_data(struct dvb_ca_private *ca, int slot, u8 * eb
 	if (ebuf == NULL) {
 		int buf_free;
 
-		down_read(&ca->slot_info[slot].sem);
+		read_lock_irqsave(&ca->slot_info[slot].lock, irqsave);
 		if (ca->slot_info[slot].rx_buffer.data == NULL) {
-			up_read(&ca->slot_info[slot].sem);
+			read_unlock_irqrestore(&ca->slot_info[slot].lock, irqsave);
 			status = -EIO;
 			goto exit;
 		}
 		buf_free = dvb_ringbuffer_free(&ca->slot_info[slot].rx_buffer);
-		up_read(&ca->slot_info[slot].sem);
+		read_unlock_irqrestore(&ca->slot_info[slot].lock, irqsave);
 
 		if (buf_free < (ca->slot_info[slot].link_buf_size + DVB_RINGBUFFER_PKTHDRSIZE)) {
 			status = -EAGAIN;
@@ -679,14 +680,14 @@ static int dvb_ca_en50221_read_data(struct dvb_ca_private *ca, int slot, u8 * eb
 
 	/* OK, add it to the receive buffer, or copy into external buffer if supplied */
 	if (ebuf == NULL) {
-		down_read(&ca->slot_info[slot].sem);
+		read_lock_irqsave(&ca->slot_info[slot].lock, irqsave);
 		if (ca->slot_info[slot].rx_buffer.data == NULL) {
-			up_read(&ca->slot_info[slot].sem);
+			read_unlock_irqrestore(&ca->slot_info[slot].lock, irqsave);
 			status = -EIO;
 			goto exit;
 		}
 		dvb_ringbuffer_pkt_write(&ca->slot_info[slot].rx_buffer, buf, bytes_read);
-		up_read(&ca->slot_info[slot].sem);
+		read_unlock_irqrestore(&ca->slot_info[slot].lock, irqsave);
 	} else {
 		memcpy(ebuf, buf, bytes_read);
 	}
@@ -799,15 +800,16 @@ EXPORT_SYMBOL(dvb_ca_en50221_camchange_irq);
  */
 static int dvb_ca_en50221_slot_shutdown(struct dvb_ca_private *ca, int slot)
 {
+	unsigned long irqsave;
+
 	dprintk("%s\n", __FUNCTION__);
 
-	down_write(&ca->slot_info[slot].sem);
+	write_lock_irqsave(&ca->slot_info[slot].lock, irqsave);
 	ca->pub->slot_shutdown(ca->pub, slot);
 	ca->slot_info[slot].slot_state = DVB_CA_SLOTSTATE_NONE;
-	if (ca->slot_info[slot].rx_buffer.data)
-		vfree(ca->slot_info[slot].rx_buffer.data);
+	vfree(ca->slot_info[slot].rx_buffer.data);
 	ca->slot_info[slot].rx_buffer.data = NULL;
-	up_write(&ca->slot_info[slot].sem);
+	write_unlock_irqrestore(&ca->slot_info[slot].lock, irqsave);
 
 	/* need to wake up all processes to check if they're now
 	   trying to write to a defunct CAM */
@@ -830,7 +832,7 @@ EXPORT_SYMBOL(dvb_ca_en50221_camready_irq);
  */
 void dvb_ca_en50221_camchange_irq(struct dvb_ca_en50221 *pubca, int slot, int change_type)
 {
-	struct dvb_ca_private *ca = (struct dvb_ca_private *) pubca->private;
+	struct dvb_ca_private *ca = pubca->private;
 
 	dprintk("CAMCHANGE IRQ slot:%i change_type:%i\n", slot, change_type);
 
@@ -858,7 +860,7 @@ EXPORT_SYMBOL(dvb_ca_en50221_frda_irq);
  */
 void dvb_ca_en50221_camready_irq(struct dvb_ca_en50221 *pubca, int slot)
 {
-	struct dvb_ca_private *ca = (struct dvb_ca_private *) pubca->private;
+	struct dvb_ca_private *ca = pubca->private;
 
 	dprintk("CAMREADY IRQ slot:%i\n", slot);
 
@@ -877,7 +879,7 @@ void dvb_ca_en50221_camready_irq(struct dvb_ca_en50221 *pubca, int slot)
  */
 void dvb_ca_en50221_frda_irq(struct dvb_ca_en50221 *pubca, int slot)
 {
-	struct dvb_ca_private *ca = (struct dvb_ca_private *) pubca->private;
+	struct dvb_ca_private *ca = pubca->private;
 	int flags;
 
 	dprintk("FR/DA IRQ slot:%i\n", slot);
@@ -974,7 +976,7 @@ static void dvb_ca_en50221_thread_update_delay(struct dvb_ca_private *ca)
 			if (ca->open) {
 				if ((!ca->slot_info[slot].da_irq_supported) ||
 				    (!(ca->flags & DVB_CA_EN50221_FLAG_IRQ_DA))) {
-					delay = HZ / 100;
+					delay = HZ / 10;
 				}
 			}
 			break;
@@ -994,13 +996,14 @@ static void dvb_ca_en50221_thread_update_delay(struct dvb_ca_private *ca)
  */
 static int dvb_ca_en50221_thread(void *data)
 {
-	struct dvb_ca_private *ca = (struct dvb_ca_private *) data;
+	struct dvb_ca_private *ca = data;
 	char name[15];
 	int slot;
 	int flags;
 	int status;
 	int pktcount;
 	void *rxbuf;
+	unsigned long irqsave;
 
 	dprintk("%s\n", __FUNCTION__);
 
@@ -1134,9 +1137,9 @@ static int dvb_ca_en50221_thread(void *data)
 					dvb_ca_en50221_thread_update_delay(ca);
 					break;
 				}
-				down_write(&ca->slot_info[slot].sem);
+				write_lock_irqsave(&ca->slot_info[slot].lock, irqsave);
 				dvb_ringbuffer_init(&ca->slot_info[slot].rx_buffer, rxbuf, RX_BUFFER_SIZE);
-				up_write(&ca->slot_info[slot].sem);
+				write_unlock_irqrestore(&ca->slot_info[slot].lock, irqsave);
 
 				ca->pub->slot_ts_enable(ca->pub, slot);
 				ca->slot_info[slot].slot_state = DVB_CA_SLOTSTATE_RUNNING;
@@ -1203,8 +1206,8 @@ static int dvb_ca_en50221_thread(void *data)
 static int dvb_ca_en50221_io_do_ioctl(struct inode *inode, struct file *file,
 				      unsigned int cmd, void *parg)
 {
-	struct dvb_device *dvbdev = (struct dvb_device *) file->private_data;
-	struct dvb_ca_private *ca = (struct dvb_ca_private *) dvbdev->priv;
+	struct dvb_device *dvbdev = file->private_data;
+	struct dvb_ca_private *ca = dvbdev->priv;
 	int err = 0;
 	int slot;
 
@@ -1226,7 +1229,7 @@ static int dvb_ca_en50221_io_do_ioctl(struct inode *inode, struct file *file,
 		break;
 
 	case CA_GET_CAP: {
-		struct ca_caps *caps = (struct ca_caps *) parg;
+		struct ca_caps *caps = parg;
 
 		caps->slot_num = ca->slot_count;
 		caps->slot_type = CA_CI_LINK;
@@ -1236,7 +1239,7 @@ static int dvb_ca_en50221_io_do_ioctl(struct inode *inode, struct file *file,
 	}
 
 	case CA_GET_SLOT_INFO: {
-		struct ca_slot_info *info = (struct ca_slot_info *) parg;
+		struct ca_slot_info *info = parg;
 
 		if ((info->num > ca->slot_count) || (info->num < 0))
 			return -EINVAL;
@@ -1292,8 +1295,8 @@ static int dvb_ca_en50221_io_ioctl(struct inode *inode, struct file *file,
 static ssize_t dvb_ca_en50221_io_write(struct file *file,
 				       const char __user * buf, size_t count, loff_t * ppos)
 {
-	struct dvb_device *dvbdev = (struct dvb_device *) file->private_data;
-	struct dvb_ca_private *ca = (struct dvb_ca_private *) dvbdev->priv;
+	struct dvb_device *dvbdev = file->private_data;
+	struct dvb_ca_private *ca = dvbdev->priv;
 	u8 slot, connection_id;
 	int status;
 	char fragbuf[HOST_LINK_BUF_SIZE];
@@ -1367,7 +1370,9 @@ exit:
 /**
  * Condition for waking up in dvb_ca_en50221_io_read_condition
  */
-static int dvb_ca_en50221_io_read_condition(struct dvb_ca_private *ca, int *result, int *_slot)
+static int dvb_ca_en50221_io_read_condition(struct dvb_ca_private *ca,
+					    int *result, int *_slot,
+					    unsigned long *irqsave)
 {
 	int slot;
 	int slot_count = 0;
@@ -1382,10 +1387,10 @@ static int dvb_ca_en50221_io_read_condition(struct dvb_ca_private *ca, int *resu
 		if (ca->slot_info[slot].slot_state != DVB_CA_SLOTSTATE_RUNNING)
 			goto nextslot;
 
-		down_read(&ca->slot_info[slot].sem);
+		read_lock_irqsave(&ca->slot_info[slot].lock, *irqsave);
 
 		if (ca->slot_info[slot].rx_buffer.data == NULL) {
-			up_read(&ca->slot_info[slot].sem);
+			read_unlock_irqrestore(&ca->slot_info[slot].lock, *irqsave);
 			return 0;
 		}
 
@@ -1404,9 +1409,9 @@ static int dvb_ca_en50221_io_read_condition(struct dvb_ca_private *ca, int *resu
 		}
 
 		if (!found)
-			up_read(&ca->slot_info[slot].sem);
+			read_unlock_irqrestore(&ca->slot_info[slot].lock, *irqsave);
 
-	      nextslot:
+nextslot:
 		slot = (slot + 1) % ca->slot_count;
 		slot_count++;
 	}
@@ -1429,8 +1434,8 @@ static int dvb_ca_en50221_io_read_condition(struct dvb_ca_private *ca, int *resu
 static ssize_t dvb_ca_en50221_io_read(struct file *file, char __user * buf,
 				      size_t count, loff_t * ppos)
 {
-	struct dvb_device *dvbdev = (struct dvb_device *) file->private_data;
-	struct dvb_ca_private *ca = (struct dvb_ca_private *) dvbdev->priv;
+	struct dvb_device *dvbdev = file->private_data;
+	struct dvb_ca_private *ca = dvbdev->priv;
 	int status;
 	int result = 0;
 	u8 hdr[2];
@@ -1441,6 +1446,7 @@ static ssize_t dvb_ca_en50221_io_read(struct file *file, char __user * buf,
 	size_t fraglen;
 	int pktlen;
 	int dispose = 0;
+	unsigned long irqsave;
 
 	dprintk("%s\n", __FUNCTION__);
 
@@ -1449,7 +1455,7 @@ static ssize_t dvb_ca_en50221_io_read(struct file *file, char __user * buf,
 		return -EINVAL;
 
 	/* wait for some data */
-	if ((status = dvb_ca_en50221_io_read_condition(ca, &result, &slot)) == 0) {
+	if ((status = dvb_ca_en50221_io_read_condition(ca, &result, &slot, &irqsave)) == 0) {
 
 		/* if we're in nonblocking mode, exit immediately */
 		if (file->f_flags & O_NONBLOCK)
@@ -1458,7 +1464,7 @@ static ssize_t dvb_ca_en50221_io_read(struct file *file, char __user * buf,
 		/* wait for some data */
 		status = wait_event_interruptible(ca->wait_queue,
 						  dvb_ca_en50221_io_read_condition
-						  (ca, &result, &slot));
+						  (ca, &result, &slot, &irqsave));
 	}
 	if ((status < 0) || (result < 0)) {
 		if (result)
@@ -1511,8 +1517,8 @@ static ssize_t dvb_ca_en50221_io_read(struct file *file, char __user * buf,
 		goto exit;
 	status = pktlen;
 
-      exit:
-	up_read(&ca->slot_info[slot].sem);
+exit:
+	read_unlock_irqrestore(&ca->slot_info[slot].lock, irqsave);
 	return status;
 }
 
@@ -1527,10 +1533,11 @@ static ssize_t dvb_ca_en50221_io_read(struct file *file, char __user * buf,
  */
 static int dvb_ca_en50221_io_open(struct inode *inode, struct file *file)
 {
-	struct dvb_device *dvbdev = (struct dvb_device *) file->private_data;
-	struct dvb_ca_private *ca = (struct dvb_ca_private *) dvbdev->priv;
+	struct dvb_device *dvbdev = file->private_data;
+	struct dvb_ca_private *ca = dvbdev->priv;
 	int err;
 	int i;
+	unsigned long irqsave;
 
 	dprintk("%s\n", __FUNCTION__);
 
@@ -1544,11 +1551,11 @@ static int dvb_ca_en50221_io_open(struct inode *inode, struct file *file)
 	for (i = 0; i < ca->slot_count; i++) {
 
 		if (ca->slot_info[i].slot_state == DVB_CA_SLOTSTATE_RUNNING) {
-			down_write(&ca->slot_info[i].sem);
+			read_lock_irqsave(&ca->slot_info[i].lock, irqsave);
 			if (ca->slot_info[i].rx_buffer.data != NULL) {
 				dvb_ringbuffer_flush(&ca->slot_info[i].rx_buffer);
 			}
-			up_write(&ca->slot_info[i].sem);
+			read_unlock_irqrestore(&ca->slot_info[i].lock, irqsave);
 		}
 	}
 
@@ -1570,8 +1577,8 @@ static int dvb_ca_en50221_io_open(struct inode *inode, struct file *file)
  */
 static int dvb_ca_en50221_io_release(struct inode *inode, struct file *file)
 {
-	struct dvb_device *dvbdev = (struct dvb_device *) file->private_data;
-	struct dvb_ca_private *ca = (struct dvb_ca_private *) dvbdev->priv;
+	struct dvb_device *dvbdev = file->private_data;
+	struct dvb_ca_private *ca = dvbdev->priv;
 	int err = 0;
 
 	dprintk("%s\n", __FUNCTION__);
@@ -1598,16 +1605,17 @@ static int dvb_ca_en50221_io_release(struct inode *inode, struct file *file)
  */
 static unsigned int dvb_ca_en50221_io_poll(struct file *file, poll_table * wait)
 {
-	struct dvb_device *dvbdev = (struct dvb_device *) file->private_data;
-	struct dvb_ca_private *ca = (struct dvb_ca_private *) dvbdev->priv;
+	struct dvb_device *dvbdev = file->private_data;
+	struct dvb_ca_private *ca = dvbdev->priv;
 	unsigned int mask = 0;
 	int slot;
 	int result = 0;
+	unsigned long irqsave;
 
 	dprintk("%s\n", __FUNCTION__);
 
-	if (dvb_ca_en50221_io_read_condition(ca, &result, &slot) == 1) {
-		up_read(&ca->slot_info[slot].sem);
+	if (dvb_ca_en50221_io_read_condition(ca, &result, &slot, &irqsave) == 1) {
+		read_unlock_irqrestore(&ca->slot_info[slot].lock, irqsave);
 		mask |= POLLIN;
 	}
 
@@ -1618,8 +1626,8 @@ static unsigned int dvb_ca_en50221_io_poll(struct file *file, poll_table * wait)
 	/* wait for something to happen */
 	poll_wait(file, &ca->wait_queue, wait);
 
-	if (dvb_ca_en50221_io_read_condition(ca, &result, &slot) == 1) {
-		up_read(&ca->slot_info[slot].sem);
+	if (dvb_ca_en50221_io_read_condition(ca, &result, &slot, &irqsave) == 1) {
+		read_unlock_irqrestore(&ca->slot_info[slot].lock, irqsave);
 		mask |= POLLIN;
 	}
 
@@ -1709,7 +1717,7 @@ int dvb_ca_en50221_init(struct dvb_adapter *dvb_adapter,
 		ca->slot_info[i].slot_state = DVB_CA_SLOTSTATE_NONE;
 		atomic_set(&ca->slot_info[i].camchange_count, 0);
 		ca->slot_info[i].camchange_type = DVB_CA_EN50221_CAMCHANGE_REMOVED;
-		init_rwsem(&ca->slot_info[i].sem);
+		ca->slot_info[i].lock = RW_LOCK_UNLOCKED;
 	}
 
 	if (signal_pending(current)) {
@@ -1729,12 +1737,11 @@ int dvb_ca_en50221_init(struct dvb_adapter *dvb_adapter,
 	ca->thread_pid = ret;
 	return 0;
 
-      error:
+error:
 	if (ca != NULL) {
 		if (ca->dvbdev != NULL)
 			dvb_unregister_device(ca->dvbdev);
-		if (ca->slot_info != NULL)
-			kfree(ca->slot_info);
+		kfree(ca->slot_info);
 		kfree(ca);
 	}
 	pubca->private = NULL;
@@ -1752,7 +1759,7 @@ EXPORT_SYMBOL(dvb_ca_en50221_release);
  */
 void dvb_ca_en50221_release(struct dvb_ca_en50221 *pubca)
 {
-	struct dvb_ca_private *ca = (struct dvb_ca_private *) pubca->private;
+	struct dvb_ca_private *ca = pubca->private;
 	int i;
 
 	dprintk("%s\n", __FUNCTION__);

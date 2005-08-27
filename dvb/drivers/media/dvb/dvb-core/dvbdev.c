@@ -1,4 +1,4 @@
-/* 
+/*
  * dvbdev.c
  *
  * Copyright (C) 2000 Ralph  Metzler <ralph@convergence.de>
@@ -51,12 +51,12 @@ static const char * const dnames[] = {
 	"net", "osd"
 };
 
-#define DVB_MAX_IDS              6
-#define nums2minor(num,type,id)  ((num << 6) | (id << 4) | type)
-#define MAX_DVB_MINORS           (DVB_MAX_IDS*64)
+#define DVB_MAX_ADAPTERS	8
+#define DVB_MAX_IDS		4
+#define nums2minor(num,type,id)	((num << 6) | (id << 4) | type)
+#define MAX_DVB_MINORS		(DVB_MAX_ADAPTERS*64)
 
-struct class_simple *dvb_class;
-EXPORT_SYMBOL(dvb_class);
+static struct class *dvb_class;
 
 static struct dvb_device* dvbdev_find_device (int minor)
 {
@@ -81,7 +81,7 @@ static struct dvb_device* dvbdev_find_device (int minor)
 static int dvb_device_open(struct inode *inode, struct file *file)
 {
 	struct dvb_device *dvbdev;
-	
+
 	dvbdev = dvbdev_find_device (iminor(inode));
 
 	if (dvbdev && dvbdev->fops) {
@@ -153,7 +153,7 @@ int dvb_generic_release(struct inode *inode, struct file *file)
 	} else {
 		dvbdev->writers++;
 	}
-	
+
 	dvbdev->users++;
 	return 0;
 }
@@ -164,7 +164,7 @@ int dvb_generic_ioctl(struct inode *inode, struct file *file,
 		      unsigned int cmd, unsigned long arg)
 {
         struct dvb_device *dvbdev = file->private_data;
-	
+
         if (!dvbdev)
 	        return -ENODEV;
 
@@ -196,7 +196,7 @@ skip:
 }
 
 
-int dvb_register_device(struct dvb_adapter *adap, struct dvb_device **pdvbdev, 
+int dvb_register_device(struct dvb_adapter *adap, struct dvb_device **pdvbdev,
 			const struct dvb_device *template, void *priv, int type)
 {
 	struct dvb_device *dvbdev;
@@ -220,7 +220,7 @@ int dvb_register_device(struct dvb_adapter *adap, struct dvb_device **pdvbdev,
 	}
 
 	up (&dvbdev_register_lock);
-	
+
 	memcpy(dvbdev, template, sizeof(struct dvb_device));
 	dvbdev->type = type;
 	dvbdev->id = id;
@@ -232,15 +232,15 @@ int dvb_register_device(struct dvb_adapter *adap, struct dvb_device **pdvbdev,
 	list_add_tail (&dvbdev->list_head, &adap->device_list);
 
 	devfs_mk_cdev(MKDEV(DVB_MAJOR, nums2minor(adap->num, type, id)),
- 			S_IFCHR | S_IRUSR | S_IWUSR,
+			S_IFCHR | S_IRUSR | S_IWUSR,
 			"dvb/adapter%d/%s%d", adap->num, dnames[type], id);
 
-	class_simple_device_add(dvb_class, MKDEV(DVB_MAJOR, nums2minor(adap->num, type, id)),
-				NULL, "dvb%d.%s%d", adap->num, dnames[type], id);
+	class_device_create(dvb_class, MKDEV(DVB_MAJOR, nums2minor(adap->num, type, id)),
+			    NULL, "dvb%d.%s%d", adap->num, dnames[type], id);
 
 	dprintk("DVB: register adapter%d/%s%d @ minor: %i (0x%02x)\n",
 		adap->num, dnames[type], id, nums2minor(adap->num, type, id),
- 		nums2minor(adap->num, type, id));
+		nums2minor(adap->num, type, id));
 
 	return 0;
 }
@@ -255,7 +255,7 @@ void dvb_unregister_device(struct dvb_device *dvbdev)
 	devfs_remove("dvb/adapter%d/%s%d", dvbdev->adapter->num,
 			dnames[dvbdev->type], dvbdev->id);
 
-	class_simple_device_remove(MKDEV(DVB_MAJOR, nums2minor(dvbdev->adapter->num,
+	class_device_destroy(dvb_class, MKDEV(DVB_MAJOR, nums2minor(dvbdev->adapter->num,
 					dvbdev->type, dvbdev->id)));
 
 	list_del (&dvbdev->list_head);
@@ -268,7 +268,7 @@ static int dvbdev_get_free_adapter_num (void)
 {
 	int num = 0;
 
-	while (1) {
+	while (num < DVB_MAX_ADAPTERS) {
 		struct list_head *entry;
 		list_for_each (entry, &dvb_adapter_list) {
 			struct dvb_adapter *adap;
@@ -285,9 +285,8 @@ skip:
 }
 
 
-int dvb_register_adapter(struct dvb_adapter **padap, const char *name, struct module *module)
+int dvb_register_adapter(struct dvb_adapter *adap, const char *name, struct module *module)
 {
-	struct dvb_adapter *adap;
 	int num;
 
 	if (down_interruptible (&dvbdev_register_lock))
@@ -298,16 +297,11 @@ int dvb_register_adapter(struct dvb_adapter **padap, const char *name, struct mo
 		return -ENFILE;
 	}
 
-	if (!(*padap = adap = kmalloc(sizeof(struct dvb_adapter), GFP_KERNEL))) {
-		up(&dvbdev_register_lock);
-		return -ENOMEM;
-	}
-
 	memset (adap, 0, sizeof(struct dvb_adapter));
 	INIT_LIST_HEAD (&adap->device_list);
 
 	printk ("DVB: registering new adapter (%s).\n", name);
-	
+
 	devfs_mk_dir("dvb/adapter%d", num);
 	adap->num = num;
 	adap->name = name;
@@ -330,7 +324,6 @@ int dvb_unregister_adapter(struct dvb_adapter *adap)
 		return -ERESTARTSYS;
 	list_del (&adap->list_head);
 	up (&dvbdev_register_lock);
-	kfree (adap);
 	return 0;
 }
 EXPORT_SYMBOL(dvb_unregister_adapter);
@@ -396,9 +389,7 @@ int dvb_usercopy(struct inode *inode, struct file *file,
         }
 
 out:
-        if (mbuf)
-                kfree(mbuf);
-
+        kfree(mbuf);
         return err;
 }
 
@@ -420,7 +411,7 @@ static int __init init_dvbdev(void)
 
 	devfs_mk_dir("dvb");
 
-	dvb_class = class_simple_create(THIS_MODULE, "dvb");
+	dvb_class = class_create(THIS_MODULE, "dvb");
 	if (IS_ERR(dvb_class)) {
 		retval = PTR_ERR(dvb_class);
 		goto error;
@@ -437,7 +428,7 @@ error:
 static void __exit exit_dvbdev(void)
 {
         devfs_remove("dvb");
-	class_simple_destroy(dvb_class);
+	class_destroy(dvb_class);
 	cdev_del(&dvb_device_cdev);
         unregister_chrdev_region(MKDEV(DVB_MAJOR, 0), MAX_DVB_MINORS);
 }
@@ -448,4 +439,3 @@ module_exit(exit_dvbdev);
 MODULE_DESCRIPTION("DVB Core Driver");
 MODULE_AUTHOR("Marcus Metzler, Ralph Metzler, Holger Waechtler");
 MODULE_LICENSE("GPL");
-
