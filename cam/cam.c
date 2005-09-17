@@ -280,49 +280,75 @@ static int cam_write_firmware(struct resource *res, const struct firmware *fw)
 		return -EIO;
 	}
 
+#define ALPHA_OE 	 0x00000001
+#define TST_RST		 0x00000002
+#define TST_DAT		 0x00000004
+#define TST_CLK		 0x00000008
+
+#define ALL_ALPHA    0x0000000f
+
 	/* 0xabc */
-	cp->cp_pbpar &= ~0x0000000f;	// GPIO (not cpm-io)
+	cp->cp_pbpar &= ~ALL_ALPHA;	// GPIO (not cpm-io)
 
 	/* 0xac0 */
-	cp->cp_pbodr &= ~0x0000000f;	// driven output (not tristate)
+	cp->cp_pbodr &= ~ALL_ALPHA;	// driven output (not tristate)
 
 	/* 0xab8 */
-	cp->cp_pbdir |= 0x0000000f;	// output (not input)
+	cp->cp_pbdir |=  ALL_ALPHA;	// output (not input)
 
 	/* 0xac4 */
 	(void)cp->cp_pbdat;
-	cp->cp_pbdat = 0x00000000;
-	cp->cp_pbdat = 0x000000a5;
-	cp->cp_pbdat |= 0x000000f;
-	cp->cp_pbdat &= ~0x00000002;
-	cp->cp_pbdat |= 0x00000002;
 
-	for (i = 0; i <= 8; i++) {
-		cp->cp_pbdat &= ~0x00000008;
-		cp->cp_pbdat |= 0x00000008;
+	/*  assert pre condition:
+		- TST_DAT asserted 
+		- TST_CLK, TST_RST and ALPHA_OE deasserted
+	 */
+	cp->cp_pbdat |=  ( TST_DAT | ALPHA_OE );
+	cp->cp_pbdat &= ~( TST_CLK | TST_RST );
+	udelay(10);
+
+	/* assert TST_RST to get attention of Alpha chip */
+	wmb();
+	cp->cp_pbdat |= ( TST_RST );
+
+	/* pulse TST_CLK 9 times */
+	for (i = 0; i < 9; i++) {
+		cp->cp_pbdat |=  TST_CLK;
+		cp->cp_pbdat &= ~TST_CLK;
 	}
 
+	/* reset Alpha, after this memory bus is tristated */
 	cam_reset();
 
-	cp->cp_pbdat &= ~0x00000001;
+	/* assert ALPHA_OE */
+	cp->cp_pbdat &= ~ALPHA_OE;
 
+	/* download the code */
 	if (fw) {
+		/* copy firmware into Code RAM */
 		memcpy(code_base, fw->data, fw->size);
 		if (mem_size - fw->size != 0)
 			memset(&code_base[fw->size], 0x5a, mem_size - fw->size);
-	}
-	else {
+
+	} else {
 		memset(code_base, 0x5a, mem_size);
 	}
 
+	/* deassert ALPHA_OE */
 	wmb();
-	cp->cp_pbdat |= 0x00000001;
+	cp->cp_pbdat |= ALPHA_OE;
+
+	/* toggle TST_RST */
 	wmb();
+	cp->cp_pbdat &= ~TST_RST;
+	cp->cp_pbdat |=  TST_RST;
 
-	cp->cp_pbdat &= ~0x00000002;
-	cp->cp_pbdat |= 0x00000002;
-
+	/* tell Alpha to come back to life */
 	cam_reset();
+
+	/* finally deassert TST_RST and TST_DAT */
+	wmb();
+	cp->cp_pbdat &= ~( TST_RST | TST_DAT );
 
 	iounmap(code_base);
 
@@ -402,7 +428,7 @@ static struct device_driver cam_driver = {
 
 static int __init cam_init(void)
 {
-	printk(KERN_INFO "$Id: cam.c,v 1.30.2.3 2005/08/02 20:37:27 carjay Exp $\n");
+	printk(KERN_INFO "$Id: cam.c,v 1.30.2.4 2005/09/17 11:40:26 carjay Exp $\n");
 
 	return driver_register(&cam_driver);
 }
