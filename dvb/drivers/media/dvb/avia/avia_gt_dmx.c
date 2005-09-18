@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_dmx.c,v 1.210.2.3 2005/01/31 20:04:09 carjay Exp $
+ * $Id: avia_gt_dmx.c,v 1.210.2.4 2005/09/18 13:55:43 carjay Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -219,16 +219,19 @@ struct avia_gt_dmx_queue *avia_gt_dmx_alloc_queue_audio(AviaGtDmxQueueProc *irq_
 {
 	return avia_gt_dmx_alloc_queue(AVIA_GT_DMX_QUEUE_AUDIO, irq_proc, cb_proc, priv_data);
 }
+EXPORT_SYMBOL(avia_gt_dmx_alloc_queue_audio);
 
 struct avia_gt_dmx_queue *avia_gt_dmx_alloc_queue_message(AviaGtDmxQueueProc *irq_proc, AviaGtDmxQueueProc *cb_proc, void *priv_data)
 {
 	return avia_gt_dmx_alloc_queue(AVIA_GT_DMX_QUEUE_MESSAGE, irq_proc, cb_proc, priv_data);
 }
+EXPORT_SYMBOL(avia_gt_dmx_alloc_queue_message);
 
 struct avia_gt_dmx_queue *avia_gt_dmx_alloc_queue_teletext(AviaGtDmxQueueProc *irq_proc, AviaGtDmxQueueProc *cb_proc, void *priv_data)
 {
 	return avia_gt_dmx_alloc_queue(AVIA_GT_DMX_QUEUE_TELETEXT, irq_proc, cb_proc, priv_data);
 }
+EXPORT_SYMBOL(avia_gt_dmx_alloc_queue_teletext);
 
 struct avia_gt_dmx_queue *avia_gt_dmx_alloc_queue_user(AviaGtDmxQueueProc *irq_proc, AviaGtDmxQueueProc *cb_proc, void *priv_data)
 {
@@ -240,11 +243,13 @@ struct avia_gt_dmx_queue *avia_gt_dmx_alloc_queue_user(AviaGtDmxQueueProc *irq_p
 
 	return NULL;
 }
+EXPORT_SYMBOL(avia_gt_dmx_alloc_queue_user);
 
 struct avia_gt_dmx_queue *avia_gt_dmx_alloc_queue_video(AviaGtDmxQueueProc *irq_proc, AviaGtDmxQueueProc *cb_proc, void *priv_data)
 {
 	return avia_gt_dmx_alloc_queue(AVIA_GT_DMX_QUEUE_VIDEO, irq_proc, cb_proc, priv_data);
 }
+EXPORT_SYMBOL(avia_gt_dmx_alloc_queue_video);
 
 int avia_gt_dmx_free_queue(u8 queue_nr)
 {
@@ -272,6 +277,7 @@ int avia_gt_dmx_free_queue(u8 queue_nr)
 
 	return 0;
 }
+EXPORT_SYMBOL(avia_gt_dmx_free_queue);
 
 sAviaGtDmxQueue *avia_gt_dmx_get_queue_info(u8 queue_nr)
 {
@@ -282,6 +288,7 @@ sAviaGtDmxQueue *avia_gt_dmx_get_queue_info(u8 queue_nr)
 
 	return &queue_list[queue_nr];
 }
+EXPORT_SYMBOL(avia_gt_dmx_get_queue_info);
 
 u16 avia_gt_dmx_get_queue_irq(u8 queue_nr)
 {
@@ -304,6 +311,7 @@ u16 avia_gt_dmx_get_queue_irq(u8 queue_nr)
 
 	return 0;
 }
+EXPORT_SYMBOL(avia_gt_dmx_get_queue_irq);
 
 void avia_gt_dmx_fake_queue_irq(u8 queue_nr)
 {
@@ -324,6 +332,7 @@ void avia_gt_dmx_fake_queue_irq(u8 queue_nr)
 	schedule_task(&q->task_struct);
 #endif
 }
+EXPORT_SYMBOL(avia_gt_dmx_fake_queue_irq);
 
 static u32 avia_gt_dmx_queue_crc32(struct avia_gt_dmx_queue *queue, u32 count, u32 seed)
 {
@@ -588,6 +597,7 @@ u32 avia_gt_dmx_queue_get_write_pos(u8 queue_nr)
 
 	return write_pos - q->mem_addr;
 }
+EXPORT_SYMBOL(avia_gt_dmx_queue_get_write_pos);
 
 static void avia_gt_dmx_queue_flush(struct avia_gt_dmx_queue *queue)
 {
@@ -726,6 +736,7 @@ void avia_gt_dmx_queue_irq_disable(u8 queue_nr)
 
 	avia_gt_free_irq(avia_gt_dmx_get_queue_irq(queue_nr));
 }
+EXPORT_SYMBOL(avia_gt_dmx_queue_irq_disable);
 
 int avia_gt_dmx_queue_irq_enable(u8 queue_nr)
 {
@@ -738,6 +749,7 @@ int avia_gt_dmx_queue_irq_enable(u8 queue_nr)
 
 	return avia_gt_alloc_irq(avia_gt_dmx_get_queue_irq(queue_nr), avia_gt_dmx_queue_irq);
 }
+EXPORT_SYMBOL(avia_gt_dmx_queue_irq_enable);
 
 int avia_gt_dmx_queue_reset(u8 queue_nr)
 {
@@ -762,6 +774,7 @@ int avia_gt_dmx_queue_reset(u8 queue_nr)
 
 	return 0;
 }
+EXPORT_SYMBOL(avia_gt_dmx_queue_reset);
 
 void avia_gt_dmx_queue_set_write_pos(u8 queue_nr, u32 write_pos)
 {
@@ -782,6 +795,7 @@ void avia_gt_dmx_queue_set_write_pos(u8 queue_nr, u32 write_pos)
 	avia_gt_writew(QWPnL + 4 * mapped_queue_nr, write_pos & 0xFFFF);
 	avia_gt_writew(QWPnH + 4 * mapped_queue_nr, ((write_pos >> 16) & 0x3F) | (queue_size_table[queue_nr] << 6));
 }
+EXPORT_SYMBOL(avia_gt_dmx_queue_set_write_pos);
 
 int avia_gt_dmx_queue_start(u8 queue_nr,u8 qmode, u16 pid)
 {
@@ -816,6 +830,7 @@ int avia_gt_dmx_queue_start(u8 queue_nr,u8 qmode, u16 pid)
 	ucode_info->start_queue_feeds(queue_nr);
 	return 0;
 }
+EXPORT_SYMBOL(avia_gt_dmx_queue_start);
 
 int avia_gt_dmx_queue_stop(u8 queue_nr)
 {
@@ -835,6 +850,7 @@ int avia_gt_dmx_queue_stop(u8 queue_nr)
 
 	return 0;
 }
+EXPORT_SYMBOL(avia_gt_dmx_queue_stop);
 
 static void avia_gt_dmx_bh_task(void *tl_data)
 {
@@ -935,6 +951,7 @@ void avia_gt_dmx_set_pcr_pid(u8 enable, u16 pid)
 
 	avia_gt_dmx_force_discontinuity();
 }
+EXPORT_SYMBOL(avia_gt_dmx_set_pcr_pid);
 
 u32 avia_gt_dmx_system_queue_get_read_pos(u8 queue_nr)
 {
@@ -978,6 +995,7 @@ u32 avia_gt_dmx_system_queue_get_read_pos(u8 queue_nr)
 
 	return read_pos - q->mem_addr;
 }
+EXPORT_SYMBOL(avia_gt_dmx_system_queue_get_read_pos);
 
 void avia_gt_dmx_system_queue_set_pos(u8 queue_nr, u32 read_pos, u32 write_pos)
 {
@@ -995,6 +1013,7 @@ void avia_gt_dmx_system_queue_set_pos(u8 queue_nr, u32 read_pos, u32 write_pos)
 	avia_gt_dmx_system_queue_set_write_pos(queue_nr, write_pos);
 	avia_gt_reg_16n(base + 2) = (read_pos >> 16) & 0x3f;
 }
+EXPORT_SYMBOL(avia_gt_dmx_system_queue_set_pos);
 
 void avia_gt_dmx_system_queue_set_read_pos(u8 queue_nr, u32 read_pos)
 {
@@ -1011,6 +1030,7 @@ void avia_gt_dmx_system_queue_set_read_pos(u8 queue_nr, u32 read_pos)
 	avia_gt_reg_16n(base) = read_pos & 0xffff;
 	avia_gt_reg_16n(base + 2) = (read_pos >> 16) & 0x3f;
 }
+EXPORT_SYMBOL(avia_gt_dmx_system_queue_set_read_pos);
 
 void avia_gt_dmx_system_queue_set_write_pos(u8 queue_nr, u32 write_pos)
 {
@@ -1027,6 +1047,7 @@ void avia_gt_dmx_system_queue_set_write_pos(u8 queue_nr, u32 write_pos)
 	avia_gt_reg_16n(base + 4) = write_pos & 0xffff;
 	avia_gt_reg_16n(base + 6) = ((write_pos >> 16) & 0x3f) | (queue_size_table[queue_nr] << 6);
 }
+EXPORT_SYMBOL(avia_gt_dmx_system_queue_set_write_pos);
 
 /* ucode can't handle 2 active feeds with the same pid and doesn't start a feed
 	in this case so we have to take care it does get started/stopped when a decoder
@@ -1041,6 +1062,7 @@ void avia_gt_dmx_tap (u8 queue_nr, int start)
 		ucode_info->stop_feed (queue_list[queue_nr].info.feed_idx, 0);
 	}
 }
+EXPORT_SYMBOL(avia_gt_dmx_tap);
 
 static u64 avia_gt_dmx_get_pcr_base(void)
 {
@@ -1079,6 +1101,7 @@ int avia_gt_dmx_get_stc( struct dmx_demux* demux, unsigned int num,
 
 	return 0;
 }
+EXPORT_SYMBOL(avia_gt_dmx_get_stc);
 
 static void avia_gt_dmx_set_dac(s16 pulse_count)
 {
@@ -1235,6 +1258,7 @@ void avia_gt_dmx_force_discontinuity(void)
 
 	avia_gt_reg_set(FC, FD, 1);
 }
+EXPORT_SYMBOL(avia_gt_dmx_force_discontinuity);
 
 static void avia_gt_dmx_enable_disable_framer(u8 enable)
 {
@@ -1250,11 +1274,13 @@ void avia_gt_dmx_enable_framer(void)
 {
 	return avia_gt_dmx_enable_disable_framer(1);
 }
+EXPORT_SYMBOL(avia_gt_dmx_enable_framer);
 
 void avia_gt_dmx_disable_framer(void)
 {
 	return avia_gt_dmx_enable_disable_framer(0);
 }
+EXPORT_SYMBOL(avia_gt_dmx_disable_framer);
 
 static int avia_gt_dmx_enable_disable_clip_mode(u8 queue_nr, u8 enable)
 {
@@ -1287,11 +1313,13 @@ int avia_gt_dmx_enable_clip_mode(u8 queue_nr)
 {
 	return avia_gt_dmx_enable_disable_clip_mode(queue_nr, 1);
 }
+EXPORT_SYMBOL(avia_gt_dmx_enable_clip_mode);
 
 int avia_gt_dmx_disable_clip_mode(u8 queue_nr)
 {
 	return avia_gt_dmx_enable_disable_clip_mode(queue_nr, 0);
 }
+EXPORT_SYMBOL(avia_gt_dmx_disable_clip_mode);
 
 ssize_t avia_gt_dmx_queue_write(u8 queue_nr, const u8 *buf, size_t count, u32 nonblock)
 {
@@ -1327,6 +1355,7 @@ ssize_t avia_gt_dmx_queue_write(u8 queue_nr, const u8 *buf, size_t count, u32 no
 
 	return count - todo;
 }
+EXPORT_SYMBOL(avia_gt_dmx_queue_write);
 
 int avia_gt_dmx_queue_nr_get_bytes_free(u8 queue_nr)
 {
@@ -1337,6 +1366,7 @@ int avia_gt_dmx_queue_nr_get_bytes_free(u8 queue_nr)
 
 	return q->info.bytes_free(&q->info);
 }
+EXPORT_SYMBOL(avia_gt_dmx_queue_nr_get_bytes_free);
 
 static int avia_gt_wdt_thread(void *arg)
 {
@@ -1384,7 +1414,7 @@ int __init avia_gt_dmx_init(void)
 	u32 queue_addr;
 	u8 queue_nr;
 	
-	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.210.2.3 2005/01/31 20:04:09 carjay Exp $\n");;
+	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.210.2.4 2005/09/18 13:55:43 carjay Exp $\n");;
 
 	gt_info = avia_gt_get_info();
 	ucode_info = avia_gt_dmx_get_ucode_info();
@@ -1574,35 +1604,3 @@ MODULE_PARM(no_watchdog, "i");
 #endif
 MODULE_PARM_DESC(hw_sections, "hw_sections: 0=disabled, 1=enabled if possible (default)");
 MODULE_PARM_DESC(no_watchdog, "0: wd enabled, 1: wd disabled");
-
-EXPORT_SYMBOL(avia_gt_dmx_alloc_queue_audio);
-EXPORT_SYMBOL(avia_gt_dmx_alloc_queue_message);
-EXPORT_SYMBOL(avia_gt_dmx_alloc_queue_teletext);
-EXPORT_SYMBOL(avia_gt_dmx_alloc_queue_user);
-EXPORT_SYMBOL(avia_gt_dmx_alloc_queue_video);
-EXPORT_SYMBOL(avia_gt_dmx_free_queue);
-EXPORT_SYMBOL(avia_gt_dmx_get_queue_info);
-EXPORT_SYMBOL(avia_gt_dmx_fake_queue_irq);
-EXPORT_SYMBOL(avia_gt_dmx_queue_get_write_pos);
-EXPORT_SYMBOL(avia_gt_dmx_queue_irq_disable);
-EXPORT_SYMBOL(avia_gt_dmx_queue_irq_enable);
-EXPORT_SYMBOL(avia_gt_dmx_queue_reset);
-EXPORT_SYMBOL(avia_gt_dmx_queue_set_write_pos);
-EXPORT_SYMBOL(avia_gt_dmx_queue_start);
-EXPORT_SYMBOL(avia_gt_dmx_queue_stop);
-EXPORT_SYMBOL(avia_gt_dmx_set_pcr_pid);
-
-EXPORT_SYMBOL(avia_gt_dmx_system_queue_set_pos);
-EXPORT_SYMBOL(avia_gt_dmx_system_queue_set_read_pos);
-EXPORT_SYMBOL(avia_gt_dmx_system_queue_set_write_pos);
-EXPORT_SYMBOL(avia_gt_dmx_tap);
-EXPORT_SYMBOL(avia_gt_dmx_force_discontinuity);
-EXPORT_SYMBOL(avia_gt_dmx_enable_framer);
-EXPORT_SYMBOL(avia_gt_dmx_disable_framer);
-EXPORT_SYMBOL(avia_gt_dmx_enable_clip_mode);
-EXPORT_SYMBOL(avia_gt_dmx_disable_clip_mode);
-EXPORT_SYMBOL(avia_gt_dmx_queue_write);
-EXPORT_SYMBOL(avia_gt_dmx_queue_nr_get_bytes_free);
-EXPORT_SYMBOL(avia_gt_dmx_get_ucode_info);
-EXPORT_SYMBOL(avia_gt_dmx_set_ucode_info);
-EXPORT_SYMBOL(avia_gt_dmx_get_stc);
