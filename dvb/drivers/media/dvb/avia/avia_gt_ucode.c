@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_ucode.c,v 1.14.2.6 2005/01/31 03:16:06 carjay Exp $
+ * $Id: avia_gt_ucode.c,v 1.14.2.7 2005/10/03 22:41:29 carjay Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -1040,6 +1040,7 @@ struct avia_gt_ucode_info *avia_gt_dmx_get_ucode_info(void)
 {
 	return &ucode_info;
 }
+EXPORT_SYMBOL(avia_gt_dmx_get_ucode_info);
 
 
 static void avia_gt_dmx_load_ucode(void)
@@ -1164,5 +1165,4 @@ int avia_gt_dmx_risc_init(sAviaGtDmxRiscInit *risc_info)
 EXPORT_SYMBOL(avia_gt_dmx_set_ucode_info);
 EXPORT_SYMBOL(avia_gt_dmx_risc_reset);
 EXPORT_SYMBOL(avia_gt_dmx_risc_init);
-EXPORT_SYMBOL(avia_gt_dmx_get_ucode_info);
 #endif
