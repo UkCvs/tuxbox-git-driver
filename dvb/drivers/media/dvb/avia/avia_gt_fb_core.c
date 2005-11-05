@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_fb_core.c,v 1.54.2.2 2005/01/25 22:55:32 carjay Exp $
+ * $Id: avia_gt_fb_core.c,v 1.54.2.3 2005/11/05 16:25:06 carjay Exp $
  *
  * AViA eNX/GTX framebuffer driver (dbox-II-project)
  *
@@ -285,6 +285,8 @@ static int avia_gt_fb_decode_var(struct fb_var_screeninfo *var, struct avia_gt_f
 {
 	u32 bpp;
 	unsigned int frameram;
+	const struct pixelmode *pmode;
+	int pixmode;
 	
 	switch (var->xres){
 	case 720:
@@ -332,9 +334,8 @@ static int avia_gt_fb_decode_var(struct fb_var_screeninfo *var, struct avia_gt_f
 		find a suitable mode, if bpp does not fit return an error, else
 		the returned mode is the last found that was valid
 	*/
-	const struct pixelmode *pmode;
 	pmode = avia_gt_fb_get_ppixelmodes();
-	int pixmode = avia_gt_fb_pixelmode_compare(pmode,var);
+	pixmode = avia_gt_fb_pixelmode_compare(pmode,var);
 	if (pixmode == -1){
 		printk (KERN_INFO "avia_gt_fb_core: Unsupported bits per pixels: %d\n",bpp);
 		return -EINVAL;
@@ -409,8 +410,10 @@ static int avia_gt_fb_setcolreg(unsigned regno,
 {
 //	unsigned short vc_text = 0;
 	const struct pixelmode *pixm;
+	struct avia_gt_fb_par *ppar;
+
 	pixm = avia_gt_fb_get_ppixelmodes();
-	struct avia_gt_fb_par *ppar = info->par;
+	ppar = info->par;
 
 	if (avia_gt_fb_istruecolour(&pixm[ppar->pixmode])){
 		printk (KERN_INFO "avia_gt_fb_core: setcolreg called for TRUECOLOR mode\n");
@@ -570,7 +573,7 @@ int __init avia_gt_fb_init(void)
 	u8 *fb_virmem;
 	u32 fb_size;
 	
-	printk(KERN_INFO "avia_gt_fb: $Id: avia_gt_fb_core.c,v 1.54.2.2 2005/01/25 22:55:32 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_fb: $Id: avia_gt_fb_core.c,v 1.54.2.3 2005/11/05 16:25:06 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 

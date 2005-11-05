@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_core.c,v 1.98.2.5 2005/01/31 20:04:09 carjay Exp $
+ * $Id: avia_av_core.c,v 1.98.2.6 2005/11/05 16:25:06 carjay Exp $
  *
  * AViA 500/600 core driver (dbox-II-project)
  *
@@ -399,10 +399,11 @@ static void avia_av_interrupt(int irq, void *vdev, struct pt_regs *regs)
 	}
 	
 	if (status & IRQ_SEQ_V) {
-		dprintk(KERN_DEBUG "avia_av: IRQ_SEQ_V\n");
 		u16 w = avia_av_dram_read(H_SIZE) & 0xffff;
 		u16 h = avia_av_dram_read(V_SIZE) & 0xffff;
 		u16 r = avia_av_dram_read(ASPECT_RATIO) & 0xffff;
+
+		dprintk(KERN_DEBUG "avia_av: IRQ_SEQ_V\n");
 
 		if ((video_event_handler) &&
 			((w != video_width) ||
@@ -1642,7 +1643,7 @@ static int __init avia_av_core_init(void)
 	avia_info.dram_start = res->start;
 #endif
 
-	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.5 2005/01/31 20:04:09 carjay Exp $\n");
+	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.6 2005/11/05 16:25:06 carjay Exp $\n");
 
 	if (tv_standard != AVIA_AV_VIDEO_SYSTEM_PAL)
 		tv_standard = AVIA_AV_VIDEO_SYSTEM_NTSC;

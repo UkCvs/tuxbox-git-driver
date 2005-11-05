@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_pll.c,v 1.1.2.5 2005/02/08 17:31:24 carjay Exp $
+ * $Id: dbox2_pll.c,v 1.1.2.6 2005/11/05 16:27:55 carjay Exp $
  *
  * Dbox2 PLL driver collection
  *
@@ -143,11 +143,15 @@ int dbox2_pll_tsa5059_set_freq (struct pll_state *pll, struct dvb_frontend_param
 
 	/* allow 2000kHz - 100kHz */
 	for (i = 0; i < ARRAY_SIZE(ratio); i++) {
+		u32 cfreq, tmpref;
+		int tmpdiff;
+		
 		if (!ratio[i])
 			continue;
-		u32 cfreq = dbox2_pll_div(pll_clk, ratio[i]);
-		u32 tmpref = dbox2_pll_div((freq * 1000), (cfreq << pe));
-		int tmpdiff = (freq * 1000) - (tmpref * (cfreq << pe));
+		
+		cfreq = dbox2_pll_div(pll_clk, ratio[i]);
+		tmpref = dbox2_pll_div((freq * 1000), (cfreq << pe));
+		tmpdiff = (freq * 1000) - (tmpref * (cfreq << pe));
 
 		if (abs(tmpdiff) > abs(diff))
 			continue;

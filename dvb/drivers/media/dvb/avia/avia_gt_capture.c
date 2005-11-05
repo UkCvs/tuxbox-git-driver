@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_capture.c,v 1.32.4.3 2005/01/25 01:35:51 carjay Exp $
+ * $Id: avia_gt_capture.c,v 1.32.4.4 2005/11/05 16:25:06 carjay Exp $
  * 
  * capture driver for eNX/GTX (dbox-II-project)
  *
@@ -193,6 +193,7 @@ static int avia_gt_capture_test_apply_params(struct avia_gt_capture_params *para
 	u8 scale_x,scale_y;
 	unsigned long framesize, linesize;
 	unsigned char bytesperpix;
+	unsigned short max_height;
 
 	if (!params) return -EINVAL;
 
@@ -204,7 +205,7 @@ static int avia_gt_capture_test_apply_params(struct avia_gt_capture_params *para
 		tmpparams.eNX_extras = 0;	/* nice try... ;) */
 
 	bytesperpix = (tmpparams.eNX_extras&ENX_CAPT_UNSQUASHED)?2:1;
-	unsigned short max_height = /*avia_gt_gv_height_sth()*/576;	/* TODO: NTSC */
+	max_height = /*avia_gt_gv_height_sth()*/576;	/* TODO: NTSC */
 
 	/* first we correct the position */
 	tmpparams.input_x=(tmpparams.input_x+1)&~1;	/* can only start on an even position */
@@ -324,7 +325,7 @@ void avia_gt_capture_reset(int reenable)
 
 int __init avia_gt_capture_init(void)
 {
-	printk(KERN_INFO "avia_gt_capture: $Id: avia_gt_capture.c,v 1.32.4.3 2005/01/25 01:35:51 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_capture: $Id: avia_gt_capture.c,v 1.32.4.4 2005/11/05 16:25:06 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 

@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_gv.c,v 1.39.2.1 2005/01/15 02:35:09 carjay Exp $
+ * $Id: avia_gt_gv.c,v 1.39.2.2 2005/11/05 16:25:06 carjay Exp $
  *
  * AViA eNX/GTX graphic viewport driver (dbox-II-project)
  *
@@ -399,10 +399,12 @@ void avia_gt_gv_set_size(u16 width, u16 height)
 //	Manipulates the start address of the graphics viewport inside graphic viewport RAM,
 //		necessary for panning (double/triple buffering). Offset is in pixels.
 void avia_gt_gv_set_viewport(int xoffset, int yoffset){
+	u32 bufferoff;
+
 	if (xoffset<0 || yoffset<0) return;
 	// NB: by driver design, stride should always cover the same as input_width (thus also 32-bit aligned), 
 	// 	so we don't need to take it into account here
-	u32 bufferoff = (((yoffset*input_width)+xoffset)*avia_gt_get_bpp())>>3;
+	bufferoff = (((yoffset*input_width)+xoffset)*avia_gt_get_bpp())>>3;
 	if (avia_gt_chip(ENX)){
 		// GVSA1 must be aligned to 32-bit so we have to compensate for the rest with IPS
 		enx_reg_set(GVSA1, Addr, (AVIA_GT_MEM_GV_OFFS + bufferoff)>>2);
@@ -471,7 +473,7 @@ int avia_gt_gv_show(void)
 
 int avia_gt_gv_init(void)
 {
-	printk(KERN_INFO "avia_gt_gv: $Id: avia_gt_gv.c,v 1.39.2.1 2005/01/15 02:35:09 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_gv: $Id: avia_gt_gv.c,v 1.39.2.2 2005/11/05 16:25:06 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
