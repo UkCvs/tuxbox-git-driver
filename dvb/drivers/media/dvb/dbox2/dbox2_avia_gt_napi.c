@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_avia_gt_napi.c,v 1.1.2.2 2005/02/22 04:51:21 carjay Exp $
+ * $Id: dbox2_avia_gt_napi.c,v 1.1.2.3 2005/11/05 00:24:30 carjay Exp $
  * 
  * AViA GTX/eNX demux dvb api driver (dbox-II-project)
  *
@@ -147,6 +147,7 @@ static void avia_gt_napi_queue_callback_section(struct avia_gt_dmx_queue *queue,
 
 	if (!dvbdmxfeed->filter){	/* filter is gone */
 		queue->get_data(queue, NULL, queue->bytes_avail(queue), 0);
+		spin_unlock_irqrestore(&section_lock, flags);
 		return;
 	}
 	
@@ -818,7 +819,7 @@ int __init avia_gt_napi_init(void)
 {
 	int result;
 
-	printk(KERN_INFO "avia_gt_napi: $Id: dbox2_avia_gt_napi.c,v 1.1.2.2 2005/02/22 04:51:21 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_napi: $Id: dbox2_avia_gt_napi.c,v 1.1.2.3 2005/11/05 00:24:30 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
