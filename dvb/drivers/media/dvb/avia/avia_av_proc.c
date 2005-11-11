@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_proc.c,v 1.14.2.1 2005/01/21 21:23:38 carjay Exp $
+ * $Id: avia_av_proc.c,v 1.14.2.2 2005/11/11 19:26:23 carjay Exp $
  *
  * AViA 500/600 proc driver (dbox-II-project)
  *
@@ -34,6 +34,30 @@
 #include "avia_av_proc.h"
 
 static u32 *dram_copy;
+
+static int avia_av_proc_read_debug(char *buf, char **start, off_t offset, int len, int *eof, void *private)
+{
+	int nr = 0;
+	nr = sprintf(buf, "Debug:\n");
+	nr += sprintf(buf + nr, "PROC_STATE: 0x%02x\n",avia_av_dram_read(0x2a0)&0xffffff);
+	nr += sprintf(buf + nr, "MRC_ID: 0x%02x\n",avia_av_dram_read(0x2a4)&0xffffff);
+	nr += sprintf(buf + nr, "MRC_STATUS: 0x%02x\n",avia_av_dram_read(0x2a8)&0xffffff);
+	nr += sprintf(buf + nr, "INT_STATUS: 0x%02x\n",avia_av_dram_read(0x2ac)&0xffffff);
+	nr += sprintf(buf + nr, "BUFF_INT_SRC: 0x%02x\n",avia_av_dram_read(0x2b4)&0xffffff);
+	nr += sprintf(buf + nr, "UND_INT_SRC: 0x%02x\n",avia_av_dram_read(0x2b8)&0xffffff);
+	nr += sprintf(buf + nr, "ERR_INT_SRC: 0x%02x\n",avia_av_dram_read(0x2c4)&0xffffff);
+	nr += sprintf(buf + nr, "VIDEO_EMPTINESS: 0x%02x\n",avia_av_dram_read(0x2c8)&0xffffff);
+	nr += sprintf(buf + nr, "AUDIO_EMPTINESS: 0x%02x\n",avia_av_dram_read(0x2cc)&0xffffff);
+	nr += sprintf(buf + nr, "N_SYS_ERRORS: 0x%02x\n",avia_av_dram_read(0x318)&0xffffff);
+	nr += sprintf(buf + nr, "N_VID_ERRORS: 0x%02x\n",avia_av_dram_read(0x31c)&0xffffff);
+	nr += sprintf(buf + nr, "N_AUD_ERRORS: 0x%02x\n",avia_av_dram_read(0x320)&0xffffff);
+	nr += sprintf(buf + nr, "N_VID_DECODED: 0x%02x\n",avia_av_dram_read(0x2e4)&0xffffff);
+	nr += sprintf(buf + nr, "N_AUD_DECODED: 0x%02x\n",avia_av_dram_read(0x2f8)&0xffffff);
+	nr += sprintf(buf + nr, "VSYNC_HEARTBEAT: 0x%02x\n",avia_av_dram_read(0x46c)&0xffffff);
+	nr += sprintf(buf + nr, "ML_HEARTBEAT: 0x%02x\n",avia_av_dram_read(0x470)&0xffffff);
+	
+	return nr;
+}
 
 static int avia_av_proc_read_bitstream_settings(char *buf, char **start, off_t offset, int len, int *eof, void *private)
 {
@@ -105,8 +129,9 @@ int avia_av_proc_init(void)
 {
 	struct proc_dir_entry *proc_bus_avia;
 	struct proc_dir_entry *proc_bus_avia_dram;
+	struct proc_dir_entry *proc_bus_avia_debug;
 
-	printk("avia_av_proc: $Id: avia_av_proc.c,v 1.14.2.1 2005/01/21 21:23:38 carjay Exp $\n");
+	printk("avia_av_proc: $Id: avia_av_proc.c,v 1.14.2.2 2005/11/11 19:26:23 carjay Exp $\n");
 
 	if (!proc_bus) {
 		printk("avia_av_proc: /proc/bus does not exist");
@@ -114,22 +139,25 @@ int avia_av_proc_init(void)
 	}
 
 	proc_bus_avia = create_proc_read_entry("bitstream", 0, proc_bus, &avia_av_proc_read_bitstream_settings, NULL);
-
 	if (!proc_bus_avia) {
 		printk("avia_av_proc: could not create /proc/bus/bitstream");
 		return -ENOENT;
 	}
-
 	proc_bus_avia->owner = THIS_MODULE;
 
 	proc_bus_avia_dram = create_proc_read_entry("avia_dram", 0, proc_bus, &avia_av_proc_read_dram, NULL);
-
 	if (!proc_bus_avia_dram) {
 		printk("avia_av_proc: could not create /proc/bus/avia_dram");
 		return -ENOENT;
 	}
-
 	proc_bus_avia_dram->owner = THIS_MODULE;
+
+	proc_bus_avia_debug = create_proc_read_entry("avia_debug", 0, proc_bus, &avia_av_proc_read_debug, NULL);
+	if (!proc_bus_avia_debug) {
+		printk("avia_av_proc: could not create /proc/bus/avia_debug");
+		return -ENOENT;
+	}
+	proc_bus_avia_debug->owner = THIS_MODULE;
 
 	return 0;
 }
@@ -138,6 +166,7 @@ void avia_av_proc_exit(void)
 {
 	remove_proc_entry("avia_dram", proc_bus);
 	remove_proc_entry("bitstream", proc_bus);
+	remove_proc_entry("avia_debug", proc_bus);
 }
 
 #if defined(STANDALONE)
