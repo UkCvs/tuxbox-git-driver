@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_proc.c,v 1.14.2.2 2005/11/11 19:26:23 carjay Exp $
+ * $Id: avia_av_proc.c,v 1.14.2.3 2005/11/12 08:15:56 carjay Exp $
  *
  * AViA 500/600 proc driver (dbox-II-project)
  *
@@ -39,23 +39,22 @@ static int avia_av_proc_read_debug(char *buf, char **start, off_t offset, int le
 {
 	int nr = 0;
 	nr = sprintf(buf, "Debug:\n");
-	nr += sprintf(buf + nr, "PROC_STATE: 0x%02x\n",avia_av_dram_read(0x2a0)&0xffffff);
-	nr += sprintf(buf + nr, "MRC_ID: 0x%02x\n",avia_av_dram_read(0x2a4)&0xffffff);
-	nr += sprintf(buf + nr, "MRC_STATUS: 0x%02x\n",avia_av_dram_read(0x2a8)&0xffffff);
-	nr += sprintf(buf + nr, "INT_STATUS: 0x%02x\n",avia_av_dram_read(0x2ac)&0xffffff);
-	nr += sprintf(buf + nr, "BUFF_INT_SRC: 0x%02x\n",avia_av_dram_read(0x2b4)&0xffffff);
-	nr += sprintf(buf + nr, "UND_INT_SRC: 0x%02x\n",avia_av_dram_read(0x2b8)&0xffffff);
-	nr += sprintf(buf + nr, "ERR_INT_SRC: 0x%02x\n",avia_av_dram_read(0x2c4)&0xffffff);
-	nr += sprintf(buf + nr, "VIDEO_EMPTINESS: 0x%02x\n",avia_av_dram_read(0x2c8)&0xffffff);
-	nr += sprintf(buf + nr, "AUDIO_EMPTINESS: 0x%02x\n",avia_av_dram_read(0x2cc)&0xffffff);
-	nr += sprintf(buf + nr, "N_SYS_ERRORS: 0x%02x\n",avia_av_dram_read(0x318)&0xffffff);
-	nr += sprintf(buf + nr, "N_VID_ERRORS: 0x%02x\n",avia_av_dram_read(0x31c)&0xffffff);
-	nr += sprintf(buf + nr, "N_AUD_ERRORS: 0x%02x\n",avia_av_dram_read(0x320)&0xffffff);
-	nr += sprintf(buf + nr, "N_VID_DECODED: 0x%02x\n",avia_av_dram_read(0x2e4)&0xffffff);
-	nr += sprintf(buf + nr, "N_AUD_DECODED: 0x%02x\n",avia_av_dram_read(0x2f8)&0xffffff);
-	nr += sprintf(buf + nr, "VSYNC_HEARTBEAT: 0x%02x\n",avia_av_dram_read(0x46c)&0xffffff);
-	nr += sprintf(buf + nr, "ML_HEARTBEAT: 0x%02x\n",avia_av_dram_read(0x470)&0xffffff);
-	
+	nr += sprintf(buf + nr, "PROC_STATE: %d\n",avia_av_dram_read(PROC_STATE));
+	nr += sprintf(buf + nr, "MRC_ID: %02x\n",avia_av_dram_read(MRC_ID));
+	nr += sprintf(buf + nr, "MRC_STATUS: %d\n",avia_av_dram_read(MRC_STATUS));
+	nr += sprintf(buf + nr, "INT_STATUS: %d\n",avia_av_dram_read(INT_STATUS));
+	nr += sprintf(buf + nr, "BUFF_INT_SRC: %d\n",avia_av_dram_read(BUFF_INT_SRC));
+	nr += sprintf(buf + nr, "UND_INT_SRC: %d\n",avia_av_dram_read(UND_INT_SRC));
+	nr += sprintf(buf + nr, "ERR_INT_SRC: %d\n",avia_av_dram_read(ERR_INT_SRC));
+	nr += sprintf(buf + nr, "VIDEO_EMPTINESS: 0x%x\n",avia_av_dram_read(VIDEO_EMPTINESS));
+	nr += sprintf(buf + nr, "AUDIO_EMPTINESS: 0x%x\n",avia_av_dram_read(AUDIO_EMPTINESS));
+	nr += sprintf(buf + nr, "N_SYS_ERRORS: %d\n",avia_av_dram_read(N_SYS_ERRORS));
+	nr += sprintf(buf + nr, "N_VID_ERRORS: %d\n",avia_av_dram_read(N_VID_ERRORS));
+	nr += sprintf(buf + nr, "N_AUD_ERRORS: %d\n",avia_av_dram_read(N_AUD_ERRORS));
+	nr += sprintf(buf + nr, "N_VID_DECODED: %d\n",avia_av_dram_read(N_DECODED));
+	nr += sprintf(buf + nr, "N_AUD_DECODED: %d\n",avia_av_dram_read(N_AUD_DECODED));
+	nr += sprintf(buf + nr, "VSYNC_HEARTBEAT: 0x%06x\n",avia_av_dram_read(VSYNC_HEARTBEAT));
+	nr += sprintf(buf + nr, "ML_HEARTBEAT: 0x%06x\n",avia_av_dram_read(ML_HEARTBEAT));
 	return nr;
 }
 
@@ -131,7 +130,7 @@ int avia_av_proc_init(void)
 	struct proc_dir_entry *proc_bus_avia_dram;
 	struct proc_dir_entry *proc_bus_avia_debug;
 
-	printk("avia_av_proc: $Id: avia_av_proc.c,v 1.14.2.2 2005/11/11 19:26:23 carjay Exp $\n");
+	printk("avia_av_proc: $Id: avia_av_proc.c,v 1.14.2.3 2005/11/12 08:15:56 carjay Exp $\n");
 
 	if (!proc_bus) {
 		printk("avia_av_proc: /proc/bus does not exist");
