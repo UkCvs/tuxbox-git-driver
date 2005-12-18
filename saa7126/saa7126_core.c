@@ -1,5 +1,5 @@
 /*
- * $Id: saa7126_core.c,v 1.45.2.9 2005/09/09 17:59:05 carjay Exp $
+ * $Id: saa7126_core.c,v 1.45.2.10 2005/12/18 18:34:40 carjay Exp $
  * 
  * Philips SAA7126 digital video encoder
  *
@@ -332,6 +332,15 @@ static int saa7126_write_inittab (struct i2c_client *client, char init)
 		return -EINVAL;
 	}
 
+	/* init all null register with 0x00 */
+	for (i = 0x01; i <= 0x25; i++  )
+		saa7126_writereg(client, i, 0x00);
+		
+	for (i = 0x2e; i <= 0x37; i++ )
+		saa7126_writereg(client, i, 0x00);
+
+	saa7126_writereg(client, 0x60, 0x00);
+
 	for (i = 0; inittab[i].id != 0xff; i++){
 		if (inittab[i].id & (1 << (tuxbox_dbox2_mid - 1))){
 			saa7126_writebuf(client, inittab[i].reg, inittab[i].buf, inittab[i].len);
@@ -473,11 +482,13 @@ static struct i2c_client i2c_client_template = {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 static int saa7126_detect_client(struct i2c_adapter *adapter, int address,
 		int kind)
+{
+	struct miscdevice *pmd;
 #else
 static int saa7126_detect_client(struct i2c_adapter *adapter, int address,
 		unsigned short flags, int kind)
-#endif
 {
+#endif
 	int ret;
 	u8 version;
 	struct i2c_client *client;
@@ -518,7 +529,7 @@ static int saa7126_detect_client(struct i2c_adapter *adapter, int address,
 		encoder->norm = VIDEO_MODE_PAL;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-	struct miscdevice *pmd = kcalloc(1,sizeof(struct miscdevice), GFP_KERNEL);
+	pmd = kcalloc(1,sizeof(struct miscdevice), GFP_KERNEL);
 
 	if (!pmd){
 		ret = -ENOMEM;
