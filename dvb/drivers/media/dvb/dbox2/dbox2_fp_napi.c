@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_napi.c,v 1.1.2.2 2005/02/02 02:28:51 carjay Exp $
+ * $Id: dbox2_fp_napi.c,v 1.1.2.3 2005/12/18 18:40:16 carjay Exp $
  *
  * Copyright (C) 2002-2003 Andreas Oberritter <obi@tuxbox.org>
  *
@@ -202,14 +202,11 @@ int dbox2_fp_napi_init(void)
 	if (!dvb_adapter)
 		return -EINVAL;
 
-	//return dvb_add_frontend_ioctls(dvb_adapter, dbox2_fp_napi_before_ioctl, NULL, NULL);
 	return 0;
 }
 
 void dbox2_fp_napi_exit(void)
 {
-	//if (dvb_adapter)
-		//dvb_remove_frontend_ioctls(dvb_adapter, dbox2_fp_napi_before_ioctl, NULL);
 }
 
 #if 0
