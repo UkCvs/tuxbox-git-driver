@@ -292,9 +292,10 @@ static int fp_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 	case FP_IOCTL_GET_REGISTER:
 	{
 		u32 foo=0;
+		int len;
 		if (copy_from_user(&val, (void *) arg, sizeof(val)))
 	                return -EFAULT;
-		int len = ((val>>8)&3)+1;
+		len = ((val>>8)&3)+1;
 		fp_cmd(&fp_client, val & 0xFF, (u8 *) &foo, len);
 		foo = foo >> (4-len)*8;
 
