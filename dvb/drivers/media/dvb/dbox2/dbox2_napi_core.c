@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_napi_core.c,v 1.1.2.7 2005/08/27 18:51:06 carjay Exp $
+ * $Id: dbox2_napi_core.c,v 1.1.2.8 2005/12/18 22:30:23 carjay Exp $
  *
  * Dbox2 DVB Adapter driver
  *
@@ -110,18 +110,40 @@ static int dbox2_napi_status_monitor(struct dvb_frontend *fe, fe_status_t *statu
 /* DVB API frontend probe */
 /**************************/
 
-#if 0
-static int dbox2_fe_setup_ves1820(struct dbox2_fe *state, struct ves1820_config *cfg))
+/* Nokia cable boxes store this value in a small serial EEPROM */
+static int nokia_C_get_pwm (u8 *pwm_val)
 {
-	struct dvb_frontend_ops ops;
-	state->dvb_fe = ves1820_attach(cfg,state->i2c_adap);
-	if (!dvb_fe)
-		return -ENODEV;
-	dbox2_fp_get_sec_ops(&ops);
-	dvb_fe->ops = ops;
-	/* 	ves1820 use SPI (through FP) */
+	u8 b = 0xff;
+	u8 pwm;
+	struct i2c_msg msg [] = { { .addr = 0x50, .flags = 0, .buf = &b, .len = 1 },
+			 { .addr = 0x50, .flags = I2C_M_RD, .buf = &pwm, .len = 1 } };
+
+	if ((i2c_transfer(fe_state.i2c_adap, msg, 2) != 2) || (pwm == 0xff))
+		pwm = 0x48;
+
+	printk(KERN_INFO "dbox2_napi_core: pwm=0x%02x\n", pwm);
+
+	if (pwm_val)
+		*pwm_val = pwm;
+
+	return 0;
 }
-#endif
+
+static int dbox2_fe_setup_ves1820(struct dbox2_fe *state, struct ves1820_config *cfg)
+{
+	u8 pwm;
+	nokia_C_get_pwm(&pwm);
+
+	state->dvb_fe = ves1820_attach(cfg,state->i2c_adap,pwm);
+	if (!state->dvb_fe)
+		return -ENODEV;
+
+	dbox2_fp_napi_get_sec_ops(state->dvb_fe->ops);
+	/* 	ves1820 use SPI (through FP) */
+	state->pll_set = dbox2_fp_napi_qam_set_freq;
+	
+	return 0;
+}
 
 /* HACK - ves1x93-module does not offer a way to retrieve the identity :S */
 static int ves1x93_get_identity (int *id)
@@ -204,17 +226,16 @@ int dbox2_probe_nokia_S_frontend(struct dbox2_fe *state){
 }
 
 int dbox2_probe_nokia_C_frontend(struct dbox2_fe *state){
-#if 0
 	struct ves1820_config *cfg = kmalloc(sizeof(struct ves1820_config),GFP_KERNEL);
 	if (!cfg)
 		return -ENOMEM;
-	cfg->demod_address = >>1;
+	cfg->demod_address = 0x10>>1;
 	cfg->xin = 69600000UL;
 	cfg->invert = 0;
 	cfg->selagc = 0;
 	cfg->pll_init = dbox2_napi_pll_init;
 	cfg->pll_set = dbox2_napi_pll_set;
-	if ((state->dvb_fe = ves1820_attach(cfg,state->i2c_adap, ))==0){
+	if (dbox2_fe_setup_ves1820(state,cfg)){
 		kfree(cfg);
 		return -ENODEV;
 	}
@@ -222,8 +243,6 @@ int dbox2_probe_nokia_C_frontend(struct dbox2_fe *state){
 	state->pll_init = NULL; 
 	state->pll_set = dbox2_fp_napi_qam_set_freq;
 	return 0;
-#endif
-	return -ENODEV;
 }
 
 int dbox2_probe_philips_S_frontend(struct dbox2_fe *state){
@@ -367,7 +386,7 @@ static struct device_driver dbox2_fe_driver = {
 static int __init dbox2_napi_init(void)
 {
 	int res;
-	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.7 2005/08/27 18:51:06 carjay Exp $\n");
+	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.8 2005/12/18 22:30:23 carjay Exp $\n");
 
 	fe_state.dvb_adap = kmalloc (sizeof(struct dvb_adapter),GFP_KERNEL);
 	if (!fe_state.dvb_adap)
