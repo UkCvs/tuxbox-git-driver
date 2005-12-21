@@ -34,14 +34,10 @@
 
 
 struct ves1820_state {
-
 	struct i2c_adapter* i2c;
-
 	struct dvb_frontend_ops ops;
-
 	/* configuration settings */
 	const struct ves1820_config* config;
-
 	struct dvb_frontend frontend;
 
 	/* private demodulator data */
@@ -74,7 +70,6 @@ static int ves1820_writereg(struct ves1820_state *state, u8 reg, u8 data)
 		printk("ves1820: %s(): writereg error (reg == 0x%02x,"
 			"val == 0x%02x, ret == %i)\n", __FUNCTION__, reg, data, ret);
 
-	msleep(10);
 	return (ret != 1) ? -EREMOTEIO : 0;
 }
 
@@ -97,7 +92,6 @@ static u8 ves1820_readreg(struct ves1820_state *state, u8 reg)
 	return b1[0];
 }
 
-
 static int ves1820_setup_reg0(struct ves1820_state *state, u8 reg0, fe_spectral_inversion_t inversion)
 {
 	reg0 |= state->reg0 & 0x62;
@@ -105,10 +99,8 @@ static int ves1820_setup_reg0(struct ves1820_state *state, u8 reg0, fe_spectral_
 	if (INVERSION_ON == inversion) {
 		if (!state->config->invert) reg0 |= 0x20;
 		else reg0 &= ~0x20;
-
 	} else if (INVERSION_OFF == inversion) {
-
-     		if (!state->config->invert) reg0 &= ~0x20;
+		if (!state->config->invert) reg0 &= ~0x20;
 		else reg0 |= 0x20;
 	}
 
@@ -148,25 +140,25 @@ static int ves1820_set_symbolrate(struct ves1820_state *state, u32 symbolrate)
 	/* yeuch! */
 	fpxin = state->config->xin * 10;
 	fptmp = fpxin; do_div(fptmp, 123);
-	if (symbolrate < fptmp);
+	if (symbolrate < fptmp)
 		SFIL = 1;
 	fptmp = fpxin; do_div(fptmp, 160);
-	if (symbolrate < fptmp);
+	if (symbolrate < fptmp)
 		SFIL = 0;
 	fptmp = fpxin; do_div(fptmp, 246);
-	if (symbolrate < fptmp);
+	if (symbolrate < fptmp)
 		SFIL = 1;
 	fptmp = fpxin; do_div(fptmp, 320);
-	if (symbolrate < fptmp);
+	if (symbolrate < fptmp)
 		SFIL = 0;
 	fptmp = fpxin; do_div(fptmp, 492);
-	if (symbolrate < fptmp);
+	if (symbolrate < fptmp)
 		SFIL = 1;
 	fptmp = fpxin; do_div(fptmp, 640);
-	if (symbolrate < fptmp);
+	if (symbolrate < fptmp)
 		SFIL = 0;
 	fptmp = fpxin; do_div(fptmp, 984);
-	if (symbolrate < fptmp);
+	if (symbolrate < fptmp)
 		SFIL = 1;
 
 	fin = state->config->xin >> 4;
@@ -198,42 +190,29 @@ static int ves1820_set_symbolrate(struct ves1820_state *state, u32 symbolrate)
 	return 0;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
 static int ves1820_init(struct dvb_frontend* fe)
 {
-	struct ves1820_state* state = (struct ves1820_state*) fe->demodulator_priv;
+	struct ves1820_state* state = fe->demodulator_priv;
 	int i;
-	int val;
 
 	ves1820_writereg(state, 0, 0);
 
-	for (i = 0; i < 53; i++) {
-		val = ves1820_inittab[i];
-		if ((i == 2) && (state->config->selagc)) val |= 0x08;
-		ves1820_writereg(state, i, val);
-	}
+	for (i = 0; i < sizeof(ves1820_inittab); i++)
+		ves1820_writereg(state, i, ves1820_inittab[i]);
+	if (state->config->selagc)
+		ves1820_writereg(state, 2, ves1820_inittab[2] | 0x08);
 
 	ves1820_writereg(state, 0x34, state->pwm);
 
-	if (state->config->pll_init) state->config->pll_init(fe);
+	if (state->config->pll_init)
+		state->config->pll_init(fe);
 
 	return 0;
 }
 
 static int ves1820_set_parameters(struct dvb_frontend* fe, struct dvb_frontend_parameters *p)
 {
-	struct ves1820_state* state = (struct ves1820_state*) fe->demodulator_priv;
+	struct ves1820_state* state = fe->demodulator_priv;
 	static const u8 reg0x00[] = { 0x00, 0x04, 0x08, 0x0c, 0x10 };
 	static const u8 reg0x01[] = { 140, 140, 106, 100, 92 };
 	static const u8 reg0x05[] = { 135, 100, 70, 54, 38 };
@@ -254,13 +233,13 @@ static int ves1820_set_parameters(struct dvb_frontend* fe, struct dvb_frontend_p
 	ves1820_writereg(state, 0x09, reg0x09[real_qam]);
 
 	ves1820_setup_reg0(state, reg0x00[real_qam], p->inversion);
-
+	ves1820_writereg(state, 2, ves1820_inittab[2] | (state->config->selagc ? 0x08 : 0));
 	return 0;
 }
 
 static int ves1820_read_status(struct dvb_frontend* fe, fe_status_t* status)
 {
-	struct ves1820_state* state = (struct ves1820_state*) fe->demodulator_priv;
+	struct ves1820_state* state = fe->demodulator_priv;
 	int sync;
 
 	*status = 0;
@@ -286,7 +265,7 @@ static int ves1820_read_status(struct dvb_frontend* fe, fe_status_t* status)
 
 static int ves1820_read_ber(struct dvb_frontend* fe, u32* ber)
 {
-	struct ves1820_state* state = (struct ves1820_state*) fe->demodulator_priv;
+	struct ves1820_state* state = fe->demodulator_priv;
 
 	u32 _ber = ves1820_readreg(state, 0x14) |
 			(ves1820_readreg(state, 0x15) << 8) |
@@ -298,7 +277,7 @@ static int ves1820_read_ber(struct dvb_frontend* fe, u32* ber)
 
 static int ves1820_read_signal_strength(struct dvb_frontend* fe, u16* strength)
 {
-	struct ves1820_state* state = (struct ves1820_state*) fe->demodulator_priv;
+	struct ves1820_state* state = fe->demodulator_priv;
 
 	u8 gain = ves1820_readreg(state, 0x17);
 	*strength = (gain << 8) | gain;
@@ -308,7 +287,7 @@ static int ves1820_read_signal_strength(struct dvb_frontend* fe, u16* strength)
 
 static int ves1820_read_snr(struct dvb_frontend* fe, u16* snr)
 {
-	struct ves1820_state* state = (struct ves1820_state*) fe->demodulator_priv;
+	struct ves1820_state* state = fe->demodulator_priv;
 
 	u8 quality = ~ves1820_readreg(state, 0x18);
 	*snr = (quality << 8) | quality;
@@ -318,7 +297,7 @@ static int ves1820_read_snr(struct dvb_frontend* fe, u16* snr)
 
 static int ves1820_read_ucblocks(struct dvb_frontend* fe, u32* ucblocks)
 {
-	struct ves1820_state* state = (struct ves1820_state*) fe->demodulator_priv;
+	struct ves1820_state* state = fe->demodulator_priv;
 
 	*ucblocks = ves1820_readreg(state, 0x13) & 0x7f;
 	if (*ucblocks == 0x7f)
@@ -333,7 +312,7 @@ static int ves1820_read_ucblocks(struct dvb_frontend* fe, u32* ucblocks)
 
 static int ves1820_get_frontend(struct dvb_frontend* fe, struct dvb_frontend_parameters *p)
 {
-	struct ves1820_state* state = (struct ves1820_state*) fe->demodulator_priv;
+	struct ves1820_state* state = fe->demodulator_priv;
 	int sync;
 	s8 afc = 0;
 
@@ -364,7 +343,7 @@ static int ves1820_get_frontend(struct dvb_frontend* fe, struct dvb_frontend_par
 
 static int ves1820_sleep(struct dvb_frontend* fe)
 {
-	struct ves1820_state* state = (struct ves1820_state*) fe->demodulator_priv;
+	struct ves1820_state* state = fe->demodulator_priv;
 
 	ves1820_writereg(state, 0x1b, 0x02);	/* pdown ADC */
 	ves1820_writereg(state, 0x00, 0x80);	/* standby */
@@ -383,7 +362,7 @@ static int ves1820_get_tune_settings(struct dvb_frontend* fe, struct dvb_fronten
 
 static void ves1820_release(struct dvb_frontend* fe)
 {
-	struct ves1820_state* state = (struct ves1820_state*) fe->demodulator_priv;
+	struct ves1820_state* state = fe->demodulator_priv;
 	kfree(state);
 }
 
@@ -396,7 +375,7 @@ struct dvb_frontend* ves1820_attach(const struct ves1820_config* config,
 	struct ves1820_state* state = NULL;
 
 	/* allocate memory for the internal state */
-	state = (struct ves1820_state*) kmalloc(sizeof(struct ves1820_state), GFP_KERNEL);
+	state = kmalloc(sizeof(struct ves1820_state), GFP_KERNEL);
 	if (state == NULL)
 		goto error;
 
@@ -423,7 +402,7 @@ struct dvb_frontend* ves1820_attach(const struct ves1820_config* config,
 	return &state->frontend;
 
 error:
-	if (state) kfree(state);
+	kfree(state);
 	return NULL;
 }
 
