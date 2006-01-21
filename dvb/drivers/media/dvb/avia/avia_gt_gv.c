@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_gv.c,v 1.39.2.2 2005/11/05 16:25:06 carjay Exp $
+ * $Id: avia_gt_gv.c,v 1.39.2.3 2006/01/21 18:34:42 carjay Exp $
  *
  * AViA eNX/GTX graphic viewport driver (dbox-II-project)
  *
@@ -427,6 +427,7 @@ void avia_gt_gv_set_stride(void)
 
 int avia_gt_gv_show(void)
 {
+	enx_reg_set(GMR1, P, 0);
 	switch (input_mode) {
 	case AVIA_GT_GV_INPUT_MODE_OFF:
 		if (avia_gt_chip(ENX))
@@ -447,10 +448,13 @@ int avia_gt_gv_show(void)
 			gtx_reg_set(GMR, GMD, 0x02);
 		break;
 	case AVIA_GT_GV_INPUT_MODE_RGB565:
-		if (avia_gt_chip(ENX))
+		/* if P is not set there is no picture */
+		if (avia_gt_chip(ENX)) {
+			enx_reg_set(GMR1, P, 1);
 			enx_reg_set(GMR1, GMD, 0x04);	// RGB 565
-		else if (avia_gt_chip(GTX))
+		} else if (avia_gt_chip(GTX)) {
 			return -EINVAL;			// not supported
+		}
 		break;
 	case AVIA_GT_GV_INPUT_MODE_ARGB1555:
 		if (avia_gt_chip(ENX))
@@ -473,7 +477,7 @@ int avia_gt_gv_show(void)
 
 int avia_gt_gv_init(void)
 {
-	printk(KERN_INFO "avia_gt_gv: $Id: avia_gt_gv.c,v 1.39.2.2 2005/11/05 16:25:06 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_gv: $Id: avia_gt_gv.c,v 1.39.2.3 2006/01/21 18:34:42 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
