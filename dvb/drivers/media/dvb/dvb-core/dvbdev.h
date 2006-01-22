@@ -29,6 +29,7 @@
 #include <linux/list.h>
 #include <linux/devfs_fs_kernel.h>
 #include <linux/smp_lock.h>
+#include "compat.h"
 
 #define DVB_MAJOR 212
 
@@ -68,8 +69,8 @@ struct dvb_device {
 	int writers;
 	int users;
 
-        /* don't really need those !? -- FIXME: use video_usercopy  */
-        int (*kernel_ioctl)(struct inode *inode, struct file *file,
+	/* don't really need those !? -- FIXME: use video_usercopy  */
+	int (*kernel_ioctl)(struct inode *inode, struct file *file,
 			    unsigned int cmd, void *arg);
 
 	void *priv;
@@ -97,7 +98,7 @@ we simply define out own dvb_usercopy(), which will hopefully become
 generic_usercopy()  someday... */
 
 extern int dvb_usercopy(struct inode *inode, struct file *file,
-	                    unsigned int cmd, unsigned long arg,
+			    unsigned int cmd, unsigned long arg,
 			    int (*func)(struct inode *inode, struct file *file,
 			    unsigned int cmd, void *arg));
 
