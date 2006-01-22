@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_input_core.c,v 1.5.4.4 2006/01/22 12:52:31 carjay Exp $
+ * $Id: dbox2_fp_input_core.c,v 1.5.4.5 2006/01/22 13:37:40 carjay Exp $
  *
  * Copyright (C) 2002 by Florian Schirmer <jolt@tuxbox.org>
  *
@@ -73,7 +73,7 @@ void __exit dbox2_fp_input_exit(void)
 	dbox2_fp_rc_exit();
 
 	input_unregister_device(pinput_dev);
-
+	input_free_device(pinput_dev);
 }
 
 #ifdef MODULE
