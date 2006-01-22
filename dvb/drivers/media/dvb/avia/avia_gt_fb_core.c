@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_fb_core.c,v 1.54.2.3 2005/11/05 16:25:06 carjay Exp $
+ * $Id: avia_gt_fb_core.c,v 1.54.2.4 2006/01/22 12:48:42 carjay Exp $
  *
  * AViA eNX/GTX framebuffer driver (dbox-II-project)
  *
@@ -484,7 +484,7 @@ static void avia_gt_fb_imageblit(struct fb_info *p, const struct fb_image *image
 static int avia_gt_fb_cursor(struct fb_info *p, struct fb_cursor *cursor)
 {
 	/* TODO */
-	soft_cursor(p,cursor);
+/*	soft_cursor(p,cursor); */
 	return 0;
 }
 
@@ -557,7 +557,7 @@ static struct fb_ops avia_gt_fb_ops = {
 	.fb_ioctl		= avia_gt_fb_ioctl,
 };
 
-/* taking options makes only sense if it's part of the kernel */
+/* taking options only makes sense if it's part of the kernel */
 #ifndef MODULE
 static int __init avia_gt_fb_setup(char *options)
 {
@@ -573,7 +573,7 @@ int __init avia_gt_fb_init(void)
 	u8 *fb_virmem;
 	u32 fb_size;
 	
-	printk(KERN_INFO "avia_gt_fb: $Id: avia_gt_fb_core.c,v 1.54.2.3 2005/11/05 16:25:06 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_fb: $Id: avia_gt_fb_core.c,v 1.54.2.4 2006/01/22 12:48:42 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 

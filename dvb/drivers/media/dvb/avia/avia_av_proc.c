@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_proc.c,v 1.14.2.3 2005/11/12 08:15:56 carjay Exp $
+ * $Id: avia_av_proc.c,v 1.14.2.4 2006/01/22 12:48:42 carjay Exp $
  *
  * AViA 500/600 proc driver (dbox-II-project)
  *
@@ -40,7 +40,7 @@ static int avia_av_proc_read_debug(char *buf, char **start, off_t offset, int le
 	int nr = 0;
 	nr = sprintf(buf, "Debug:\n");
 	nr += sprintf(buf + nr, "PROC_STATE: %d\n",avia_av_dram_read(PROC_STATE));
-	nr += sprintf(buf + nr, "MRC_ID: %02x\n",avia_av_dram_read(MRC_ID));
+	nr += sprintf(buf + nr, "MRC_ID: 0x%02x\n",avia_av_dram_read(MRC_ID));
 	nr += sprintf(buf + nr, "MRC_STATUS: %d\n",avia_av_dram_read(MRC_STATUS));
 	nr += sprintf(buf + nr, "INT_STATUS: %d\n",avia_av_dram_read(INT_STATUS));
 	nr += sprintf(buf + nr, "BUFF_INT_SRC: %d\n",avia_av_dram_read(BUFF_INT_SRC));
@@ -130,7 +130,7 @@ int avia_av_proc_init(void)
 	struct proc_dir_entry *proc_bus_avia_dram;
 	struct proc_dir_entry *proc_bus_avia_debug;
 
-	printk("avia_av_proc: $Id: avia_av_proc.c,v 1.14.2.3 2005/11/12 08:15:56 carjay Exp $\n");
+	printk("avia_av_proc: $Id: avia_av_proc.c,v 1.14.2.4 2006/01/22 12:48:42 carjay Exp $\n");
 
 	if (!proc_bus) {
 		printk("avia_av_proc: /proc/bus does not exist");

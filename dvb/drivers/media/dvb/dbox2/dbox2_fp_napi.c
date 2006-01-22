@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_napi.c,v 1.1.2.3 2005/12/18 18:40:16 carjay Exp $
+ * $Id: dbox2_fp_napi.c,v 1.1.2.4 2006/01/22 12:49:10 carjay Exp $
  *
  * Copyright (C) 2002-2003 Andreas Oberritter <obi@tuxbox.org>
  *
@@ -181,8 +181,8 @@ int dbox2_fp_napi_set_voltage(struct dvb_frontend *fe, fe_sec_voltage_t voltage)
 	return ret;
 }
 
-int dbox2_fp_napi_enable_high_lnb_voltage(struct dvb_frontend *fe, int arg){
-	return dbox2_fp_sec_set_high_voltage(((int) arg) ? 1 : 0);
+int dbox2_fp_napi_enable_high_lnb_voltage(struct dvb_frontend *fe, long arg){
+	return dbox2_fp_sec_set_high_voltage(arg ? 1 : 0);
 }
 
 int dbox2_fp_napi_get_sec_ops(struct dvb_frontend_ops *ops)

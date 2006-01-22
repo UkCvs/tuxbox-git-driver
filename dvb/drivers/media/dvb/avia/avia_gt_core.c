@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_core.c,v 1.48.2.4 2005/01/31 20:11:37 carjay Exp $
+ * $Id: avia_gt_core.c,v 1.48.2.5 2006/01/22 12:48:42 carjay Exp $
  *
  * AViA eNX/GTX core driver (dbox-II-project)
  *
@@ -31,7 +31,7 @@
 #include <linux/string.h>
 #include <linux/version.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-#include <linux/device.h>
+#include <linux/platform_device.h>
 #include <linux/interrupt.h>
 #else
 #include <linux/irq.h>
@@ -139,7 +139,7 @@ static int __init avia_gt_init(void)
 {
 	int result = 0;
 	
-	printk(KERN_INFO "avia_gt_core: $Id: avia_gt_core.c,v 1.48.2.4 2005/01/31 20:11:37 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_core: $Id: avia_gt_core.c,v 1.48.2.5 2006/01/22 12:48:42 carjay Exp $\n");
 
 	if (chip_type == -1) {
 		printk(KERN_INFO "avia_gt_core: autodetecting chip type... ");

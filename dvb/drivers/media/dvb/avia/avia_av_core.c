@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_core.c,v 1.98.2.6 2005/11/05 16:25:06 carjay Exp $
+ * $Id: avia_av_core.c,v 1.98.2.7 2006/01/22 12:48:42 carjay Exp $
  *
  * AViA 500/600 core driver (dbox-II-project)
  *
@@ -38,7 +38,7 @@
 #include <linux/wait.h>
 #include <linux/completion.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-#include <linux/device.h>
+#include <linux/platform_device.h>
 #include <linux/firmware.h>
 #include <linux/interrupt.h>
 #else
@@ -140,6 +140,8 @@ static u16 video_aspect_ratio;
 #define NTSC_16MB_PL_ROM_SRAM		9
 #define PAL_16MB_WO_ROM_SRAM		10
 #define PAL_20MB_WO_ROM_SRAM		12
+
+#define UCODEVERSION(a,b,c,d) (a<<24|b<<16|c<<8|d)
 
 /* ---------------------------------------------------------------------- */
 
@@ -823,7 +825,11 @@ static void avia_av_set_default(void)
 	avia_av_dram_write(INTERPRET_USER_DATA_MASK, 0);
 
 	/* osd */
-	avia_av_dram_write(DISABLE_OSD, 3);
+	if (avia_av_dram_read(UCODE_VERSION)==UCODEVERSION('d','0','3','0'))
+		avia_av_dram_write(DISABLE_OSD, 1); /* this creates problems with tearing in scaled 16:9 
+											   mode but the ucode won't work otherwise */
+	else
+		avia_av_dram_write(DISABLE_OSD, 3);
 
 	/* disable osd */
 	avia_av_dram_write(OSD_EVEN_FIELD, 0);
@@ -930,7 +936,7 @@ static int avia_av_firmware_read(const char *fn, char **fp)
 
 	l = lseek(fd, 0L, 2);
 
-	if ((l <= 0) || (l >= 128 * 1024)) {
+	if ((l <= 0) || (l >= 144 * 1024)) {
 		printk(KERN_ERR "%s: %s: Firmware wrong size '%s'.\n",
 			__FILE__, __FUNCTION__, firmwarePath);
 		sys_close(fd);
@@ -1046,18 +1052,6 @@ static int avia_av_init(void)
 	/* init queue */
 	init_waitqueue_head(&avia_cmd_wait);
 
-	/* 	start avia_av_wdt_sleep kernel_thread if it's not already running
-		(and it is enabled) */
-	if (!wdt&&!no_watchdog){
-		wdt = (struct wdt_state*) kmalloc (sizeof(struct wdt_state),GFP_KERNEL);
-		if (!wdt)
-			return -ENOMEM;
-		memset(wdt,0,sizeof(struct wdt_state));
-
-		init_waitqueue_head(&wdt->wakeup_q);
-		init_completion(&wdt->compl);
-		wdt->pid = kernel_thread (avia_av_wdt_thread, wdt, 0);
-	}
 
 	/* init spinlocks */
 	spin_lock_init(&avia_command_lock);
@@ -1174,6 +1168,21 @@ static int avia_av_init(void)
 	if (avia_av_new_audio_config() < 0) {
 		ret=-EIO;
 		goto out_irq;
+	}
+
+	/* 	start avia_av_wdt_sleep kernel_thread if it's not already running
+		(and it is enabled) */
+	if (!wdt&&!no_watchdog){
+		wdt = (struct wdt_state*) kmalloc (sizeof(struct wdt_state),GFP_KERNEL);
+		if (!wdt) {
+			ret = -ENOMEM;
+			goto out_irq;
+		}
+		memset(wdt,0,sizeof(struct wdt_state));
+
+		init_waitqueue_head(&wdt->wakeup_q);
+		init_completion(&wdt->compl);
+		wdt->pid = kernel_thread (avia_av_wdt_thread, wdt, 0);
 	}
 
 #ifndef STANDALONE
@@ -1643,7 +1652,7 @@ static int __init avia_av_core_init(void)
 	avia_info.dram_start = res->start;
 #endif
 
-	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.6 2005/11/05 16:25:06 carjay Exp $\n");
+	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.7 2006/01/22 12:48:42 carjay Exp $\n");
 
 	if (tv_standard != AVIA_AV_VIDEO_SYSTEM_PAL)
 		tv_standard = AVIA_AV_VIDEO_SYSTEM_NTSC;

@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_napi_core.c,v 1.1.2.9 2005/12/22 18:58:54 carjay Exp $
+ * $Id: dbox2_napi_core.c,v 1.1.2.10 2006/01/22 12:49:10 carjay Exp $
  *
  * Dbox2 DVB Adapter driver
  *
@@ -25,7 +25,7 @@
 
 #include <linux/init.h>
 #include <linux/kernel.h>
-#include <linux/device.h>
+#include <linux/platform_device.h>
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
 
@@ -383,7 +383,7 @@ static struct device_driver dbox2_fe_driver = {
 static int __init dbox2_napi_init(void)
 {
 	int res;
-	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.9 2005/12/22 18:58:54 carjay Exp $\n");
+	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.10 2006/01/22 12:49:10 carjay Exp $\n");
 
 	fe_state.dvb_adap = kmalloc (sizeof(struct dvb_adapter),GFP_KERNEL);
 	if (!fe_state.dvb_adap)
