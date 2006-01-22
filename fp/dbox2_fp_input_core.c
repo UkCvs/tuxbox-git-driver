@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_input_core.c,v 1.5.4.3 2005/02/15 13:15:55 carjay Exp $
+ * $Id: dbox2_fp_input_core.c,v 1.5.4.4 2006/01/22 12:52:31 carjay Exp $
  *
  * Copyright (C) 2002 by Florian Schirmer <jolt@tuxbox.org>
  *
@@ -29,7 +29,7 @@
 TUXBOX_INFO(dbox2_mid);
 tuxbox_dbox2_mid_t mid;
 
-static struct input_dev input_dev;
+static struct input_dev *pinput_dev;
 
 extern int dbox2_fp_button_init(struct input_dev *input_dev);
 extern void dbox2_fp_button_exit(void);
@@ -42,26 +42,25 @@ extern void dbox2_fp_rc_exit(void);
 
 int __init dbox2_fp_input_init(void)
 {
+	struct input_dev *pinput_dev;
 
-	memset(input_dev.keybit, 0, sizeof(input_dev.keybit));
+	pinput_dev = input_allocate_device();
+
+	memset(pinput_dev->keybit, 0, sizeof(pinput_dev->keybit));
 
 	mid = tuxbox_dbox2_mid;
 
-	input_dev.name = "DBOX-2 FP IR";
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-	input_dev.id.bustype = BUS_I2C;
-#else
-	input_dev.idbus = BUS_I2C;
-#endif
+	pinput_dev->name = "DBOX-2 FP IR";
+	pinput_dev->id.bustype = BUS_I2C;
 	
-	input_register_device(&input_dev);
+	input_register_device(pinput_dev);
 
-	dbox2_fp_button_init(&input_dev);
-	dbox2_fp_keyboard_init(&input_dev);
-	dbox2_fp_mouse_init(&input_dev);
+	dbox2_fp_button_init(pinput_dev);
+	dbox2_fp_keyboard_init(pinput_dev);
+	dbox2_fp_mouse_init(pinput_dev);
 
 	/* init rc as last one.. maybe because it uses fp_sendcmd() */
-	dbox2_fp_rc_init(&input_dev);
+	dbox2_fp_rc_init(pinput_dev);
 	return 0;
 }
 
@@ -73,7 +72,7 @@ void __exit dbox2_fp_input_exit(void)
 	dbox2_fp_keyboard_exit();
 	dbox2_fp_rc_exit();
 
-	input_unregister_device(&input_dev);
+	input_unregister_device(pinput_dev);
 
 }
 

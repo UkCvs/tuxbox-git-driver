@@ -33,6 +33,7 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 #include <linux/moduleparam.h>
 #include <linux/workqueue.h>
+#include <linux/platform_device.h>
 #include <linux/miscdevice.h>
 #else
 #include <linux/i2c_compat.h>
@@ -50,6 +51,7 @@
 #include <asm/mpc8xx.h>
 #include <asm/signal.h>
 #include <asm/uaccess.h>
+#include <asm/machdep.h>
 
 #include <dbox/event.h>
 #include <dbox/fp.h>

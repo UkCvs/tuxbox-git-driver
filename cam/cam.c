@@ -22,7 +22,7 @@
  */
 
 #include <linux/delay.h>
-#include <linux/device.h>
+#include <linux/platform_device.h>
 #include <linux/firmware.h>
 #include <linux/i2c.h>
 #include <linux/init.h>
@@ -428,7 +428,7 @@ static struct device_driver cam_driver = {
 
 static int __init cam_init(void)
 {
-	printk(KERN_INFO "$Id: cam.c,v 1.30.2.4 2005/09/17 11:40:26 carjay Exp $\n");
+	printk(KERN_INFO "$Id: cam.c,v 1.30.2.5 2006/01/22 12:51:25 carjay Exp $\n");
 
 	return driver_register(&cam_driver);
 }
