@@ -608,8 +608,11 @@ static u32 p8xx_func(struct i2c_adapter *adap)
 }
 
 static struct i2c_algorithm i2c_8xx_algo = {
+/* FIXME: what happened to this field */
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,13)
 	.name = "PowerPC 8xx Algo",
 	.id = I2C_ALGO_EXP,
+#endif
 	.master_xfer = dbox2_i2c_xfer_safe,
 	.algo_control = algo_control,
 	.functionality = p8xx_func,
@@ -634,7 +637,10 @@ static int __init i2c_algo_8xx_init (void)
 		return -EIO;
 	}
 
+/* FIXME: what happened to this field */
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,13)
 	adap.id = i2c_8xx_algo.id;
+#endif
 
 	printk(KERN_INFO "[i2c-8xx]: adapter: %x\n", i2c_add_adapter(&adap));
 
