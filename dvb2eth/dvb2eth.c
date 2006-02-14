@@ -30,13 +30,21 @@
 #include <linux/bitops.h>
 #include <linux/netdevice.h>
 #include <linux/inetdevice.h>
+#include <linux/version.h>
+#include <linux/config.h>
+#include <linux/miscdevice.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0))
+#include <linux/dma-mapping.h>
+#endif
 #include <asm/io.h>
 #include <asm/checksum.h>
 #include <asm/uaccess.h>
 
 #include <dbox/dvb2eth.h>
 
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(2,5,0))
 EXPORT_NO_SYMBOLS;
+#endif
 
 /*
  * supported file operations
@@ -49,31 +57,16 @@ static int dvb2eth_ioctl(struct inode *inode, struct file *file,
 
 static struct file_operations dvb2eth_fops = {
 		THIS_MODULE,
-		NULL,						/* llseek */
-		NULL,						/* read */
-		NULL,						/* write */
-		NULL,						/* readdir */
-		NULL,           			/* poll */
-		dvb2eth_ioctl,				/* ioctl */
-		NULL,						/* mmap */
-		dvb2eth_open,				/* open */
-		NULL,						/* flush */
-		dvb2eth_release,			/* release */
-		NULL,						/* fsync */
-		NULL,						/* fasync */
-		NULL,						/* lock */
-		NULL,						/* readv */
-		NULL,						/* writev */
-		NULL,						/* sendpage */
-		NULL						/* get_unmapped_area */
+		.ioctl   = dvb2eth_ioctl,
+		.open    = dvb2eth_open,
+		.release = dvb2eth_release
 };
 
 /*
  * UDP header skeleton
  */
 
-unsigned char dvb2eth_udp_header_skel[44] =
-{
+static unsigned char dvb2eth_udp_header_skel[44] = {
 		0x00, 0x00,								// alignment
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00,		// destination mac address
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00,		// source mac address
@@ -100,13 +93,16 @@ unsigned char dvb2eth_udp_header_skel[44] =
  * variables
  */
 
+#ifdef CONFIG_DEVFS_FS
 static devfs_handle_t		dvb2eth_device;
+#endif
 static unsigned char		*dvb2eth_header_buf;
 static unsigned char		dvb2eth_busy;
 static unsigned	char		dvb2eth_header_index;
 static unsigned char		dvb2eth_running;
 static unsigned char		dvb2eth_setup_done;
 static unsigned short		dvb2eth_udp_id = 15796;
+static dma_addr_t			dvb2eth_phy_addr;
 static dma_addr_t			dvb2eth_ph_addr[UDP_HEADERS];
 static struct net_device 	*dvb2eth_dev;
 
@@ -131,13 +127,11 @@ static int dvb2eth_send(unsigned first, unsigned first_len,
 	unsigned char *udp;
 	unsigned s_len;
 
-	if (len < 1316)
-	{
+	if (len < 1316)	{
 		return 0;
 	}
 
-	while (len >= 1316)
-	{
+	while (len >= 1316)	{
 		/*
 		 * create udp header
 		 */
@@ -148,17 +142,14 @@ static int dvb2eth_send(unsigned first, unsigned first_len,
 		*((unsigned short *) (udp + 26)) = 0;
 		*((unsigned short *) (udp + 26)) = ip_fast_csum(udp + 16,5);
 
-		if (first_len >= 1316)
-		{
+		if (first_len >= 1316){
 			scc_enet_multiple_xmit(dvb2eth_dev,2,
 				dvb2eth_ph_addr[dvb2eth_header_index],
 				sizeof(dvb2eth_udp_header_skel) - 2,
 				first,1316,0,0);
 			first += 1316;
 			first_len -= 1316;
-		}
-		else
-		{
+		} else {
 			scc_enet_multiple_xmit(dvb2eth_dev,3,
 				dvb2eth_ph_addr[dvb2eth_header_index],
 				sizeof(dvb2eth_udp_header_skel) - 2,
@@ -168,8 +159,7 @@ static int dvb2eth_send(unsigned first, unsigned first_len,
 			second_len -= s_len;
 			first_len = 0;
 		}
-		if (!first_len)
-		{
+		if (!first_len) {
 			first_len = second_len;
 			first = second;
 			second_len = 0;
@@ -195,52 +185,50 @@ static int dvb2eth_ioctl(struct inode *inode, struct file *file,
 	unsigned char *j;
 
 	if (_IOC_TYPE(cmd) != DVB2ETH_IOCTL_BASE)
-	{
-		return -EINVAL;
-	}
-
-	switch (cmd)
-	{
-		case DVB2ETH_STOP:
-			avia_gt_napi_dvr_send = NULL;
-			dvb2eth_running = 0;
-			break;
-		case DVB2ETH_START:
-			if (!dvb2eth_setup_done)
-			{
-				return -EINVAL;
-			}
-			avia_gt_napi_dvr_send = dvb2eth_send;
-			dvb2eth_running = 1;
-			break;
-		case DVB2ETH_SET_DEST:
-			if (dvb2eth_running)
-			{
-				return -EINVAL;
-			}
-			if (copy_from_user(&dest,(unsigned char *) arg,sizeof(dest)))
-			{
-				return -EFAULT;
-			}
-
-			dvb2eth_udp_header_skel[24] = dest.ttl;
-			*((unsigned long *) (dvb2eth_udp_header_skel + 32)) = dest.dest_ip;
-			*((unsigned short *) (dvb2eth_udp_header_skel + 36)) = dest.src_port;
-			*((unsigned short *) (dvb2eth_udp_header_skel + 38)) = dest.dest_port;
-			memcpy(dvb2eth_udp_header_skel + 2,dest.dest_mac,6);
-
-			memcpy(dvb2eth_udp_header_skel + 8,dvb2eth_dev->dev_addr,6);
-			*((unsigned long *) (dvb2eth_udp_header_skel + 28)) =
-				((struct in_device *) (dvb2eth_dev->ip_ptr))->ifa_list->ifa_address;
-			for (i = 0, j = dvb2eth_header_buf; i < UDP_HEADERS;
-				 i++, j += sizeof(dvb2eth_udp_header_skel))
-			{
-				memcpy(j,dvb2eth_udp_header_skel,sizeof(dvb2eth_udp_header_skel));
-			}
-			dvb2eth_setup_done = 1;
-			break;
-		default:
 			return -EINVAL;
+	
+	switch (cmd){
+
+	case DVB2ETH_STOP:
+		avia_gt_napi_dvr_send = NULL;
+		dvb2eth_running = 0;
+		break;
+
+	case DVB2ETH_START:
+
+		if (!dvb2eth_setup_done)
+				return -EINVAL;
+
+		avia_gt_napi_dvr_send = dvb2eth_send;
+		dvb2eth_running = 1;
+		break;
+
+	case DVB2ETH_SET_DEST:
+
+		if (dvb2eth_running)
+			return -EINVAL;
+
+		if (copy_from_user(&dest,(unsigned char *) arg,sizeof(dest)))
+			return -EFAULT;
+
+		dvb2eth_udp_header_skel[24] = dest.ttl;
+		*((unsigned long *) (dvb2eth_udp_header_skel + 32)) = dest.dest_ip;
+		*((unsigned short *) (dvb2eth_udp_header_skel + 36)) = dest.src_port;
+		*((unsigned short *) (dvb2eth_udp_header_skel + 38)) = dest.dest_port;
+		memcpy(dvb2eth_udp_header_skel + 2,dest.dest_mac,6);
+
+		memcpy(dvb2eth_udp_header_skel + 8,dvb2eth_dev->dev_addr,6);
+		*((unsigned long *) (dvb2eth_udp_header_skel + 28)) =
+			((struct in_device *) (dvb2eth_dev->ip_ptr))->ifa_list->ifa_address;
+		for (i = 0, j = dvb2eth_header_buf; i < UDP_HEADERS;
+				 i++, j += sizeof(dvb2eth_udp_header_skel)) {
+				memcpy(j,dvb2eth_udp_header_skel,sizeof(dvb2eth_udp_header_skel));
+		}
+		dvb2eth_setup_done = 1;
+		break;
+	
+	default:
+		return -EINVAL;
 	}
 
 	return 0;
@@ -256,22 +244,21 @@ static int dvb2eth_open(struct inode *inode, struct file *file)
 	 * already in use?
 	 */
 
-	if (test_and_set_bit(0,&dvb2eth_busy))
-	{
+	if (test_and_set_bit(0,(void *)&dvb2eth_busy))
 		return -EBUSY;
-	}
 
 	/*
 	 * opened with write permissions?
 	 */
 
-	if (!(file->f_mode & FMODE_WRITE))
-	{
-		clear_bit(0,&dvb2eth_busy);
+	if (!(file->f_mode & FMODE_WRITE)){
+		clear_bit(0,(void *)&dvb2eth_busy);
 		return -EINVAL;
 	}
 
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(2,5,0))
 	MOD_INC_USE_COUNT;
+#endif
 
 	return 0;
 }
@@ -294,9 +281,11 @@ static int dvb2eth_release(struct inode *inode, struct file *file)
 	 * reset use-bit
 	 */
 
-	clear_bit(0,&dvb2eth_busy);
+	clear_bit(0,(void *)&dvb2eth_busy);
 
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(2,5,0))
 	MOD_DEC_USE_COUNT;
+#endif
 
 	return 0;
 }
@@ -305,24 +294,36 @@ static int dvb2eth_release(struct inode *inode, struct file *file)
  * module-exit
  */
 
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(2,5,0))
+struct miscdevice dvb2eth_misc = {
+	.name = "dvb2eth",
+	.minor = MISC_DYNAMIC_MINOR,
+	.fops = &dvb2eth_fops
+};
+#endif
+
 static void __exit dvb2eth_exit(void)
 {
 	/*
 	 * free memory
 	 */
 
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,25))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,13))
+	dma_free_coherent(dvb2eth_dev->class_dev.dev, UDP_HEADERS * sizeof(dvb2eth_udp_header_skel),
+						dvb2eth_header_buf, dvb2eth_phy_addr);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,25))
 	consistent_free(dvb2eth_header_buf);
-#else
-	/* put bugfix here */
 #endif
 
 	/*
 	 * unregister device
 	 */
 
+#ifdef CONFIG_DEVFS_FS
 	devfs_unregister(dvb2eth_device);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0))
+	misc_deregister(&dvb2eth_misc);
+#endif
 }
 
 /*
@@ -337,8 +338,7 @@ static int __init dvb2eth_init(void)
 	 * find network device
 	 */
 
-	if ( (dvb2eth_dev = dev_get_by_name("eth0")) == NULL)
-	{
+	if ( (dvb2eth_dev = dev_get_by_name("eth0")) == NULL) {
 		printk(KERN_ERR "Cannot find device eth0.\n");
 		return -EINVAL;
 	}
@@ -347,36 +347,48 @@ static int __init dvb2eth_init(void)
 	 * register device
 	 */
 
+#ifdef CONFIG_DEVFS_FS
 	if ( (dvb2eth_device = devfs_register(NULL,"dbox/dvb2eth", DEVFS_FL_DEFAULT,
-		0, 0, S_IFCHR | S_IRUSR | S_IWUSR, &dvb2eth_fops, NULL)) == NULL)
-	{
+		0, 0, S_IFCHR | S_IRUSR | S_IWUSR, &dvb2eth_fops, NULL)) == NULL) {
 		printk(KERN_ERR "dvb2eth_init: cannot register device in devfs.\n");
 		return -EIO;
 	}
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0))
+	misc_register(&dvb2eth_misc);
+#endif
 
 	/*
 	 * alloc memory
 	 */
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,25))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,13))
+	if ( (dvb2eth_header_buf = (unsigned char *) dma_alloc_coherent(dvb2eth_dev->class_dev.dev,
+																	UDP_HEADERS * sizeof(dvb2eth_udp_header_skel),
+																	&dvb2eth_phy_addr, GFP_KERNEL)) == NULL) {
+		printk(KERN_ERR "dvb2eth_init: cannot allocate memory.\n");
+#ifdef CONFIG_DEVFS_FS
+		devfs_unregister(dvb2eth_device);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0))
+		misc_deregister(&dvb2eth_misc);
+#endif
+		return -ENOMEM;
+	}
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,25))
 	if ( (dvb2eth_header_buf = (unsigned char *) consistent_alloc(GFP_KERNEL,
-			UDP_HEADERS * sizeof(dvb2eth_udp_header_skel),&phy_addr)) == NULL)
-	{
+			UDP_HEADERS * sizeof(dvb2eth_udp_header_skel),&dvb2eth_phy_addr)) == NULL) {
 		printk(KERN_ERR "dvb2eth_init: cannot allocate memory.\n");
 		devfs_unregister(dvb2eth_device);
 		return -ENOMEM;
 	}
-#else
-	/* put bugfix here */
 #endif
 
 	/*
 	 * store physical addresses for udp-headers
 	 */
 
+	phy_addr = dvb2eth_phy_addr;
 	phy_addr += 2;
-	for (i = 0; i < UDP_HEADERS; i++)
-	{
+	for (i = 0; i < UDP_HEADERS; i++) {
 		dvb2eth_ph_addr[i] = phy_addr;
 		phy_addr += sizeof(dvb2eth_udp_header_skel);
 	}
