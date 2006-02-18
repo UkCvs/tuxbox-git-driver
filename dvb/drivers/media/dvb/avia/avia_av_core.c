@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_core.c,v 1.98.2.7 2006/01/22 12:48:42 carjay Exp $
+ * $Id: avia_av_core.c,v 1.98.2.8 2006/02/18 19:44:14 carjay Exp $
  *
  * AViA 500/600 core driver (dbox-II-project)
  *
@@ -157,8 +157,9 @@ int avia_av_is500(void)
 u32 avia_av_read(const u8 mode, u32 address)
 {
 	u32 result;
+	unsigned long flags;
 
-	spin_lock_irq(&avia_register_lock);
+	spin_lock_irqsave(&avia_register_lock, flags);
 
 	address &= 0x3FFFFF;
 
@@ -173,14 +174,16 @@ u32 avia_av_read(const u8 mode, u32 address)
 	result |= aviamem[1] << 8;
 	result |= aviamem[0];
 
-	spin_unlock_irq(&avia_register_lock);
+	spin_unlock_irqrestore(&avia_register_lock, flags);
 
 	return result;
 }
 
 void avia_av_write(const u8 mode, u32 address, const u32 data)
 {
-	spin_lock_irq(&avia_register_lock);
+	unsigned long flags;
+
+	spin_lock_irqsave(&avia_register_lock, flags);
 
 	address &= 0x3FFFFF;
 
@@ -192,7 +195,7 @@ void avia_av_write(const u8 mode, u32 address, const u32 data)
 	aviamem[1] = (data >>  8) & 0xFF;
 	aviamem[0] = data & 0xFF;
 
-	spin_unlock_irq(&avia_register_lock);
+	spin_unlock_irqrestore(&avia_register_lock, flags);
 }
 
 inline void avia_av_imem_write(const u32 addr, const u32 data)
@@ -1056,7 +1059,6 @@ static int avia_av_init(void)
 	/* init spinlocks */
 	spin_lock_init(&avia_command_lock);
 	spin_lock_init(&avia_register_lock);
-
 	/* enable host access */
 	avia_av_gbus_write(0, 0x1000);
 	/* cpu reset */
@@ -1652,7 +1654,7 @@ static int __init avia_av_core_init(void)
 	avia_info.dram_start = res->start;
 #endif
 
-	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.7 2006/01/22 12:48:42 carjay Exp $\n");
+	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.8 2006/02/18 19:44:14 carjay Exp $\n");
 
 	if (tv_standard != AVIA_AV_VIDEO_SYSTEM_PAL)
 		tv_standard = AVIA_AV_VIDEO_SYSTEM_NTSC;
