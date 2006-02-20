@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_napi_core.c,v 1.1.2.10 2006/01/22 12:49:10 carjay Exp $
+ * $Id: dbox2_napi_core.c,v 1.1.2.11 2006/02/20 21:35:53 racker Exp $
  *
  * Dbox2 DVB Adapter driver
  *
@@ -207,11 +207,32 @@ static int dbox2_fe_setup_ves1x93(struct dbox2_fe *state, struct ves1x93_config 
 
 int dbox2_probe_nokia_S_frontend(struct dbox2_fe *state){
 	struct ves1x93_config *cfg = kmalloc(sizeof(struct ves1x93_config),GFP_KERNEL);
+	int id;
+
 	if (!cfg)
 		return -ENOMEM;
-	cfg->demod_address = 0x10>>1;
+	if (!ves1x93_get_identity(&id)){
+		switch (id){
+			case 0xdc: /* VES1893A rev1 */
+			case 0xdd: /* VES1893A rev2 */
+				cfg->xin = 91000000UL;
+				cfg->invert_pwm = 1;
+				break;
+			case 0xde: /* VES1993 */
 	cfg->xin = 96000000UL;
 	cfg->invert_pwm = 0;
+				break;
+			default:
+				printk(KERN_WARNING "dbox2_napi: default value cfg->xin for ves1x93\n");
+				cfg->xin = 91000000UL;
+				cfg->invert_pwm = 1;
+		} 
+	} else {
+		printk(KERN_WARNING "dbox2_napi: default value cfg->xin for ves1x93\n");
+		cfg->xin = 91000000UL;
+		cfg->invert_pwm = 1;
+	}
+	cfg->demod_address = 0x10>>1;
 	cfg->pll_init = dbox2_napi_pll_init;
 	cfg->pll_set = dbox2_napi_pll_set;
 	if (dbox2_fe_setup_ves1x93(state,cfg)){
@@ -383,7 +404,7 @@ static struct device_driver dbox2_fe_driver = {
 static int __init dbox2_napi_init(void)
 {
 	int res;
-	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.10 2006/01/22 12:49:10 carjay Exp $\n");
+	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.11 2006/02/20 21:35:53 racker Exp $\n");
 
 	fe_state.dvb_adap = kmalloc (sizeof(struct dvb_adapter),GFP_KERNEL);
 	if (!fe_state.dvb_adap)
