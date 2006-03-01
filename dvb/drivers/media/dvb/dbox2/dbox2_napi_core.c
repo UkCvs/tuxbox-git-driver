@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_napi_core.c,v 1.1.2.11 2006/02/20 21:35:53 racker Exp $
+ * $Id: dbox2_napi_core.c,v 1.1.2.12 2006/03/01 19:46:16 racker Exp $
  *
  * Dbox2 DVB Adapter driver
  *
@@ -45,8 +45,13 @@
 
 #include <frontends/at76c651.h>
 #include <frontends/tda80xx.h>
+#include <frontends/tda8044h.h>
 #include <frontends/ves1820.h>
 #include <frontends/ves1x93.h>
+
+/* module options */
+static int  tda_drv = 1;
+static int tda_irq = 0;
 
 static struct dbox2_fe {
 	struct dvb_adapter *dvb_adap;
@@ -219,8 +224,8 @@ int dbox2_probe_nokia_S_frontend(struct dbox2_fe *state){
 				cfg->invert_pwm = 1;
 				break;
 			case 0xde: /* VES1993 */
-	cfg->xin = 96000000UL;
-	cfg->invert_pwm = 0;
+				cfg->xin = 96000000UL;
+				cfg->invert_pwm = 0;
 				break;
 			default:
 				printk(KERN_WARNING "dbox2_napi: default value cfg->xin for ves1x93\n");
@@ -268,8 +273,9 @@ int dbox2_probe_philips_S_frontend(struct dbox2_fe *state){
 	if (!cfg)
 		return -ENOMEM;
 	cfg->demod_address = 0xd0>>1;
-//	cfg->irq = state->irq;	/* TODO: irq handling needs to be fixed */
-	cfg->irq = 0;
+	if (tda_irq)
+		cfg->irq = state->irq;	/* TODO: irq handling needs to be fixed */
+	else cfg->irq = 0;
 	cfg->volt13setting = 0x3f;
 	cfg->volt18setting = 0xbf;
 	cfg->pll_init = dbox2_napi_pll_init;
@@ -286,6 +292,32 @@ int dbox2_probe_philips_S_frontend(struct dbox2_fe *state){
 	state->pll.i2c_addr = 0xc6>>1;
 	return 0;
 }
+
+int dbox2_probe_philips_S_frontend_tda8044(struct dbox2_fe *state){
+	struct tda8044_config *cfg = kmalloc(sizeof(struct tda8044_config),GFP_KERNEL);
+	if (!cfg)
+		return -ENOMEM;
+	cfg->demod_address = 0xd0>>1;
+	if (tda_irq)
+		cfg->irq = state->irq;  /* TODO: irq handling needs to be fixed */
+	else cfg->irq = 0;
+	cfg->volt13setting = 0x3f;
+	cfg->volt18setting = 0xbf;
+	cfg->pll_init = dbox2_napi_pll_init;
+	cfg->pll_set = dbox2_napi_pll_set;
+	if ((state->dvb_fe = tda8044_attach(cfg,state->i2c_adap))==0){
+		kfree(cfg);
+		return -ENODEV;
+	}
+	state->fe_config = cfg;
+	state->pll_init = NULL;
+	state->pll_set = dbox2_pll_tsa5059_set_freq;
+	state->pll.clk = 4000000;
+	state->pll.tsa5059_xc = 0;
+	state->pll.i2c_addr = 0xc6>>1;
+	return 0;
+}
+
 
 int dbox2_probe_philips_C_frontend(struct dbox2_fe *state){
 	return -ENODEV;
@@ -348,12 +380,20 @@ static int dbox2_fe_probe(struct device *dev)
 	    break;
 
     case DBOX2_NAPI_PHILIPS:
-		if (dbox2_probe_philips_S_frontend(&fe_state) &&
-				dbox2_probe_philips_C_frontend(&fe_state)){
-			printk(KERN_ERR "dbox2_napi: no Philips frontend found\n");
-			return -ENODEV;
+		if (tda_drv) {
+			if (dbox2_probe_philips_S_frontend_tda8044(&fe_state) &&
+					dbox2_probe_philips_C_frontend(&fe_state)){
+				printk(KERN_ERR "dbox2_napi: no Philips frontend found\n");
+				return -ENODEV;
+			}
+		} else {
+			if (dbox2_probe_philips_S_frontend(&fe_state) &&
+					dbox2_probe_philips_C_frontend(&fe_state)){
+				printk(KERN_ERR "dbox2_napi: no Philips frontend found\n");
+				return -ENODEV;
+			}
 		}
-	    break;
+	break;
 
     case DBOX2_NAPI_SAGEM:
 		if (dbox2_probe_sagem_S_frontend(&fe_state) &&
@@ -404,7 +444,7 @@ static struct device_driver dbox2_fe_driver = {
 static int __init dbox2_napi_init(void)
 {
 	int res;
-	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.11 2006/02/20 21:35:53 racker Exp $\n");
+	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.12 2006/03/01 19:46:16 racker Exp $\n");
 
 	fe_state.dvb_adap = kmalloc (sizeof(struct dvb_adapter),GFP_KERNEL);
 	if (!fe_state.dvb_adap)
@@ -494,3 +534,9 @@ EXPORT_SYMBOL(dbox2_napi_get_adapter);
 MODULE_DESCRIPTION("dbox2 DVB adapter driver");
 MODULE_AUTHOR("Carsten Juttner <carjay@gmx.net>");
 MODULE_LICENSE("GPL");
+
+MODULE_PARM(tda_drv, "i");
+MODULE_PARM_DESC(tda_drv, "Select demod driver for Philips 0=tda80xx 1=tda8044h (default)");
+MODULE_PARM(tda_irq, "i");
+MODULE_PARM_DESC(tda_irq, " Use IRQ for TDA 0=disable (default) 1=enable");
+
