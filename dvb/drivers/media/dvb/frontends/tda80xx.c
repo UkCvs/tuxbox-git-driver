@@ -356,11 +356,15 @@ static void tda80xx_read_status_int(struct tda80xx_state* state)
 	if (val & 0x10) /* derandomizer lock (frame sync) */
 		state->status |= FE_HAS_LOCK;
 
+#if 0
+	/* DBox2 fix */
 	if ((state->status & (FE_HAS_CARRIER)) && (state->afc_loop)) {
 		printk("tda80xx: closing loop\n");
 		tda80xx_close_loop(state);
 		state->afc_loop = 0;
 	}
+	/* DBox2 fix */
+#endif
 
 	if (state->status & (FE_HAS_VITERBI | FE_HAS_SYNC | FE_HAS_LOCK)) {
 		val = tda80xx_readreg(state, 0x0e);
@@ -543,7 +547,11 @@ static int tda80xx_set_frontend(struct dvb_frontend* fe, struct dvb_frontend_par
 	tda80xx_set_parameters(state, p->inversion, p->u.qpsk.symbol_rate, p->u.qpsk.fec_inner);
 	tda80xx_set_clk(state);
 	//tda80xx_set_scpc_freq_offset(state);
-	state->afc_loop = 1;
+
+	/* DBox2 fix */
+//	state->afc_loop = 1;
+	tda80xx_close_loop(state);
+	/* DBox2 fix */
 
 	return 0;
 }
