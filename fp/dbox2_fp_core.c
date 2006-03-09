@@ -206,6 +206,17 @@ static int fp_getid(struct i2c_client *client)
 }
 
 /*****************************************************************************\
+ *   Scart signal loop through init (Sagem)
+\*****************************************************************************/
+
+void dbox2_fp_scart_init(void)
+{
+	if (mid == TUXBOX_DBOX2_MID_SAGEM) {
+		fp_sendcmd(&fp_client, 0x4D, 0x18);
+	}
+}
+
+/*****************************************************************************\
  *   File Operations
 \*****************************************************************************/
 
@@ -356,6 +367,7 @@ static void fp_setup_client(void)
 	dbox2_fp_sec_init();
 	dbox2_fp_timer_init();
 	dbox2_fp_tuner_init();
+	dbox2_fp_scart_init();
 }
 
 static int fp_attach_adapter(struct i2c_adapter *adapter)
