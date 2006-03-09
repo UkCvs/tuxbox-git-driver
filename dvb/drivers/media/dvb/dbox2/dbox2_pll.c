@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_pll.c,v 1.1.2.6 2005/11/05 16:27:55 carjay Exp $
+ * $Id: dbox2_pll.c,v 1.1.2.7 2006/03/09 19:32:20 carjay Exp $
  *
  * Dbox2 PLL driver collection
  *
@@ -47,6 +47,8 @@
 			TSA5059 I2C-bus (CPU)
 
 	Cable:
+		- AT76C651 (Sagem)
+			TUA6010 I2C-bus (CPU)
 		- VES1820 (Nokia)
 			SP5659 SPI (FP)
 		- STV0297 (developer Philips)
@@ -187,19 +189,20 @@ int dbox2_pll_tua6010_set_freq(struct pll_state *pll, struct dvb_frontend_parame
 	u8 vu, p2, p1, p0;
 	u32 freq = p->frequency;
 	
-	if ((freq < 50000000) || (freq > 900000000))
+	/* 47 MHz ... 862 MHz */
+	if ((freq < 47000000) || (freq > 862000000))
 		return -EINVAL;
 
-	div = (freq + 36125000) / 62500;
+	div = (freq + 36150000) / 62500;
 
-	if (freq > 400000000)
-		vu = 1;
+	if (freq > 401250000)
+		vu = 1;	/* UHF */
 	else
-		vu = 0;
+		vu = 0; /* VHF */
 
-	if (freq > 400000000)
+	if (freq > 401250000)
 		p2 = 1, p1 = 0, p0 = 1;
-	else if (freq > 140000000)
+	else if (freq > 117250000)
 		p2 = 1, p1 = 1, p0 = 0;
 	else
 		p2 = 0, p1 = 1, p0 = 1;
