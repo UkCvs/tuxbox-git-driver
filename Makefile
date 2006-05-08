@@ -21,6 +21,7 @@ obj-y	+= dvb/
 obj-y	+= i2c/
 obj-y	+= event/
 obj-y	+= lcd/
+obj-y	+= mmc/
 obj-y	+= saa7126/
 obj-y	+= dvb2eth/
 endif
