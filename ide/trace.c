@@ -1,7 +1,7 @@
 #include <linux/kernel.h>
+#include <linux/version.h>
 #include <asm/time.h>
 #include <asm/uaccess.h>
-#include <linux/kallsyms.h>
 
 #define TRACE_WITH_CALLSTACK 1
 
@@ -11,7 +11,9 @@
 #define STACK_DEPTH 4
 #endif
 
-//extern void m8xx_wdt_reset(void);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
+extern void m8xx_wdt_reset(void);
+#endif
 
 extern char *dbox2ide_trace_msg[];
 
@@ -101,9 +103,12 @@ void dbox2ide_print_trace(void)
 
 		print_callstack(t);
 
-		/* this can take a while and when not printing to console the watchdog is not served */
-/*    if ((i&7)==0) */
-/*      m8xx_wdt_reset();*/
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
+		/* this can take a while and when not printing to console the watchdog is not served 
+           FIXME: symbol is not (yet) exposed in 2.6 */
+		if ((i & 7) == 0)
+			m8xx_wdt_reset();
+#endif
 
 		t->typ = 0;
 	}

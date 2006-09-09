@@ -1,5 +1,5 @@
 /*
- * $Id: main.c,v 1.4.2.1 2006/09/02 20:42:27 carjay Exp $
+ * $Id: main.c,v 1.4.2.2 2006/09/09 14:42:15 carjay Exp $
  *
  * Copyright (C) 2006 Uli Tessel <utessel@gmx.de>
  * Linux 2.6 port: Copyright (C) 2006 Carsten Juttner <carjay@gmx.net>
@@ -24,18 +24,23 @@
 #include <linux/module.h>
 #include <linux/ioport.h>
 #include <linux/ide.h>
+#include <linux/version.h>
 #include <asm/io.h>
 #include <asm/errno.h>
 #include <asm/irq.h>
 #include <asm/8xx_immap.h>
 #include <asm/commproc.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 #include <linux/device.h>
 #include <linux/platform_device.h>
+#endif
 
 static uint idebase = 0;
-
-/* the (one and only) device instance */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 static struct platform_device *ide_dev;
+#else
+static int ideindex = -1;
+#endif
 
 /* address-offsets of features in the CPLD 
   (we can't call them registers...) */
@@ -105,9 +110,19 @@ void dbox2ide_problem(const char *msg)
 	dbox2ide_print_trace();
 }
 
+/* compat code for 2.6 kernel */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
+#define IDE_DELAY() ide_delay_50ms()
+#else
+#define IDE_DELAY() \
+	do { \
+		__set_current_state(TASK_UNINTERRUPTIBLE); \
+		schedule_timeout(1+HZ/20); \
+	} while (0);
+#endif
+
 #define WAIT_FOR_FIFO_EMPTY() wait_for_fifo_empty()
 #define MAX_WAIT_FOR_FIFO_EMPTY  1000
-#define MAX_WAIT_FOR_FIFO_NOT_EMPTY  10000
 static void wait_for_fifo_empty(void)
 {
 	int cnt = MAX_WAIT_FOR_FIFO_EMPTY;
@@ -131,7 +146,6 @@ static void wait_for_fifo_empty(void)
 static u8 dbox2ide_inb(unsigned long port)
 {
 	int val;
-	int cnt = MAX_WAIT_FOR_FIFO_NOT_EMPTY;
 
 	if (CPLD_FIFO_LEVEL() != 0)
 		dbox2ide_problem("inb: fifo not empty?!\n");
@@ -139,14 +153,11 @@ static u8 dbox2ide_inb(unsigned long port)
 	CPLD_OUT(CPLD_WRITE_CTRL, port);
 	CPLD_OUT(CPLD_WRITE_CTRL, port | CPLD_CTRL_ENABLE);
 
-	while ((CPLD_FIFO_LEVEL() == 0) && --cnt);
-	
-	if (!cnt) {
-		dbox2ide_problem("inb: fifo did not fill up.\n");
-		return 0xff;
-	}
+	while (CPLD_FIFO_LEVEL() == 0) {
+	};
 
 	val = CPLD_IN(CPLD_READ_FIFO);
+
 	val >>= 8;
 	val &= 0xFF;
 
@@ -400,6 +411,24 @@ static int configure_interrupt(void)
 	return CPM_IRQ_OFFSET + CPMVEC_PIO_PC15;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
+static void reset_function_pointer(ide_hwif_t *hwif)
+{
+	int i;
+	for (i = 0; i < ARRAY_SIZE(hwif->hw.io_ports); i++) {
+		uint addr;
+
+		addr = hwif->hw.io_ports[i];
+		if ((addr > idebase) && (addr <= idebase + 0x100))
+			hwif->hw.io_ports[i] = addr - idebase;
+
+		addr = hwif->io_ports[i];
+		if ((addr > idebase) && (addr <= idebase + 0x100))
+			hwif->io_ports[i] = addr - idebase;
+	}
+}
+#endif
+
 /* set the function pointer in the kernel structur to our
    functions */
 static void set_access_functions(ide_hwif_t * hwif)
@@ -423,29 +452,48 @@ static void set_access_functions(ide_hwif_t * hwif)
 	hwif->ack_intr = dbox2ide_ack_intr;
 #endif
 
-#if 0
-	/* 2.4 code */
-{
-	int i;
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 	/* now, after setting the function pointer, the port info is not
 	   an address anymore, so remove the idebase again */
-	for (i = 0; i < ARRAY_SIZE(hwif->hw.io_ports); i++) {
-		uint addr;
-
-		addr = hwif->hw.io_ports[i];
-		if ((addr > idebase) && (addr <= idebase + 0x100))
-			hwif->hw.io_ports[i] = addr - idebase;
-
-		addr = hwif->io_ports[i];
-		if ((addr > idebase) && (addr <= idebase + 0x100))
-			hwif->io_ports[i] = addr - idebase;
-	}
-}
+	reset_function_pointer(hwif);
 #endif
+
 }
 
+/* common function to setup the io_ports. "idebase" is necessary
+   for the 2.4 kernel since the first time the ports are
+   used as addresses which is not what we really want so the
+   initial address is different for 2.4 and 2.6. */
+static void init_hw_struct( ide_hwif_t *hwif, unsigned long idebase)
+{
+	hw_regs_t *hw;
 
+	hwif->chipset = ide_unknown;
+	hwif->tuneproc = NULL;
+	hwif->mate = NULL;
+	hwif->channel = 0;
+
+	strncpy (hwif->name, "dbox2 ide", sizeof(hwif->name));
+
+	hw = &hwif->hw;
+	memset(hw, 0, sizeof(hw_regs_t));
+
+	hw->io_ports[IDE_DATA_OFFSET] 		= idebase + 0x0010;
+	hw->io_ports[IDE_ERROR_OFFSET] 		= idebase + 0x0011;
+	hw->io_ports[IDE_NSECTOR_OFFSET] 	= idebase + 0x0012;
+	hw->io_ports[IDE_SECTOR_OFFSET] 	= idebase + 0x0013;
+	hw->io_ports[IDE_LCYL_OFFSET] 		= idebase + 0x0014;
+	hw->io_ports[IDE_HCYL_OFFSET] 		= idebase + 0x0015;
+	hw->io_ports[IDE_SELECT_OFFSET] 	= idebase + 0x0016;
+	hw->io_ports[IDE_STATUS_OFFSET] 	= idebase + 0x0017;
+
+	hw->io_ports[IDE_CONTROL_OFFSET] 	= idebase + 0x004E;
+	hw->io_ports[IDE_IRQ_OFFSET] 		= idebase + 0x004E;
+
+	hwif->irq = hw->irq = configure_interrupt();
+
+	memcpy(hwif->io_ports, hw->io_ports, sizeof(hw->io_ports));
+}
 
 /* the CPLD is connected to CS2, which should be inactive.
    if not there might be something using that hardware and
@@ -462,7 +510,7 @@ static int activate_cs2(void)
 	}
 
 	if (br2 != 0x02000080) {
-		printk("dbox2ide: cs2: unexpcted value for br2: %08x\n", br2);
+		printk("dbox2ide: cs2: unexpected value for br2: %08x\n", br2);
 		return 0;
 	}
 
@@ -597,10 +645,8 @@ static int detect_cpld(void)
 	 */
 
 	/* before going releasing IDE Reset, wait some time... */
-	for (i = 0; i < 10; i++) {
-		__set_current_state(TASK_UNINTERRUPTIBLE);
-		schedule_timeout(1+HZ/20);
-	}
+	for (i = 0; i < 10; i++)
+		IDE_DELAY();
 
 	/* Activate PIO Mode 4 timing and remove IDE Reset */
 	CPLD_OUT(CPLD_WRITE_CTRL_TIMING, 0x0012001F);
@@ -636,7 +682,95 @@ static void unmap_memory(void)
 	}
 }
 
-/* dbox2ide_scan: Here the real activation of the CPLD
+static int setup_cpld(void)
+{
+	if (activate_cs2() == 0)
+		return -ENODEV;
+
+	map_memory();
+
+	if (idebase == 0) {
+		printk(KERN_ERR "dbox2ide: address space of dbox2 IDE CPLD not mapped to kernel address space\n");
+		return -ENOMEM;
+	}
+
+	printk(KERN_INFO "dbox2ide: address space of DBox2 IDE CPLD is at: 0x%08x\n", idebase);
+
+	if (detect_cpld() == 0) {
+		printk(KERN_ERR "dbox2ide: not a valid dbox2 IDE CPLD detected\n");
+		unmap_memory();
+		return -ENODEV;
+	}
+	
+	return 0;
+}
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
+static void dbox2ide_register(void)
+{
+	ide_hwif_t *hwif = NULL;
+	ide_hwif_t tmp_hwif;	/* we only use the hw_ports stucture */
+
+	/*
+	   I think this is a hack, but it works...
+
+	   the io_port values are not really used as addresses by
+	   this driver and, of course, they will not really work if
+	   used like that.
+	   "Not really" because the kernel might use the default
+	   inb/etc. routines if the detect module is already loaded.
+	   To avoid problems with that I use addresses where I know
+	   what happens, because these addresses access the CPLD:
+
+	   Writing to these addresses does nothing, and reading will
+	   return the data register, which is (should be) at this
+	   time FFFFFFFF  (see cpld_detect).
+
+	   The result is that the detection of a disk will fail when
+	   it is done with the original kernel functions.
+
+	   A clean order is to load the ide-detect module after
+	   loading this module!
+	 */
+	 
+	/* set up with "fake" ioport addresses (that do not fault) */
+	init_hw_struct(&tmp_hwif, idebase);
+
+	/* we register the ports and get back a pointer to
+	   the hwif that we are supposed to use */
+	ideindex = ide_register_hw(&tmp_hwif.hw, &hwif);
+
+	if (hwif != NULL) {
+		if (ideindex == -1) {
+			/* registering failed? This is not wrong because for the
+			   kernel there is no drive on this controller because
+			   wrong routines were used to check that.
+			   Or the kernel didn't check at all.
+			   But to unregister this driver, we will need this
+			   index. */
+
+			ideindex = hwif - ide_hwifs;
+		}
+
+		/* now change the IO Access functions and use the
+		   real values for the IDE Ports */
+		set_access_functions(hwif);
+
+		SELECT_DRIVE(&hwif->drives[0]);
+
+		/* finally: probe again: this time with my routines,
+		   so this time the detection will not fail (if there
+		   is a drive connected) */
+		ide_probe_module(1);
+
+	} else {
+		printk("dbox2ide: no hwif was given\n");
+	}
+}
+
+/* dbox2ide_scan: this is called by the IDE part of the kernel via
+   a function pointer when the kernel thinks it is time to check
+   this ide controller. So here the real activation of the CPLD
    is done (using the functions above) */
 static void dbox2ide_scan(void)
 {
@@ -647,70 +781,53 @@ static void dbox2ide_scan(void)
 
 	/* check BR2 register that CS2 is enabled.  if so, then something has activated it. 
 	   Maybe there is RAM or a different hardware?  Don't try to use the CPLD then.  */
-	if (activate_cs2() == 0)
+	int ret;
+	
+	ret = setup_cpld();
+	if (ret)
 		return;
-
-	map_memory();
-
-	if (idebase == 0) {
-		printk
-		    ("dbox2ide: address space of dbox2 IDE CPLD not mapped to kernel address space\n");
-		return;
-	}
-
-	printk("dbox2ide: address space of DBox2 IDE CPLD is at: %08x\n",
-	       idebase);
-
-	if (detect_cpld() == 0) {
-		printk("dbox2ide: not a valid dbox2 IDE CPLD detected\n");
-		unmap_memory();
-		return;
-	}
-
+	
+	dbox2ide_register();
 }
 
-static void init_hw_struct( ide_hwif_t *hwif, unsigned long idebase)
+/* dbox_ide_init is called when the module is loaded */
+static int __init dbox2ide_init(void)
 {
-	hw_regs_t *hw;
+	/* register driver will call the scan function above, maybe immediately 
+	   when we are a module, or later when it thinks it is time to do so */
+	printk(KERN_INFO
+	       "dbox2ide: $Id: main.c,v 1.4.2.2 2006/09/09 14:42:15 carjay Exp $\n");
 
-	hwif->chipset = ide_unknown;
-	hwif->tuneproc = NULL;
-	hwif->mate = NULL;
-	hwif->channel = 0;
+	ide_register_driver(dbox2ide_scan);
 
-	strncpy (hwif->name, "dbox2 ide", sizeof(hwif->name));
-
-	hw = &hwif->hw;
-	memset(hw, 0, sizeof(hw_regs_t));
-
-	hw->io_ports[IDE_DATA_OFFSET] 		= idebase + 0x0010;
-	hw->io_ports[IDE_ERROR_OFFSET] 		= idebase + 0x0011;
-	hw->io_ports[IDE_NSECTOR_OFFSET] 	= idebase + 0x0012;
-	hw->io_ports[IDE_SECTOR_OFFSET] 	= idebase + 0x0013;
-	hw->io_ports[IDE_LCYL_OFFSET] 		= idebase + 0x0014;
-	hw->io_ports[IDE_HCYL_OFFSET] 		= idebase + 0x0015;
-	hw->io_ports[IDE_SELECT_OFFSET] 	= idebase + 0x0016;
-	hw->io_ports[IDE_STATUS_OFFSET] 	= idebase + 0x0017;
-
-	hw->io_ports[IDE_CONTROL_OFFSET] 	= idebase + 0x004E;
-	hw->io_ports[IDE_IRQ_OFFSET] 		= idebase + 0x004E;
-
-	hwif->irq = hw->irq = configure_interrupt();
-
-	memcpy(hwif->io_ports, hw->io_ports, sizeof(hw->io_ports));
+	return 0;
 }
 
+/* dbox_ide_exit is called when the module is unloaded */
+static void __exit dbox2ide_exit(void)
+{
+	if (idebase != 0) {
+		CPLD_OUT(CPLD_WRITE_CTRL_TIMING, 0x00FF0007);
+	}
+
+	idebase = 0;
+
+	if (ideindex != -1)
+		ide_unregister(ideindex);
+
+	unmap_memory();
+	deactivate_cs2();
+
+	printk("dbox2ide: driver unloaded\n");
+}
+#else
 static int dbox2_ide_probe(struct platform_device *pdev)
 {
 	ide_hwif_t *hwif = &ide_hwifs[pdev->id];
 
 	init_hw_struct(hwif, 0);
-
-	/* now change the IO Access functions and use the
-	   real values for the IDE Ports */
 	set_access_functions(hwif);
 
-	/* FIXME: why is this necessary? */
 	hwif->drives[pdev->id].hwif = hwif;
 	SELECT_DRIVE(&hwif->drives[pdev->id]);
 
@@ -742,17 +859,19 @@ static struct platform_driver dbox2_ide_driver = {
 };
 
 /* dbox_ide_init is called when the module is loaded */
-static int __init dbox2_ide_init(void) {
+static int __init dbox2ide_init(void) {
 	int ret;
 
 	printk(KERN_INFO
-	       "dbox2ide: $Id: main.c,v 1.4.2.1 2006/09/02 20:42:27 carjay Exp $\n");
+	       "dbox2ide: $Id: main.c,v 1.4.2.2 2006/09/09 14:42:15 carjay Exp $\n");
 
-	dbox2ide_scan();
+	ret = setup_cpld();
+	if (ret < 0)
+		return ret;
 
 	/* register the driver */
 	ret = platform_driver_register(&dbox2_ide_driver);
-	if (ret<0)
+	if (ret < 0)
 		return ret;
 	
 	/* "insert" the corresponding device to trigger the probe */
@@ -766,7 +885,7 @@ static int __init dbox2_ide_init(void) {
 }
 
 /* dbox_ide_exit is called when the module is unloaded */
-static void __exit dbox2_ide_exit(void)
+static void __exit dbox2ide_exit(void)
 {
 	if (idebase != 0)
 		CPLD_OUT(CPLD_WRITE_CTRL_TIMING, 0x00FF0007);
@@ -781,9 +900,10 @@ static void __exit dbox2_ide_exit(void)
 
 	printk("dbox2ide: driver unloaded\n");
 }
+#endif
 
-module_init(dbox2_ide_init);
-module_exit(dbox2_ide_exit);
+module_init(dbox2ide_init);
+module_exit(dbox2ide_exit);
 
 MODULE_AUTHOR("Uli Tessel <utessel@gmx.de>");
 MODULE_DESCRIPTION("DBOX IDE CPLD Interface driver");
