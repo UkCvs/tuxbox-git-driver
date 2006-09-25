@@ -24,4 +24,5 @@ obj-y	+= lcd/
 obj-y	+= mmc/
 obj-y	+= saa7126/
 obj-y	+= dvb2eth/
+obj-y	+= ide/
 endif
