@@ -1,5 +1,5 @@
 /*
- * $Id: main.c,v 1.4.2.4 2006/10/04 00:38:05 carjay Exp $
+ * $Id: main.c,v 1.4.2.5 2006/11/09 20:36:13 carjay Exp $
  *
  * Copyright (C) 2006 Uli Tessel <utessel@gmx.de>
  * Linux 2.6 port: Copyright (C) 2006 Carsten Juttner <carjay@gmx.net>
@@ -358,7 +358,7 @@ static void dboxide_outsw(unsigned long port, void *addr, u32 count)
 		register int a;
 		register int b;
 
-		while (count > 0) {
+		while (count > 2) {
 			a = *src++;
 			b = *src++;
 			while (CPLD_FIFO_LEVEL() != 0) {
@@ -816,7 +816,7 @@ static int __init dboxide_init(void)
 	/* register driver will call the scan function above, maybe immediately 
 	   when we are a module, or later when it thinks it is time to do so */
 	printk(KERN_INFO
-	       "dboxide: $Id: main.c,v 1.4.2.4 2006/10/04 00:38:05 carjay Exp $\n");
+	       "dboxide: $Id: main.c,v 1.4.2.5 2006/11/09 20:36:13 carjay Exp $\n");
 
 	ide_register_driver(dboxide_scan);
 
@@ -883,7 +883,7 @@ static int __init dboxide_init(void) {
 	int ret;
 
 	printk(KERN_INFO
-	       "dboxide: $Id: main.c,v 1.4.2.4 2006/10/04 00:38:05 carjay Exp $\n");
+	       "dboxide: $Id: main.c,v 1.4.2.5 2006/11/09 20:36:13 carjay Exp $\n");
 
 	ret = setup_cpld();
 	if (ret < 0)
