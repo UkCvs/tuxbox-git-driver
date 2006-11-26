@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_dmx.c,v 1.210.2.4 2005/09/18 13:55:43 carjay Exp $
+ * $Id: avia_gt_dmx.c,v 1.210.2.5 2006/11/26 15:00:46 carjay Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -35,6 +35,7 @@
 #include <linux/sched.h>
 #include <linux/string.h>
 #include <linux/completion.h>
+#include <linux/delay.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 #include <linux/workqueue.h>
 #else
@@ -1342,8 +1343,12 @@ ssize_t avia_gt_dmx_queue_write(u8 queue_nr, const u8 *buf, size_t count, u32 no
 		while (q->info.bytes_free(&q->info) < n) {
 			if (nonblock)
 				return (count - todo) ? (count - todo) : -EAGAIN;
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule_timeout(HZ / 100); /* 10 ms (TODO: optimize) */
+			if (!in_atomic()) {
+				set_current_state(TASK_INTERRUPTIBLE);
+				schedule_timeout(HZ / 100); /* 10 ms (TODO: optimize) */
+			} else {
+				msleep(10);
+			}
 		}
 
 		q->info.put_data(&q->info, buf, n, 1);
@@ -1414,7 +1419,7 @@ int __init avia_gt_dmx_init(void)
 	u32 queue_addr;
 	u8 queue_nr;
 	
-	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.210.2.4 2005/09/18 13:55:43 carjay Exp $\n");;
+	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.210.2.5 2006/11/26 15:00:46 carjay Exp $\n");;
 
 	gt_info = avia_gt_get_info();
 	ucode_info = avia_gt_dmx_get_ucode_info();
