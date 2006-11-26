@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_dmx.c,v 1.210.2.5 2006/11/26 15:00:46 carjay Exp $
+ * $Id: avia_gt_dmx.c,v 1.210.2.6 2006/11/26 15:04:12 carjay Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -1347,7 +1347,7 @@ ssize_t avia_gt_dmx_queue_write(u8 queue_nr, const u8 *buf, size_t count, u32 no
 				set_current_state(TASK_INTERRUPTIBLE);
 				schedule_timeout(HZ / 100); /* 10 ms (TODO: optimize) */
 			} else {
-				msleep(10);
+				mdelay(10);
 			}
 		}
 
@@ -1419,7 +1419,7 @@ int __init avia_gt_dmx_init(void)
 	u32 queue_addr;
 	u8 queue_nr;
 	
-	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.210.2.5 2006/11/26 15:00:46 carjay Exp $\n");;
+	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.210.2.6 2006/11/26 15:04:12 carjay Exp $\n");;
 
 	gt_info = avia_gt_get_info();
 	ucode_info = avia_gt_dmx_get_ucode_info();
