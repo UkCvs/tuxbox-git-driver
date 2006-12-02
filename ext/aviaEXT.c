@@ -2,9 +2,9 @@
  * Extension device for non-API covered stuff for the Avia
  * (hopefully will disappear at some point)
  *
- * $Id: aviaEXT.c,v 1.4 2005/01/05 06:00:20 carjay Exp $
+ * $Id: aviaEXT.c,v 1.4.2.1 2006/12/02 22:50:04 carjay Exp $
  *
- * Copyright (C) 2004 Carsten Juttner <carjay@gmx.net>
+ * Copyright (C) 2004,2006 Carsten Juttner <carjay@gmx.net>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,13 +25,24 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/fs.h>
+#ifdef CONFIG_DEVFS_FS
 #include <linux/devfs_fs_kernel.h>
+#endif
+
+#include <linux/version.h>
 #include <asm/uaccess.h>
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,5,0)
+#include <linux/miscdevice.h>
+#endif
 
 #include "avia_av.h"
 #include <dbox/aviaEXT.h>
 
+#ifdef CONFIG_DEVFS_FS
 static devfs_handle_t devfs_h;
+#endif
 
 static int aviaEXT_ioctl(struct inode *inode, struct file *file, 
 						unsigned int cmd, unsigned long arg)
@@ -75,19 +86,48 @@ static struct file_operations aviaEXT_fops = {
 		.ioctl = aviaEXT_ioctl
 };
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,5,0)
+static struct miscdevice ext_dev = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "avia extensions",
+	.fops = &aviaEXT_fops
+};
+#endif
+
 static int __init aviaEXT_init(void)
 {
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,5,0)
+	int ret = misc_register(&ext_dev);
+	if (ret<0) {
+		printk(KERN_ERR "aviaEXT: could not register misc device.\n");
+		return -EIO;
+	}
+
+#ifdef CONFIG_DEVFS_FS
+	devfs_mk_cdev(MKDEV(MISC_MAJOR, ext_dev.minor),
+		S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
+		"dbox/aviaEXT");
+#endif /* CONFIG_DEVFS_FS */
+#else
 	if (!(devfs_h = devfs_register(NULL,"dbox/aviaEXT", DEVFS_FL_DEFAULT, 0, 0, 
 					S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH, &aviaEXT_fops, NULL))){
 		printk(KERN_ERR "aviaEXT: could not register with devfs.\n");
 		return -EIO;
 	}
+#endif
 	return 0;
 }
 
 static void __exit aviaEXT_exit(void)
 {
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,5,0)
+#ifdef CONFIG_DEVFS_FS
+	devfs_remove("dbox/aviaEXT");
+#endif /* CONFIG_DEVFS_FS */
+	misc_deregister(&ext_dev);
+#else
 	devfs_unregister(devfs_h);
+#endif
 }
 
 module_init(aviaEXT_init);

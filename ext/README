@@ -8,7 +8,8 @@ aviaEXT:
 	For the Avia MPEG decoder, is dependent on avia_av.o
 	simply do "insmod aviaEXT", there are no parameters.
 	
-	appears as "/dev/dbox/aviaEXT", only 2 ioctls are supported
+	if devfs is used, it appears as "/dev/dbox/aviaEXT",
+	4 ioctls are supported
 	
 	ioctl:
 		AVIA_EXT_IEC_SET (int)

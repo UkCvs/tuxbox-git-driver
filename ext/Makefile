@@ -1,10 +1,11 @@
-DRIVER_TOPDIR = ..
+ifeq ($(KERNELRELEASE),)
+DRIVER_TOPDIR:=$(shell pwd)/..
+include $(DRIVER_TOPDIR)/kernel.make
+else
 
-include $(DRIVER_TOPDIR)/Config.make
+obj-m		+= aviaEXT.o
 
-obj-m		:= aviaEXT.o
-export-objs	:= aviaEXT.o
-
-EXTRA_CFLAGS	:= -I$(DRIVER_TOPDIR)/dvb/drivers/media/dvb/avia
-
-include $(DRIVER_TOPDIR)/Rules.make
+EXTRA_CFLAGS := -I$(DRIVER_TOPDIR)/dvb/drivers/media/dvb \
+				-I$(DRIVER_TOPDIR)/dvb/drivers/media/dvb/avia \
+				-I$(DRIVER_TOPDIR)/include
+endif
