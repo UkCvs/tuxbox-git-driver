@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_core.c,v 1.98.2.8 2006/02/18 19:44:14 carjay Exp $
+ * $Id: avia_av_core.c,v 1.98.2.9 2006/12/05 23:41:36 carjay Exp $
  *
  * AViA 500/600 core driver (dbox-II-project)
  *
@@ -58,6 +58,8 @@
 #include <dbox/fp.h>
 #include <tuxbox/info_dbox2.h>
 
+#include "avia_av_debug.h"
+
 /* ---------------------------------------------------------------------- */
 
 TUXBOX_INFO(dbox2_gt);
@@ -91,10 +93,9 @@ static struct {
 static int dev;
 
 enum {
-	AVIA_WDT_VIDEO_ERR = 	0x1,
-	AVIA_WDT_AUDIO_ERR = 	0x2,
-	AVIA_WDT_SYSTEM_ERR = 	0x4,
-	AVIA_WDT_BUFFER_ERR = 	0x8,
+	AVIA_WDT_VIDEO_ERR = 	0x00000001,
+	AVIA_WDT_AUDIO_ERR = 	0x00000002,
+	AVIA_WDT_SYSTEM_ERR = 	0x00000004,
 	AVIA_WDT_SHUTDOWN = 	0x80000000
 };
 struct wdt_state {
@@ -345,13 +346,10 @@ static int avia_av_wait(u32 reg, u32 val, u32 ms)
 	int tries = 10;
 
 	while ((avia_av_dram_read(reg) != val) && (--tries)) {
-		if (in_interrupt()) {
+		if (in_atomic())
 			mdelay(ms);
-		}
-		else {
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule_timeout(((HZ * ms) + 500) / 1000);
-		}
+		else
+			msleep_interruptible(ms);
 	}
 
 	return tries ? 0 : -1;
@@ -394,12 +392,12 @@ static void avia_av_interrupt(int irq, void *vdev, struct pt_regs *regs)
 
 	/* high priority command complete */
 	if (status & IRQ_END_C) {
-		dprintk(KERN_INFO "avia_av: IRQ_END_C\n");
+		DBG_IRQ("avia_av: IRQ_END_C\n");
 		wake_up_interruptible(&avia_cmd_wait);
 	}
 
 	if (status & IRQ_END_L) {
-		dprintk(KERN_INFO "avia_av: IRQ_END_L\n");
+		DBG_IRQ("avia_av: IRQ_END_L\n");
 		wake_up_interruptible(&avia_cmd_wait);
 	}
 	
@@ -408,7 +406,7 @@ static void avia_av_interrupt(int irq, void *vdev, struct pt_regs *regs)
 		u16 h = avia_av_dram_read(V_SIZE) & 0xffff;
 		u16 r = avia_av_dram_read(ASPECT_RATIO) & 0xffff;
 
-		dprintk(KERN_DEBUG "avia_av: IRQ_SEQ_V\n");
+		DBG_IRQ("avia_av: IRQ_SEQ_V\n");
 
 		if ((video_event_handler) &&
 			((w != video_width) ||
@@ -425,7 +423,7 @@ static void avia_av_interrupt(int irq, void *vdev, struct pt_regs *regs)
 	if (status & IRQ_AUD) {
 		u32 sem = avia_av_dram_read(NEW_AUDIO_MODE);
 
-		dprintk(KERN_DEBUG "avia_av: IRQ_AUD %08x\n", sem);
+		DBG_IRQ("avia_av: IRQ_AUD %08x\n", sem);
 
 		/*
 		 * E0 AUDIO_CONFIG
@@ -439,16 +437,19 @@ static void avia_av_interrupt(int irq, void *vdev, struct pt_regs *regs)
 			u32 sel = avia_av_dram_read(AUDIO_CLOCK_SELECTION);
 			switch (sem & 7) {
 			case 1: /* 44.1 */
+				DBG_IRQ("avia_av: sample freq: 44.1 kHz\n");
 				avia_av_dram_write(AUDIO_CLOCK_SELECTION, (sel & ~(7 << 2)) | (1 << 2));
 				sample_rate = 44100;
 				break;
 
 			case 2: /* 48.0 */
+				DBG_IRQ("avia_av: sample freq: 48.0 kHz\n");
 				avia_av_dram_write(AUDIO_CLOCK_SELECTION, (sel & ~(7 << 2)));
 				sample_rate = 48000;
 				break;
 
 			case 7: /* 32.0 */
+				DBG_IRQ("avia_av: sample freq: 32.0 kHz\n");
 				avia_av_dram_write(AUDIO_CLOCK_SELECTION, (sel & ~(7 << 2)) | (2 << 2));
 				sample_rate = 32000;
 				break;
@@ -459,17 +460,17 @@ static void avia_av_interrupt(int irq, void *vdev, struct pt_regs *regs)
 
 		/* reserved */
 		if (sem & (7 << 3))
-			dprintk(KERN_INFO "avia_av: reserved sem: %02x\n", (sem >> 3) & 7);
+			DBG_IRQ("avia_av: reserved sem: %02x\n", (sem >> 3) & 7);
 
 		/* new audio emphasis */
 		if (sem & (3 << 6))
 			switch ((sem >> 6) & 3) {
 			case 1:
-				dprintk(KERN_DEBUG "avia_av: New audio emphasis is off.\n");
+				DBG_IRQ("avia_av: New audio emphasis is off.\n");
 				break;
 
 			case 2:
-				dprintk(KERN_DEBUG "avia_av: New audio emphasis is on.\n");
+				DBG_IRQ("avia_av: New audio emphasis is on.\n");
 				break;
 
 			default:
@@ -485,18 +486,17 @@ static void avia_av_interrupt(int irq, void *vdev, struct pt_regs *regs)
 
 	/* clear flags */
 
-	if (status & IRQ_BUF_F)
+	if (status & IRQ_BUF_F) {
+		DBG_IRQ("avia_av: IRQ_BUF_F.\n");
 		avia_av_dram_write(BUFF_INT_SRC, 0);
-	if (status & IRQ_UND)
-		avia_av_dram_write(UND_INT_SRC, 0);
-
-	if (wdt && (status & (IRQ_BUF_F|IRQ_UND))){
-		wdt->flags |= AVIA_WDT_BUFFER_ERR;
-		wake_up_interruptible(&wdt->wakeup_q);
 	}
+	if (status & IRQ_UND)
+		DBG_IRQ("avia_av: IRQ_UND.\n");
+		avia_av_dram_write(UND_INT_SRC, 0);
 
 	if (status & IRQ_ERR){
 		u32 src = avia_av_dram_read(ERR_INT_SRC) & 0x0f;
+		DBG_IRQ("avia_av: IRQ_ERR.\n");
 		avia_av_dram_write(ERR_INT_SRC, 0);
 		if (wdt) {
 			if (src==1)
@@ -594,9 +594,9 @@ u32 avia_av_cmd(u32 command, ...)
 	va_list ap;
 	u32 status_addr;
 
+	DBG_SETUP("avia_av_cmd: 0x%04X (%s)\n",command, aviacmd2string(command));
 #if 0
 	va_start(ap, command);
-	printk(KERN_INFO "Avia-Command: 0x%04X ",command);
 	for (i = 0; i < ((command & 0x7F00) >> 8); i++)
 		printk("0x%04X ",va_arg(ap, int));
 	va_end(ap);
@@ -672,7 +672,7 @@ void avia_av_set_stc(const u32 hi, const u32 lo)
 	avia_av_gbus_write(0x03, timer_low);
 
 	if (sync_mode != AVIA_AV_SYNC_MODE_NONE)
-		avia_av_dram_write(AV_SYNC_MODE, sync_mode);
+		avia_av_sync_mode_set(sync_mode);	
 
 }
 
@@ -811,7 +811,7 @@ static void avia_av_set_default(void)
 		break;
 	}
 
-	avia_av_dram_write(AV_SYNC_MODE, AVIA_AV_SYNC_MODE_NONE);
+	avia_av_sync_mode_set(AVIA_AV_SYNC_MODE_NONE);
 
 	avia_av_dram_write(VIDEO_PTS_DELAY, 0);
 	avia_av_dram_write(VIDEO_PTS_SKIP_THRESHOLD, 0xE10);
@@ -1218,7 +1218,6 @@ static int avia_av_init(void)
 	play_state_video = AVIA_AV_PLAY_STATE_STOPPED;
 	stream_type_audio = AVIA_AV_STREAM_TYPE_SPTS;
 	stream_type_video = AVIA_AV_STREAM_TYPE_SPTS;
-	sync_mode = AVIA_AV_SYNC_MODE_AV;
 
 	return 0;
 	/* start unwind block */
@@ -1297,8 +1296,11 @@ int avia_av_pid_set(const u8 type, const u16 pid)
 	return 0;
 }
 
+
 int avia_av_play_state_set_audio(const u8 new_play_state)
 {
+	DBG_SETUP("avia_av_play_state_set_audio: %s\n", playstate2string(new_play_state));
+
 	switch (new_play_state) {
 	case AVIA_AV_PLAY_STATE_PAUSED:
 		if (play_state_audio != AVIA_AV_PLAY_STATE_PLAYING)
@@ -1328,7 +1330,7 @@ int avia_av_play_state_set_audio(const u8 new_play_state)
 		dprintk("avia_av: stopping audio decoder\n");
 
 		if (play_state_video == AVIA_AV_PLAY_STATE_STOPPED) {
-			avia_av_dram_write(AV_SYNC_MODE, AVIA_AV_SYNC_MODE_NONE);
+			avia_av_sync_mode_set(AVIA_AV_SYNC_MODE_NONE);
 			avia_av_cmd(NewChannel, 0x00, 0xFFFF, 0xFFFF);
 		}
 		else {
@@ -1347,6 +1349,8 @@ int avia_av_play_state_set_audio(const u8 new_play_state)
 
 int avia_av_play_state_set_video(const u8 new_play_state)
 {
+	DBG_SETUP("avia_av_play_state_set_video: %s\n", playstate2string(new_play_state));
+
 	switch (new_play_state) {
 	case AVIA_AV_PLAY_STATE_PAUSED:
 		if (play_state_video != AVIA_AV_PLAY_STATE_PLAYING)
@@ -1375,7 +1379,7 @@ int avia_av_play_state_set_video(const u8 new_play_state)
 		dprintk("avia_av: stopping video decoder\n");
 
 		if (play_state_audio == AVIA_AV_PLAY_STATE_STOPPED) {
-			avia_av_dram_write(AV_SYNC_MODE, AVIA_AV_SYNC_MODE_NONE);
+			avia_av_sync_mode_set(AVIA_AV_SYNC_MODE_NONE);
 			avia_av_cmd(NewChannel, 0x00, 0xFFFF, 0xFFFF);
 		}
 		else {
@@ -1401,7 +1405,7 @@ int avia_av_stream_type_set(const u8 new_stream_type_video, const u8 new_stream_
 	if ((new_stream_type_video == stream_type_video) && (new_stream_type_audio == stream_type_audio))
 		return 0;
 
-	dprintk("avia_av: setting stream type %d/%d\n", new_stream_type_video, new_stream_type_audio);
+	printk("avia_av: setting stream type %s/%s\n", streamtype2string(new_stream_type_video), streamtype2string(new_stream_type_audio));
 
 	switch (new_stream_type_video) {
 	case AVIA_AV_STREAM_TYPE_0:
@@ -1488,18 +1492,23 @@ int avia_av_stream_type_set(const u8 new_stream_type_video, const u8 new_stream_
 
 }
 
+
 int avia_av_sync_mode_set(const u8 new_sync_mode)
 {
+	DBG_SETUP("avia_av_sync_mode_set: %s\n", syncmode2string(new_sync_mode));
 	if ((new_sync_mode != AVIA_AV_SYNC_MODE_NONE) &&
 		(new_sync_mode != AVIA_AV_SYNC_MODE_AUDIO) &&
 		(new_sync_mode != AVIA_AV_SYNC_MODE_VIDEO) &&
 		(new_sync_mode != AVIA_AV_SYNC_MODE_AV))
 		return -EINVAL;
 
-	if ((play_state_video != AVIA_AV_PLAY_STATE_STOPPED) || (play_state_audio != AVIA_AV_PLAY_STATE_STOPPED))
+	if ((play_state_video != AVIA_AV_PLAY_STATE_STOPPED) || (play_state_audio != AVIA_AV_PLAY_STATE_STOPPED)) {
 		avia_av_dram_write(AV_SYNC_MODE, new_sync_mode);
+		sync_mode = new_sync_mode;
+	} else {
+		printk(KERN_WARNING "avia_av_sync_mode_set: tried to set mode while inactive\n");
+	}
 
-	sync_mode = new_sync_mode;
 	return 0;
 }
 
@@ -1590,11 +1599,6 @@ int avia_av_wdt_thread(void *arg)
 			break;
 		}
 
-		if (state->flags & AVIA_WDT_BUFFER_ERR){
-			dprintk("avia_av_wdt_thread: Buffer error\n");
-			state->flags &= ~AVIA_WDT_BUFFER_ERR;
-		} 
-		
 		if (state->flags & (AVIA_WDT_VIDEO_ERR|AVIA_WDT_AUDIO_ERR|AVIA_WDT_SYSTEM_ERR)){
 			dprintk("avia_av_wdt_thread: Stream error\n");
 			state->flags &= ~(AVIA_WDT_VIDEO_ERR|AVIA_WDT_AUDIO_ERR|AVIA_WDT_SYSTEM_ERR);
@@ -1654,7 +1658,7 @@ static int __init avia_av_core_init(void)
 	avia_info.dram_start = res->start;
 #endif
 
-	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.8 2006/02/18 19:44:14 carjay Exp $\n");
+	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.9 2006/12/05 23:41:36 carjay Exp $\n");
 
 	if (tv_standard != AVIA_AV_VIDEO_SYSTEM_PAL)
 		tv_standard = AVIA_AV_VIDEO_SYSTEM_NTSC;

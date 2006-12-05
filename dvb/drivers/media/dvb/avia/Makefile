@@ -14,7 +14,7 @@ include $(CONFIG_FILE)
 #     *-misc-objs only if configured that way
 obj-m		:= avia_av.o avia_gt.o
 
-avia_av-objs	:= avia_av_core.o avia_av_ksyms.o
+avia_av-objs	:= avia_av_core.o avia_av_ksyms.o avia_av_debug.o
 av-misc		:= avia_av_event.o avia_av_proc.o
 avia_gt-objs	:= avia_gt_core.o avia_gt_enx.o avia_gt_gtx.o\
 		    avia_gt_ucode.o avia_gt_ucode_firmware.o
