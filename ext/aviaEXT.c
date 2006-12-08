@@ -2,7 +2,7 @@
  * Extension device for non-API covered stuff for the Avia
  * (hopefully will disappear at some point)
  *
- * $Id: aviaEXT.c,v 1.4.2.1 2006/12/02 22:50:04 carjay Exp $
+ * $Id: aviaEXT.c,v 1.4.2.2 2006/12/08 23:19:49 carjay Exp $
  *
  * Copyright (C) 2004,2006 Carsten Juttner <carjay@gmx.net>
  *
@@ -44,6 +44,76 @@
 static devfs_handle_t devfs_h;
 #endif
 
+static int handle_gbus_read(struct cmd_gbus *p)
+{
+	unsigned int regcnt;
+	unsigned int *pu;
+
+	/* copy the requested range to user space */
+	pu = p->buffer;
+	for (regcnt = p->start; regcnt <= p->end; regcnt++) {
+		if (put_user(avia_av_gbus_read(regcnt), pu++))
+			return -EFAULT;
+	}
+
+	return 0;
+}
+
+static int handle_gbus_write(struct cmd_gbus *p)
+{
+	unsigned int regcnt;
+	unsigned int *pu;
+	
+	if (!p->buffer)
+		return -EINVAL;
+
+	/* copy the requested range from user space */
+	pu = p->buffer;
+	for (regcnt = p->start; regcnt <= p->end; regcnt++) {
+		unsigned int val;
+		if (get_user(val, pu++))
+			return -EFAULT;
+		avia_av_gbus_write(regcnt, val);
+	}
+
+	return 0;
+}
+
+static int handle_mem_ioctl(unsigned long arg)
+{
+	unsigned int res = 0;
+	struct cmd_gbus *p = (struct cmd_gbus *)arg;
+	struct cmd_gbus b;
+
+	/* peek at header */
+	if (copy_from_user(&b, (void *)arg, sizeof(struct cmdheader))) {
+		printk("copy header failed\n");
+		return -EFAULT;
+	}
+
+	if (b.header.length != sizeof(struct cmd_gbus)) {
+		return -EINVAL;
+	}
+
+	/* looks ok, copy rest */
+	if (copy_from_user(&b, (void *)(arg + sizeof(struct cmdheader)), sizeof(struct cmd_gbus) - sizeof(struct cmdheader)))
+		return -EFAULT;
+	
+	switch (p->header.cmd) {
+
+	case AVIA_EXT_MEM_GBUS_READ:
+		res = handle_gbus_read(p);
+		break;
+
+	case AVIA_EXT_MEM_GBUS_WRITE:
+		res = handle_gbus_write(p);
+		break;
+
+	}
+	
+	return res;	
+}
+
 static int aviaEXT_ioctl(struct inode *inode, struct file *file, 
 						unsigned int cmd, unsigned long arg)
 {
@@ -73,9 +143,13 @@ static int aviaEXT_ioctl(struct inode *inode, struct file *file,
 	case AVIA_EXT_AVIA_PLAYBACK_MODE_SET:
 		avia_gt_set_playback_mode(arg);
 		break;
+
+	case AVIA_EXT_MEM_CMD:
+		return handle_mem_ioctl(arg);
+		break;
 	
 	default:
-		printk (KERN_WARNING "aviaEXT: unknown ioctl: %d\n",cmd);
+		printk (KERN_WARNING "aviaEXT: unknown ioctl %08x\n",cmd);
 		break;
 	}
 	return 0;

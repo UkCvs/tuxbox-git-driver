@@ -2,7 +2,7 @@
  * Extension device for non-API covered stuff for the Avia
  * (hopefully will disappear at some point)
  *
- * $Id: aviaEXT.h,v 1.2 2005/01/05 06:00:20 carjay Exp $
+ * $Id: aviaEXT.h,v 1.2.2.1 2006/12/08 23:20:17 carjay Exp $
  *
  * Copyright (C) 2004 Carsten Juttner <carjay@gmx.met>
  *
@@ -22,6 +22,9 @@
  *
  */
 
+#ifndef AVIAEXT_H
+#define AVIAEXT_H
+
 /* 
 	exported from avia_gt_napi.c, 
 	but I don't like them to be there so they are not
@@ -38,3 +41,22 @@ extern void avia_gt_set_playback_mode(int);
 /* sets the avia decoding mode (dual pes or single ts) */
 #define AVIA_EXT_AVIA_PLAYBACK_MODE_SET	_IO(AVIA_EXT_MAGIC, 63) /* int */
 #define AVIA_EXT_AVIA_PLAYBACK_MODE_GET	_IO(AVIA_EXT_MAGIC, 64) /* int */
+
+/* debug stuff */
+#define AVIA_EXT_MEM_CMD _IO(AVIA_EXT_MAGIC, 65) /* unsigned int */
+
+struct cmdheader {
+	unsigned int cmd;
+	unsigned int length;
+};
+
+#define AVIA_EXT_MEM_GBUS_READ	0x01
+#define AVIA_EXT_MEM_GBUS_WRITE 0x02
+struct cmd_gbus {
+	struct cmdheader header;
+	char start; /* first gbus register to read */
+	char end;	/* last gbus register to read */
+	unsigned int *buffer; /* buffer in userspace */
+};
+
+#endif /* AVIAEXT_H */
