@@ -1,5 +1,5 @@
 /*
- * $Id: avs_core.c,v 1.27.2.6 2007/10/09 01:03:38 carjay Exp $
+ * $Id: avs_core.c,v 1.27.2.7 2007/10/09 19:31:50 carjay Exp $
  * 
  * audio/video switch core driver (dbox-II-project)
  *
@@ -568,7 +568,7 @@ static void avs_event_cleanup(void)
 
 static struct i2c_driver avs_i2c_driver = {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-	#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,16)
+	#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,16)
 	.driver = {
 	#endif
 	.owner			= THIS_MODULE,
