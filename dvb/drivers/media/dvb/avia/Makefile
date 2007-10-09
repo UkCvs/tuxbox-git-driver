@@ -47,7 +47,7 @@ endif
 CC		:= $(CROSS_COMPILE)gcc -I$(TOPDIR)/dvb/include
 
 EXTRA_CFLAGS	+= -I$(DRIVER_TOPDIR)/include -I$(DRIVER_TOPDIR)/dvb/include \
-		    -I$(DRIVER_TOPDIR)/dvb/drivers/media/dvb
+		    -I$(DRIVER_TOPDIR)/dvb/drivers/media/dvb -I$(DRIVER_TOPDIR)/v4l
 
 ifeq ($(CONFIG_AVIA_DEBUG),y)
 EXTRA_CFLAGS	+= -DDEBUG

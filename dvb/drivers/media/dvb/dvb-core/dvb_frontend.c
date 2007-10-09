@@ -33,7 +33,6 @@
 #include <linux/poll.h>
 #include <linux/module.h>
 #include <linux/list.h>
-#include <linux/version.h>
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
 #include <linux/suspend.h>
 #else
@@ -528,9 +527,7 @@ static int dvb_frontend_thread(void *data)
 
 	dvb_frontend_init(fe);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,23)
 	set_freezable();
-#endif
 	while (1) {
 		up(&fepriv->sem);	    /* is locked when we enter the thread... */
 restart:

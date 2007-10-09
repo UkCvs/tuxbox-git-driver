@@ -28,7 +28,6 @@
 #ifndef _DVB_FRONTEND_H_
 #define _DVB_FRONTEND_H_
 
-#include <linux/version.h>
 #include <linux/types.h>
 #include <linux/sched.h>
 #include <linux/ioctl.h>

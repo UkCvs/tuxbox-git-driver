@@ -20,8 +20,14 @@ EXTRA_CFLAGS	+= -DSTANDALONE
 obj-m		+= $(standalone)
 endif
 
+# dvb-core includes linux/version, too, so
+# we need to do it here as well. I do not like
+# 'hidden' includes, so am reluctant to do it
+# for all drivers
 EXTRA_CFLAGS	+= -I$(DRIVER_TOPDIR)/include \
-		    -I$(DRIVER_TOPDIR)/dvb/drivers/media/dvb
+		    -I$(DRIVER_TOPDIR)/dvb/drivers/media/dvb \
+			-I$(DRIVER_TOPDIR)/v4l \
+			-include "linux/version.h"
 
 ifeq ($(CONFIG_NAPI_DEBUG),y)
 EXTRA_CFLAGS	+= -DDEBUG

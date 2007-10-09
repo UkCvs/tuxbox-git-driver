@@ -38,11 +38,13 @@ CONFIGFILE := $(DRIVER_TOPDIR)/.config
 include $(CONFIGFILE)
 
 
+# set KBUILD_VERBOSE to 1 to get all the dirty details
+
 all:
 	@$(MAKE) -C $(KERNEL_LOCATION) M=$(DRIVER_TOPDIR) KBUILD_VERBOSE=0 modules
 
 install: all
-	@$(MAKE) -C $(KERNEL_LOCATION) M=$(DRIVER_TOPDIR) KBUILD_VERBOSE=1 modules_install
+	@$(MAKE) -C $(KERNEL_LOCATION) M=$(DRIVER_TOPDIR) KBUILD_VERBOSE=0 modules_install
 
 clean:
 	@$(MAKE) -C $(KERNEL_LOCATION) M=$(shell pwd) KBUILD_VERBOSE=0 clean

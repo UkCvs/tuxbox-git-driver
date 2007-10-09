@@ -12,5 +12,6 @@ dvb-core-objs = dvbdev.o dmxdev.o dvb_demux.o dvb_filter.o \
 obj-m	+= dvb-core.o
 
 # we do this to override the default "linux"-include dir
+EXTRA_CFLAGS := -include "linux/version.h" -I$(DRIVER_TOPDIR)/v4l
 CC		:= $(CROSS_COMPILE)gcc -I$(DRIVER_TOPDIR)/dvb/include
 endif
