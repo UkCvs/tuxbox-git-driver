@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_core.c,v 1.98.2.9 2006/12/05 23:41:36 carjay Exp $
+ * $Id: avia_av_core.c,v 1.98.2.10 2007/10/09 21:52:20 carjay Exp $
  *
  * AViA 500/600 core driver (dbox-II-project)
  *
@@ -376,7 +376,9 @@ int avia_av_new_audio_config(void)
 	return 0;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,19)
+static irqreturn_t avia_av_interrupt(int irq, void *vdev)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 static irqreturn_t avia_av_interrupt(int irq, void *vdev, struct pt_regs *regs)
 #else
 static void avia_av_interrupt(int irq, void *vdev, struct pt_regs *regs)
@@ -1658,7 +1660,7 @@ static int __init avia_av_core_init(void)
 	avia_info.dram_start = res->start;
 #endif
 
-	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.9 2006/12/05 23:41:36 carjay Exp $\n");
+	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.10 2007/10/09 21:52:20 carjay Exp $\n");
 
 	if (tv_standard != AVIA_AV_VIDEO_SYSTEM_PAL)
 		tv_standard = AVIA_AV_VIDEO_SYSTEM_NTSC;

@@ -688,9 +688,14 @@ static int __init fp_init(void)
 	}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-	driver_register(&fp_dev_driver);
+	if (driver_register(&fp_dev_driver)<0){
+		printk(KERN_ERR "fp: unable to register driver\n");
+		return -EIO;
+	}
+
 	if (misc_register(&fp_dev)<0){
 		printk("fp: unable to register device\n");
+		driver_unregister(&fp_dev_driver);
 		return -EIO;
 	}
 #ifdef CONFIG_DEVFS_FS

@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_napi_core.c,v 1.1.2.13 2007/10/09 01:03:45 carjay Exp $
+ * $Id: dbox2_napi_core.c,v 1.1.2.14 2007/10/09 21:52:21 carjay Exp $
  *
  * Dbox2 DVB Adapter driver
  *
@@ -55,7 +55,6 @@ static int tda_irq = 0;
 
 static struct dbox2_fe {
 	struct dvb_adapter *dvb_adap;
-	struct platform_device *dvb_pdevice;
 	struct i2c_adapter *i2c_adap;
 	struct dvb_frontend *dvb_fe;
 	struct pll_state pll;
@@ -445,23 +444,15 @@ static struct device_driver dbox2_fe_driver = {
 static int __init dbox2_napi_init(void)
 {
 	int res;
-	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.13 2007/10/09 01:03:45 carjay Exp $\n");
+	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.14 2007/10/09 21:52:21 carjay Exp $\n");
 
 	fe_state.dvb_adap = kmalloc (sizeof(struct dvb_adapter),GFP_KERNEL);
 	if (!fe_state.dvb_adap)
 		return -ENOMEM;
 
-	/* Usually this is the parent device, like e.g. the USB- or PCI-device. Since we are
-	   on top of the foodchain we simply create a dummy device. */
-	fe_state.dvb_pdevice = platform_device_register_simple("DVBApi", -1, NULL, 0);
-	if (!fe_state.dvb_pdevice) {
-		return -ENOMEM;
-		goto out_adap;
-	}
-	
-	if ((res = dvb_register_adapter(fe_state.dvb_adap, "C-Cube AViA GTX/eNX with AViA 500/600", THIS_MODULE, &fe_state.dvb_pdevice->dev))<0){
+	if ((res = dvb_register_adapter(fe_state.dvb_adap, "C-Cube AViA GTX/eNX with AViA 500/600", THIS_MODULE, &platform_bus))<0){
 		printk(KERN_ERR "dbox2_napi: error registering adapter\n");
-		goto out_plat;
+		goto out_adap;
 	}
 
 	fe_state.i2c_adap = i2c_get_adapter(0);
@@ -516,8 +507,6 @@ out_i2c:
 	i2c_put_adapter(fe_state.i2c_adap);
 out_dvb:
 	dvb_unregister_adapter(fe_state.dvb_adap);
-out_plat:
-	platform_device_unregister(fe_state.dvb_pdevice);
 out_adap:
 	kfree(fe_state.dvb_adap);
 
@@ -535,7 +524,6 @@ static void __exit dbox2_napi_exit(void)
 	driver_unregister(&dbox2_fe_driver);
 	dvb_unregister_adapter(fe_state.dvb_adap);
 	i2c_put_adapter(fe_state.i2c_adap);
-	platform_device_unregister(fe_state.dvb_pdevice);
 	kfree(fe_state.dvb_adap);
 }
 

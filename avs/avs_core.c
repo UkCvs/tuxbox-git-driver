@@ -1,5 +1,5 @@
 /*
- * $Id: avs_core.c,v 1.27.2.7 2007/10/09 19:31:50 carjay Exp $
+ * $Id: avs_core.c,v 1.27.2.8 2007/10/09 21:52:20 carjay Exp $
  * 
  * audio/video switch core driver (dbox-II-project)
  *
@@ -496,7 +496,7 @@ static struct tq_struct avs_event_tasklet = {
 	routine: avs_event_task,
 	data: 0
 };
-#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,20)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
 static DECLARE_WORK(avs_work, avs_event_task, NULL);
 #endif
 
