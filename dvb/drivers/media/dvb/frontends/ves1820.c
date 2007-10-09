@@ -18,7 +18,6 @@
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#include <linux/config.h>
 #include <linux/delay.h>
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -35,7 +34,6 @@
 
 struct ves1820_state {
 	struct i2c_adapter* i2c;
-	struct dvb_frontend_ops ops;
 	/* configuration settings */
 	const struct ves1820_config* config;
 	struct dvb_frontend frontend;
@@ -380,7 +378,7 @@ struct dvb_frontend* ves1820_attach(const struct ves1820_config* config,
 		goto error;
 
 	/* setup the state */
-	memcpy(&state->ops, &ves1820_ops, sizeof(struct dvb_frontend_ops));
+	memcpy(&state->frontend.ops, &ves1820_ops, sizeof(struct dvb_frontend_ops));
 	state->reg0 = ves1820_inittab[0];
 	state->config = config;
 	state->i2c = i2c;
@@ -393,11 +391,10 @@ struct dvb_frontend* ves1820_attach(const struct ves1820_config* config,
 	if (verbose)
 		printk("ves1820: pwm=0x%02x\n", state->pwm);
 
-	state->ops.info.symbol_rate_min = (state->config->xin / 2) / 64;      /* SACLK/64 == (XIN/2)/64 */
-	state->ops.info.symbol_rate_max = (state->config->xin / 2) / 4;       /* SACLK/4 */
+	state->frontend.ops.info.symbol_rate_min = (state->config->xin / 2) / 64;      /* SACLK/64 == (XIN/2)/64 */
+	state->frontend.ops.info.symbol_rate_max = (state->config->xin / 2) / 4;       /* SACLK/4 */
 
 	/* create dvb_frontend */
-	state->frontend.ops = &state->ops;
 	state->frontend.demodulator_priv = state;
 	return &state->frontend;
 

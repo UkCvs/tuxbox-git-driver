@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_dmx.c,v 1.210.2.6 2006/11/26 15:04:12 carjay Exp $
+ * $Id: avia_gt_dmx.c,v 1.210.2.7 2007/10/09 01:03:38 carjay Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -55,7 +55,11 @@
 #include "avia_gt_ucode.h"
 #include "ts_pes_header.h"
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+static void avia_gt_dmx_bh_task(struct work_struct *work);
+#else
 static void avia_gt_dmx_bh_task(void *tl_data);
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 static struct workqueue_struct *dmx_workqueue;
 #endif
@@ -204,7 +208,9 @@ static struct avia_gt_dmx_queue *avia_gt_dmx_alloc_queue(u8 queue_nr, AviaGtDmxQ
 	q->qim_mode = 0;
 	q->read_pos = 0;
 	q->write_pos = 0;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+	PREPARE_WORK(&q->q_work, avia_gt_dmx_bh_task);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 	PREPARE_WORK(&q->q_work, avia_gt_dmx_bh_task, &q->info.index);
 #else
 	q->task_struct.routine = avia_gt_dmx_bh_task;
@@ -853,9 +859,16 @@ int avia_gt_dmx_queue_stop(u8 queue_nr)
 }
 EXPORT_SYMBOL(avia_gt_dmx_queue_stop);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+static void avia_gt_dmx_bh_task(struct work_struct *work)
+{
+	sAviaGtDmxQueue *callq = container_of(work, sAviaGtDmxQueue, q_work);
+	u8 queue_nr = callq->info.index;
+#else
 static void avia_gt_dmx_bh_task(void *tl_data)
 {
 	u8 queue_nr = *(u8 *)tl_data;
+#endif
 	void *priv_data;
 	AviaGtDmxQueueProc *cb_proc;
 	u16 pid1 = 0xFFFF;
@@ -1411,7 +1424,7 @@ static int avia_gt_wdt_thread(void *arg)
 	return 0;
 }
 
-int __init avia_gt_dmx_init(void)
+int AVIA_GT_INIT avia_gt_dmx_init(void)
 {
 	sAviaGtDmxQueue *q;
 	sAviaGtDmxRiscInit risc_init;
@@ -1419,7 +1432,7 @@ int __init avia_gt_dmx_init(void)
 	u32 queue_addr;
 	u8 queue_nr;
 	
-	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.210.2.6 2006/11/26 15:04:12 carjay Exp $\n");;
+	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.210.2.7 2007/10/09 01:03:38 carjay Exp $\n");;
 
 	gt_info = avia_gt_get_info();
 	ucode_info = avia_gt_dmx_get_ucode_info();
@@ -1537,7 +1550,9 @@ int __init avia_gt_dmx_init(void)
 		q->info.flush = avia_gt_dmx_queue_flush;
 		q->info.put_data = avia_gt_dmx_queue_data_put;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+		INIT_WORK(&q->q_work,NULL);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 		INIT_WORK(&q->q_work,NULL,NULL);
 #endif
 
@@ -1571,7 +1586,7 @@ int __init avia_gt_dmx_init(void)
 	return 0;
 }
 
-void __exit avia_gt_dmx_exit(void)
+void AVIA_GT_EXIT avia_gt_dmx_exit(void)
 {
 	if (dmx_workqueue)
 		destroy_workqueue(dmx_workqueue);

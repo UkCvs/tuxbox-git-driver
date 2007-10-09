@@ -52,10 +52,18 @@ static int cam_detach_client(struct i2c_client *client);
 static struct i2c_client *dclient;
 
 static struct i2c_driver cam_i2c_driver = {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,16)
+	.driver = {
+#endif
 	.owner		= THIS_MODULE,
 	.name		= "DBox2-CAM",
-	.id		= I2C_DRIVERID_CAM,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,16)
+	},
+#else
 	.flags		= I2C_DF_NOTIFY,
+#endif
+
+	.id		= I2C_DRIVERID_CAM,
 	.attach_adapter	= &cam_attach_adapter,
 	.detach_client	= &cam_detach_client,
 	.command	= NULL,
@@ -182,7 +190,11 @@ int cam_write_message(char *buf, size_t count)
 /**
  * IRQ functions
  */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+static void cam_task(struct work_struct *work)
+#else
 static void cam_task(void *data)
+#endif
 {
 	unsigned char buffer[130];
 	unsigned char caid[9] = { 0x50, 0x06, 0x23, 0x84, 0x01, 0x02, 0xFF, 0xFF, 0x00 };
@@ -247,9 +259,17 @@ cam_task_enable_irq:
 	;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+static DECLARE_WORK(cam_work, cam_task);
+#else
 static DECLARE_WORK(cam_work, cam_task, NULL);
+#endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,19)
+static irqreturn_t cam_interrupt(int irq, void *dev)
+#else
 static irqreturn_t cam_interrupt(int irq, void *dev, struct pt_regs *regs)
+#endif
 {
 	schedule_work(&cam_work);
 	disable_irq(CAM_INTERRUPT);
@@ -397,7 +417,11 @@ static int cam_drv_probe(struct device *dev)
 		goto release;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
+	if (request_irq(irq, cam_interrupt, IRQF_DISABLED, "cam", dev))
+#else
 	if (request_irq(irq, cam_interrupt, SA_INTERRUPT, "cam", dev))
+#endif
 		panic("cam: could not allocate irq");
 
 release:
@@ -428,7 +452,7 @@ static struct device_driver cam_driver = {
 
 static int __init cam_init(void)
 {
-	printk(KERN_INFO "$Id: cam.c,v 1.30.2.5 2006/01/22 12:51:25 carjay Exp $\n");
+	printk(KERN_INFO "$Id: cam.c,v 1.30.2.6 2007/10/09 01:03:38 carjay Exp $\n");
 
 	return driver_register(&cam_driver);
 }

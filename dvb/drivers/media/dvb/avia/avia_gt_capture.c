@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_capture.c,v 1.32.4.4 2005/11/05 16:25:06 carjay Exp $
+ * $Id: avia_gt_capture.c,v 1.32.4.5 2007/10/09 01:03:38 carjay Exp $
  * 
  * capture driver for eNX/GTX (dbox-II-project)
  *
@@ -323,9 +323,9 @@ void avia_gt_capture_reset(int reenable)
 		avia_gt_reg_set(RSTR0, VIDC, 0);
 }
 
-int __init avia_gt_capture_init(void)
+int AVIA_GT_INIT avia_gt_capture_init(void)
 {
-	printk(KERN_INFO "avia_gt_capture: $Id: avia_gt_capture.c,v 1.32.4.4 2005/11/05 16:25:06 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_capture: $Id: avia_gt_capture.c,v 1.32.4.5 2007/10/09 01:03:38 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
@@ -357,7 +357,7 @@ int __init avia_gt_capture_init(void)
 	return 0;
 }
 
-void __exit avia_gt_capture_exit(void)
+void AVIA_GT_EXIT avia_gt_capture_exit(void)
 {
 	avia_gt_capture_stop();
 	avia_gt_capture_reset(0);

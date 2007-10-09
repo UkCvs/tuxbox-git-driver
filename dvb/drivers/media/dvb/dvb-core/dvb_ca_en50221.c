@@ -32,11 +32,12 @@
 #include <linux/slab.h>
 #include <linux/list.h>
 #include <linux/module.h>
-#include <linux/moduleparam.h>
 #include <linux/vmalloc.h>
 #include <linux/delay.h>
 #include <linux/spinlock.h>
 #include <linux/sched.h>
+#include <linux/kthread.h>
+#include "compat.h"
 
 #include "dvb_ca_en50221.h"
 #include "dvb_ringbuffer.h"
@@ -140,13 +141,7 @@ struct dvb_ca_private {
 	wait_queue_head_t wait_queue;
 
 	/* PID of the monitoring thread */
-	pid_t thread_pid;
-
-	/* Wait queue used when shutting thread down */
-	wait_queue_head_t thread_queue;
-
-	/* Flag indicating when thread should exit */
-	unsigned int exit:1;
+	struct task_struct *thread;
 
 	/* Flag indicating if the CA device is open */
 	unsigned int open:1;
@@ -175,7 +170,7 @@ static int dvb_ca_en50221_write_data(struct dvb_ca_private *ca, int slot, u8 * e
  * @param nlen Number of bytes in needle.
  * @return Pointer into haystack needle was found at, or NULL if not found.
  */
-static u8 *findstr(u8 * haystack, int hlen, u8 * needle, int nlen)
+static char *findstr(char * haystack, int hlen, char * needle, int nlen)
 {
 	int i;
 
@@ -482,7 +477,7 @@ static int dvb_ca_en50221_parse_attributes(struct dvb_ca_private *ca, int slot)
 	}
 
 	/* check it contains the correct DVB string */
-	dvb_str = findstr(tuple, tupleLength, "DVB_CI_V", 8);
+	dvb_str = findstr((char *)tuple, tupleLength, "DVB_CI_V", 8);
 	if (dvb_str == NULL)
 		return -EINVAL;
 	if (tupleLength < ((dvb_str - (char *) tuple) + 12))
@@ -513,8 +508,8 @@ static int dvb_ca_en50221_parse_attributes(struct dvb_ca_private *ca, int slot)
 			ca->slot_info[slot].config_option = tuple[0] & 0x3f;
 
 			/* OK, check it contains the correct strings */
-			if ((findstr(tuple, tupleLength, "DVB_HOST", 8) == NULL) ||
-			    (findstr(tuple, tupleLength, "DVB_CI_MODULE", 13) == NULL))
+			if ((findstr((char *)tuple, tupleLength, "DVB_HOST", 8) == NULL) ||
+			    (findstr((char *)tuple, tupleLength, "DVB_CI_MODULE", 13) == NULL))
 				break;
 
 			got_cftableentry = 1;
@@ -902,26 +897,8 @@ static void dvb_ca_en50221_thread_wakeup(struct dvb_ca_private *ca)
 
 	ca->wakeup = 1;
 	mb();
-	wake_up_interruptible(&ca->thread_queue);
+	wake_up_process(ca->thread);
 }
-
-/**
- * Used by the CA thread to determine if an early wakeup is necessary
- *
- * @param ca CA instance.
- */
-static int dvb_ca_en50221_thread_should_wakeup(struct dvb_ca_private *ca)
-{
-	if (ca->wakeup) {
-		ca->wakeup = 0;
-		return 1;
-	}
-	if (ca->exit)
-		return 1;
-
-	return 0;
-}
-
 
 /**
  * Update the delay used by the thread.
@@ -982,7 +959,6 @@ static void dvb_ca_en50221_thread_update_delay(struct dvb_ca_private *ca)
 static int dvb_ca_en50221_thread(void *data)
 {
 	struct dvb_ca_private *ca = data;
-	char name[15];
 	int slot;
 	int flags;
 	int status;
@@ -991,28 +967,17 @@ static int dvb_ca_en50221_thread(void *data)
 
 	dprintk("%s\n", __FUNCTION__);
 
-	/* setup kernel thread */
-	snprintf(name, sizeof(name), "kdvb-ca-%i:%i", ca->dvbdev->adapter->num, ca->dvbdev->id);
-
-	lock_kernel();
-	daemonize(name);
-	sigfillset(&current->blocked);
-	unlock_kernel();
-
 	/* choose the correct initial delay */
 	dvb_ca_en50221_thread_update_delay(ca);
 
 	/* main loop */
-	while (!ca->exit) {
+	while (!kthread_should_stop()) {
 		/* sleep for a bit */
-		if (!ca->wakeup) {
-			flags = wait_event_interruptible_timeout(ca->thread_queue,
-								 dvb_ca_en50221_thread_should_wakeup(ca),
-								 ca->delay);
-			if ((flags == -ERESTARTSYS) || ca->exit) {
-				/* got signal or quitting */
-				break;
-			}
+		while (!ca->wakeup) {
+			set_current_state(TASK_INTERRUPTIBLE);
+			schedule_timeout(ca->delay);
+			if (kthread_should_stop())
+				return 0;
 		}
 		ca->wakeup = 0;
 
@@ -1060,8 +1025,18 @@ static int dvb_ca_en50221_thread(void *data)
 				break;
 
 			case DVB_CA_SLOTSTATE_VALIDATE:
-				if (dvb_ca_en50221_parse_attributes(ca, slot)
-				    != 0) {
+				if (dvb_ca_en50221_parse_attributes(ca, slot) != 0) {
+					/* we need this extra check for annoying interfaces like the budget-av */
+					if ((!(ca->flags & DVB_CA_EN50221_FLAG_IRQ_CAMCHANGE)) &&
+					    (ca->pub->poll_slot_status)) {
+						int status = ca->pub->poll_slot_status(ca->pub, slot, 0);
+						if (!(status & DVB_CA_EN50221_POLL_CAM_PRESENT)) {
+							ca->slot_info[slot].slot_state = DVB_CA_SLOTSTATE_NONE;
+							dvb_ca_en50221_thread_update_delay(ca);
+							break;
+						}
+					}
+
 					printk("dvb_ca adapter %d: Invalid PC card inserted :(\n",
 					       ca->dvbdev->adapter->num);
 					ca->slot_info[slot].slot_state = DVB_CA_SLOTSTATE_INVALID;
@@ -1108,6 +1083,17 @@ static int dvb_ca_en50221_thread(void *data)
 
 			case DVB_CA_SLOTSTATE_LINKINIT:
 				if (dvb_ca_en50221_link_init(ca, slot) != 0) {
+					/* we need this extra check for annoying interfaces like the budget-av */
+					if ((!(ca->flags & DVB_CA_EN50221_FLAG_IRQ_CAMCHANGE)) &&
+					    (ca->pub->poll_slot_status)) {
+						int status = ca->pub->poll_slot_status(ca->pub, slot, 0);
+						if (!(status & DVB_CA_EN50221_POLL_CAM_PRESENT)) {
+							ca->slot_info[slot].slot_state = DVB_CA_SLOTSTATE_NONE;
+							dvb_ca_en50221_thread_update_delay(ca);
+							break;
+						}
+					}
+
 					printk("dvb_ca adapter %d: DVB CAM link initialisation failed :(\n", ca->dvbdev->adapter->num);
 					ca->slot_info[slot].slot_state = DVB_CA_SLOTSTATE_INVALID;
 					dvb_ca_en50221_thread_update_delay(ca);
@@ -1160,10 +1146,6 @@ static int dvb_ca_en50221_thread(void *data)
 		}
 	}
 
-	/* completed */
-	ca->thread_pid = 0;
-	mb();
-	wake_up_interruptible(&ca->thread_queue);
 	return 0;
 }
 
@@ -1279,7 +1261,7 @@ static ssize_t dvb_ca_en50221_io_write(struct file *file,
 	struct dvb_ca_private *ca = dvbdev->priv;
 	u8 slot, connection_id;
 	int status;
-	char fragbuf[HOST_LINK_BUF_SIZE];
+	u8 fragbuf[HOST_LINK_BUF_SIZE];
 	int fragpos = 0;
 	int fraglen;
 	unsigned long timeout;
@@ -1465,7 +1447,7 @@ static ssize_t dvb_ca_en50221_io_read(struct file *file, char __user * buf,
 				}
 
 				if ((status = dvb_ringbuffer_pkt_read(&ca->slot_info[slot].rx_buffer, idx, 2,
-								      buf + pktlen, fraglen, 1)) < 0) {
+								      (u8 *)buf + pktlen, fraglen, 1)) < 0) {
 					goto exit;
 				}
 				pktlen += fraglen;
@@ -1515,8 +1497,10 @@ static int dvb_ca_en50221_io_open(struct inode *inode, struct file *file)
 		return -EIO;
 
 	err = dvb_generic_open(inode, file);
-	if (err < 0)
+	if (err < 0) {
+		module_put(ca->pub->owner);
 		return err;
+	}
 
 	for (i = 0; i < ca->slot_count; i++) {
 
@@ -1549,7 +1533,7 @@ static int dvb_ca_en50221_io_release(struct inode *inode, struct file *file)
 {
 	struct dvb_device *dvbdev = file->private_data;
 	struct dvb_ca_private *ca = dvbdev->priv;
-	int err = 0;
+	int err;
 
 	dprintk("%s\n", __FUNCTION__);
 
@@ -1561,7 +1545,7 @@ static int dvb_ca_en50221_io_release(struct inode *inode, struct file *file)
 
 	module_put(ca->pub->owner);
 
-	return 0;
+	return err;
 }
 
 
@@ -1661,9 +1645,6 @@ int dvb_ca_en50221_init(struct dvb_adapter *dvb_adapter,
 		goto error;
 	}
 	init_waitqueue_head(&ca->wait_queue);
-	ca->thread_pid = 0;
-	init_waitqueue_head(&ca->thread_queue);
-	ca->exit = 0;
 	ca->open = 0;
 	ca->wakeup = 0;
 	ca->next_read_slot = 0;
@@ -1689,14 +1670,14 @@ int dvb_ca_en50221_init(struct dvb_adapter *dvb_adapter,
 	mb();
 
 	/* create a kthread for monitoring this CA device */
-
-	ret = kernel_thread(dvb_ca_en50221_thread, ca, 0);
-
-	if (ret < 0) {
-		printk("dvb_ca_init: failed to start kernel_thread (%d)\n", ret);
+	ca->thread = kthread_run(dvb_ca_en50221_thread, ca, "kdvb-ca-%i:%i",
+				 ca->dvbdev->adapter->num, ca->dvbdev->id);
+	if (IS_ERR(ca->thread)) {
+		ret = PTR_ERR(ca->thread);
+		printk("dvb_ca_init: failed to start kernel_thread (%d)\n",
+			ret);
 		goto error;
 	}
-	ca->thread_pid = ret;
 	return 0;
 
 error:
@@ -1727,17 +1708,7 @@ void dvb_ca_en50221_release(struct dvb_ca_en50221 *pubca)
 	dprintk("%s\n", __FUNCTION__);
 
 	/* shutdown the thread if there was one */
-	if (ca->thread_pid) {
-		if (kill_proc(ca->thread_pid, 0, 1) == -ESRCH) {
-			printk("dvb_ca_release adapter %d: thread PID %d already died\n",
-			       ca->dvbdev->adapter->num, ca->thread_pid);
-		} else {
-			ca->exit = 1;
-			mb();
-			dvb_ca_en50221_thread_wakeup(ca);
-			wait_event_interruptible(ca->thread_queue, ca->thread_pid == 0);
-		}
-	}
+	kthread_stop(ca->thread);
 
 	for (i = 0; i < ca->slot_count; i++) {
 		dvb_ca_en50221_slot_shutdown(ca, i);

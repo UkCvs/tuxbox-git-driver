@@ -26,7 +26,10 @@
 #include <linux/time.h>
 #include <linux/timer.h>
 #include <linux/spinlock.h>
-#include <asm/semaphore.h>
+#include "compat.h"
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,15)
+#include <linux/mutex.h>
+#endif
 
 #include "demux.h"
 
@@ -125,7 +128,11 @@ struct dvb_demux {
 	u8 tsbuf[204];
 	int tsbufp;
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,15)
+	struct mutex mutex;
+#else
 	struct semaphore mutex;
+#endif
 	spinlock_t lock;
 };
 
@@ -136,7 +143,6 @@ void dvb_dmx_swfilter_packets(struct dvb_demux *dvbdmx, const u8 *buf,
 void dvb_dmx_swfilter(struct dvb_demux *demux, const u8 *buf, size_t count);
 void dvb_dmx_swfilter_204(struct dvb_demux *demux, const u8 *buf,
 			  size_t count);
-
 void dvb_dmx_swfilter_packet(struct dvb_demux *demux, const u8 *buf);
 int dvbdmx_connect_frontend(struct dmx_demux *demux, struct dmx_frontend *frontend);
 int dvbdmx_disconnect_frontend(struct dmx_demux *demux);

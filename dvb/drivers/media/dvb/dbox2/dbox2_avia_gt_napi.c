@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_avia_gt_napi.c,v 1.1.2.3 2005/11/05 00:24:30 carjay Exp $
+ * $Id: dbox2_avia_gt_napi.c,v 1.1.2.4 2007/10/09 01:03:45 carjay Exp $
  * 
  * AViA GTX/eNX demux dvb api driver (dbox-II-project)
  *
@@ -819,7 +819,7 @@ int __init avia_gt_napi_init(void)
 {
 	int result;
 
-	printk(KERN_INFO "avia_gt_napi: $Id: dbox2_avia_gt_napi.c,v 1.1.2.3 2005/11/05 00:24:30 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_napi: $Id: dbox2_avia_gt_napi.c,v 1.1.2.4 2007/10/09 01:03:45 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
@@ -956,5 +956,5 @@ MODULE_DESCRIPTION("dbox2 DVB demux driver");
 MODULE_AUTHOR("Felix Domke <tmbinc@gmx.net>,Andreas Oberritter <obi@tuxbox.org>");
 MODULE_LICENSE("GPL");
 #endif
-MODULE_PARM(mode, "i");
+module_param(mode, uint, 0644);
 MODULE_PARM_DESC(mode, "playback mode: 0 = Dual PES (default), 1 = SPTS");

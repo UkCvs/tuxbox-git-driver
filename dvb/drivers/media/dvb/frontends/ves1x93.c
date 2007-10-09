@@ -38,8 +38,6 @@ struct ves1x93_state {
 
 	struct i2c_adapter* i2c;
 
-	struct dvb_frontend_ops ops;
-
 	/* configuration settings */
 	const struct ves1x93_config* config;
 
@@ -481,7 +479,7 @@ struct dvb_frontend* ves1x93_attach(const struct ves1x93_config* config,
 	/* setup the state */
 	state->config = config;
 	state->i2c = i2c;
-	memcpy(&state->ops, &ves1x93_ops, sizeof(struct dvb_frontend_ops));
+	memcpy(&state->frontend.ops, &ves1x93_ops, sizeof(struct dvb_frontend_ops));
 	state->inversion = INVERSION_OFF;
 
 	/* check if the demod is there + identify it */
@@ -516,7 +514,6 @@ struct dvb_frontend* ves1x93_attach(const struct ves1x93_config* config,
 	}
 
 	/* create dvb_frontend */
-	state->frontend.ops = &state->ops;
 	state->frontend.demodulator_priv = state;
 	return &state->frontend;
 

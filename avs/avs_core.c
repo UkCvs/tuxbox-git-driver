@@ -1,5 +1,5 @@
 /*
- * $Id: avs_core.c,v 1.27.2.5 2005/08/27 18:40:07 carjay Exp $
+ * $Id: avs_core.c,v 1.27.2.6 2007/10/09 01:03:38 carjay Exp $
  * 
  * audio/video switch core driver (dbox-II-project)
  *
@@ -39,7 +39,9 @@
 #include <linux/i2c.h>
 #include <linux/sound.h>
 #include <linux/soundcard.h>
+#ifdef CONFIG_DEVFS_FS
 #include <linux/devfs_fs_kernel.h>
+#endif
 
 #include <dbox/avs_core.h>
 #include <dbox/event.h>
@@ -403,13 +405,28 @@ static struct file_operations avs_fops = {
  * event
  */
 
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+static struct avs_workqueue_struct {
+	struct work_struct work;
+	struct avs_event_reg *reg;
+} g_avs_wq;
+
+static void avs_event_task(struct work_struct *work)
+#else
 static void avs_event_task(void *data)
+#endif
 {
 	struct avs_event_reg *reg;
 	struct event_t event;
 	int state;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+	struct avs_workqueue_struct *wq= container_of(work, struct avs_workqueue_struct, work);
+	reg = wq->reg;
+#else
 	reg = (struct avs_event_reg *) data;
+#endif
 
 	if (reg) {
 
@@ -474,18 +491,21 @@ static void avs_event_task(void *data)
 	}
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-static DECLARE_WORK(avs_work, avs_event_task, NULL);
-#else
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,5,0)
 static struct tq_struct avs_event_tasklet = {
 	routine: avs_event_task,
 	data: 0
 };
+#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,20)
+static DECLARE_WORK(avs_work, avs_event_task, NULL);
 #endif
 
 static void avs_event_func(unsigned long data)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+	g_avs_wq.reg = (struct avs_event_reg *)data;
+	PREPARE_WORK(&g_avs_wq.work, avs_event_task);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 	void *d = (void *)data;
 	PREPARE_WORK(&avs_work, avs_event_task, d);
 	schedule_work(&avs_work);
@@ -547,12 +567,19 @@ static void avs_event_cleanup(void)
  */
 
 static struct i2c_driver avs_i2c_driver = {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)	
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,16)
+	.driver = {
+	#endif
 	.owner			= THIS_MODULE,
 #endif
 	.name           = "avs driver",
-	.id             = I2C_DRIVERID_AVS,
+	#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,16)
+	},
+	#else
 	.flags          = I2C_DF_NOTIFY,
+	#endif
+	.id             = I2C_DRIVERID_AVS,
 	.attach_adapter = &avs_probe,
 	.detach_client  = &avs_detach,
 	.command        = &avs_command
@@ -575,6 +602,13 @@ static struct miscdevice avs_dev = {
 int __init avs_core_init(void)
 {
 	int res;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+	/* technically one structure for all is wrong: 
+	   there might be more than one client for the i2c-driver,
+	   Dbox2 of course only has 1 */
+	INIT_WORK(&g_avs_wq.work, avs_event_task);
+#endif
 
 	if (type == CXAAUTO) {
 
@@ -629,9 +663,11 @@ int __init avs_core_init(void)
 		printk(KERN_ERR "avs: unable to register device\n");
 		return -EIO;
 	}
+#ifdef CONFIG_DEVFS_FS
 	devfs_mk_cdev(MKDEV(MISC_MAJOR,avs_dev.minor),
 		S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
 		"dbox/avs0");
+#endif
 #else
 	devfs_handle = devfs_register(NULL, "dbox/avs0", DEVFS_FL_DEFAULT, 0, 0,
 			S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
@@ -656,7 +692,9 @@ void __exit avs_core_exit(void)
 
 	i2c_del_driver(&avs_i2c_driver);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#ifdef CONFIG_DEVFS_FS
 	devfs_remove("dbox/avs0");
+#endif
 	misc_deregister(&avs_dev);
 #else
 	devfs_unregister(devfs_handle);

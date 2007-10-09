@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_v4l2.c,v 1.12.4.3 2005/01/25 01:35:51 carjay Exp $
+ * $Id: avia_gt_v4l2.c,v 1.12.4.4 2007/10/09 01:03:38 carjay Exp $
  *
  * AViA eNX/GTX v4l2 driver (dbox-II-project)
  *
@@ -37,6 +37,13 @@
 #include <linux/init.h>
 #include <linux/videodev.h>
 #include <linux/videodev2.h>
+#include <linux/fcntl.h>
+#include <linux/ioctl.h>
+#include <linux/fs.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
+#include <media/v4l2-dev.h>
+#endif
 
 #include "avia_gt.h"
 #include "avia_gt_pig.h"
@@ -299,7 +306,7 @@ static struct video_device device_info = {
 
 static int __init avia_gt_v4l2_init(void)
 {
-	printk("avia_gt_v4l2: $Id: avia_gt_v4l2.c,v 1.12.4.3 2005/01/25 01:35:51 carjay Exp $\n");
+	printk("avia_gt_v4l2: $Id: avia_gt_v4l2.c,v 1.12.4.4 2007/10/09 01:03:38 carjay Exp $\n");
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 	vfd = video_device_alloc();
 	if (!vfd){

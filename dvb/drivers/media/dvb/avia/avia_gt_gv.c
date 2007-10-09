@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_gv.c,v 1.39.2.4 2006/01/22 13:19:18 carjay Exp $
+ * $Id: avia_gt_gv.c,v 1.39.2.5 2007/10/09 01:03:38 carjay Exp $
  *
  * AViA eNX/GTX graphic viewport driver (dbox-II-project)
  *
@@ -476,9 +476,9 @@ int avia_gt_gv_show(void)
 	return 0;
 }
 
-int avia_gt_gv_init(void)
+int AVIA_GT_INIT avia_gt_gv_init(void)
 {
-	printk(KERN_INFO "avia_gt_gv: $Id: avia_gt_gv.c,v 1.39.2.4 2006/01/22 13:19:18 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_gv: $Id: avia_gt_gv.c,v 1.39.2.5 2007/10/09 01:03:38 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
@@ -599,7 +599,7 @@ int avia_gt_gv_init(void)
 	return 0;
 }
 
-void __exit avia_gt_gv_exit(void)
+void AVIA_GT_EXIT avia_gt_gv_exit(void)
 {
 	avia_gt_reg_set(RSTR0, GFIX, 1);
 }

@@ -26,12 +26,13 @@
 #include <linux/module.h>
 #include <linux/string.h>
 #include <linux/vmalloc.h>
+#ifdef CONFIG_DEVFS_FS
 #include <linux/devfs_fs_kernel.h>
+#endif
 #include <linux/bitops.h>
 #include <linux/netdevice.h>
 #include <linux/inetdevice.h>
 #include <linux/version.h>
-#include <linux/config.h>
 #include <linux/miscdevice.h>
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0))
 #include <linux/dma-mapping.h>
@@ -308,7 +309,10 @@ static void __exit dvb2eth_exit(void)
 	 * free memory
 	 */
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,13))
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,21)
+	dma_free_coherent(dvb2eth_dev->dev.parent, UDP_HEADERS * sizeof(dvb2eth_udp_header_skel),
+						dvb2eth_header_buf, dvb2eth_phy_addr);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,13))
 	dma_free_coherent(dvb2eth_dev->class_dev.dev, UDP_HEADERS * sizeof(dvb2eth_udp_header_skel),
 						dvb2eth_header_buf, dvb2eth_phy_addr);
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,25))
@@ -362,15 +366,21 @@ static int __init dvb2eth_init(void)
 	 */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,13))
+	#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,21)
+	if ( (dvb2eth_header_buf = (unsigned char *) dma_alloc_coherent(dvb2eth_dev->dev.parent,
+																	UDP_HEADERS * sizeof(dvb2eth_udp_header_skel),
+																	&dvb2eth_phy_addr, GFP_KERNEL)) == NULL) {
+	#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,13))
 	if ( (dvb2eth_header_buf = (unsigned char *) dma_alloc_coherent(dvb2eth_dev->class_dev.dev,
 																	UDP_HEADERS * sizeof(dvb2eth_udp_header_skel),
 																	&dvb2eth_phy_addr, GFP_KERNEL)) == NULL) {
+	#endif
 		printk(KERN_ERR "dvb2eth_init: cannot allocate memory.\n");
-#ifdef CONFIG_DEVFS_FS
+	#ifdef CONFIG_DEVFS_FS
 		devfs_unregister(dvb2eth_device);
-#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0))
+	#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0))
 		misc_deregister(&dvb2eth_misc);
-#endif
+	#endif
 		return -ENOMEM;
 	}
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,25))

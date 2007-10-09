@@ -42,7 +42,9 @@
 
 #include <linux/wait.h>
 #include <linux/interrupt.h>
+#ifdef CONFIG_DEVFS_FS
 #include <linux/devfs_fs_kernel.h>
+#endif
 
 #include <asm/8xx_immap.h>
 #include <asm/bitops.h>
@@ -128,7 +130,9 @@ struct tq_struct fp_tasklet = {
 };
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,19)
+static irqreturn_t fp_interrupt(int irq, void *dev);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 static irqreturn_t fp_interrupt(int irq, void *dev, struct pt_regs *regs);
 #else
 static void fp_interrupt(int irq, void *dev, struct pt_regs *regs);
@@ -442,11 +446,18 @@ static int fp_attach_adapter(struct i2c_adapter *adapter)
 
 static struct i2c_driver fp_i2c_driver = {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,16)
+	.driver = {
+	#endif
 	.owner			= THIS_MODULE,
 #endif
 	.name           = "DBox2 Frontprocessor driver",
-	.id             = I2C_FP_DRIVERID,
+	#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,16)
+	},
+	#else
 	.flags          = I2C_DF_NOTIFY,
+	#endif
+	.id             = I2C_FP_DRIVERID,
 	.attach_adapter = &fp_attach_adapter,
 	.detach_client  = &fp_detach_client,
 	.command        = NULL
@@ -554,8 +565,11 @@ static void fp_check_queues(void)
 
 }
 
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+static void fp_task(struct work_struct *work)
+#else
 static void fp_task(void *arg)
+#endif
 {
 	volatile immap_t *immap = (volatile immap_t *)IMAP_ADDR;
 
@@ -568,8 +582,15 @@ static void fp_task(void *arg)
 }
 
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+static DECLARE_WORK(fp_work, fp_task);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 static DECLARE_WORK(fp_work, fp_task, NULL);
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,19)
+static irqreturn_t fp_interrupt(int irq, void *vdev)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 static irqreturn_t fp_interrupt(int irq, void *vdev, struct pt_regs *regs)
 #else
 static void fp_interrupt(int irq, void *vdev, struct pt_regs *regs)
@@ -611,7 +632,11 @@ static int fp_drv_probe(struct device *dev)
 		printk(KERN_ERR "fp: I2C driver registration failed.\n");
 	}
 	
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,18)
+	if (request_irq(irq, fp_interrupt, IRQF_DISABLED, "fp", dev))
+#else
 	if (request_irq(irq, fp_interrupt, SA_INTERRUPT, "fp", dev))
+#endif
 		panic ("fp: could not allocate irq");
 
 	return ret;	
@@ -668,9 +693,11 @@ static int __init fp_init(void)
 		printk("fp: unable to register device\n");
 		return -EIO;
 	}
+#ifdef CONFIG_DEVFS_FS
 	devfs_mk_cdev(MKDEV(MISC_MAJOR,fp_dev.minor),
 		S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
 		"dbox/fp0");
+#endif
 #else
 	devfs_handle = devfs_register(NULL, "dbox/fp0", DEVFS_FL_DEFAULT, 0, FP_MINOR,
 		S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
@@ -697,7 +724,9 @@ static int __init fp_init(void)
 static void __exit fp_exit(void)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#ifdef CONFIG_DEVFS_FS
 	devfs_remove("dbox/fp0");
+#endif
 	driver_unregister(&fp_dev_driver);
 	misc_deregister(&fp_dev);
 #else

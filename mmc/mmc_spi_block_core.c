@@ -2,7 +2,7 @@
 #include <linux/timer.h>
 
 /*
- * $Id: mmc_spi_block_core.c,v 1.1.2.1 2006/05/08 23:21:27 carjay Exp $
+ * $Id: mmc_spi_block_core.c,v 1.1.2.2 2007/10/09 01:04:21 carjay Exp $
  *
  * Block device driver for a MMC/SD card in SPI mode using GPIOs
  * Gendisk routines
@@ -38,6 +38,7 @@
 #include <linux/kdev_t.h>
 #include <linux/blkdev.h>
 #include <linux/spinlock.h>
+#include <linux/version.h>
 
 #include <linux/platform_device.h>
 
@@ -127,7 +128,11 @@ static void mmc_spi_request(struct request_queue *q)
 		ret = end_that_request_chunk(req, success, nr_sectors * hd_hardsectsizes[0]);
 		if (!ret) {
 			blkdev_dequeue_request(req);
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,15)
 			end_that_request_last(req);
+#else
+			end_that_request_last(req, success);
+#endif
 		}
 	}
 	spin_unlock(&mmc_spi_lock);
@@ -420,7 +425,7 @@ static int gendisk_fini(struct gendisk *gd)
 static int mmc_spi_probe(struct platform_device *pdev)
 {
 	int rc;
-	printk("$Id: mmc_spi_block_core.c,v 1.1.2.1 2006/05/08 23:21:27 carjay Exp $\n");
+	printk("$Id: mmc_spi_block_core.c,v 1.1.2.2 2007/10/09 01:04:21 carjay Exp $\n");
 
 	rc = mmc_spi_hardware_init();
 	if (rc != 0) {

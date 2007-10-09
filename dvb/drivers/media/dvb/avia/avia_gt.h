@@ -29,6 +29,14 @@
 #include "avia_gt_enx.h"
 #include "avia_gt_gtx.h"
 
+#ifdef STANDALONE
+#define AVIA_GT_INIT __init
+#define AVIA_GT_EXIT __exit
+#else
+#define AVIA_GT_INIT
+#define AVIA_GT_EXIT
+#endif
+
 #ifdef AVIA_GT_DEBUG
 #define dprintk(fmt,args...) printk( fmt,## args)
 #else

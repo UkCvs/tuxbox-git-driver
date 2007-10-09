@@ -28,7 +28,9 @@
 #include <linux/version.h>
 #include <linux/smp_lock.h>
 #include <linux/delay.h>
+#ifdef CONFIG_DEVFS_FS
 #include <linux/devfs_fs_kernel.h>
+#endif
 
 #include <linux/init.h>
 
@@ -860,12 +862,14 @@ int __init lcd_init(void)
 		printk("lcd: unable to register lcd device\n");
 		return ret;
 	}
+#ifdef CONFIG_DEVFS_FS
 	// devfs_mk_cdev can return -EINVAL and -ENOMEM - so take care about this
 	if ((ret=devfs_mk_cdev(MKDEV(MISC_MAJOR,lcd_dev.minor),
 			S_IFCHR | S_IRUGO | S_IWUGO, "dbox/lcd0") )) {
 		misc_deregister(&lcd_dev);
 		return ret;
 	}
+#endif
 #else
 	devfs_handle =
 		devfs_register ( NULL, "dbox/lcd0", DEVFS_FL_DEFAULT, 0, 0,
@@ -882,7 +886,9 @@ int __init lcd_init(void)
 
 	if ( ( immap = ( immap_t * ) CFG_IMMR ) == NULL ) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#ifdef CONFIG_DEVFS_FS
 		devfs_remove("dbox/lcd0");
+#endif
 		misc_deregister(&lcd_dev);
 #else
 		devfs_unregister ( devfs_handle );
@@ -928,7 +934,9 @@ int __init lcd_init(void)
 int lcd_cleanup(void)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#ifdef CONFIG_DEVFS_FS
 	devfs_remove("dbox/lcd0");
+#endif
 	misc_deregister(&lcd_dev);
 #else
 	devfs_unregister ( devfs_handle );

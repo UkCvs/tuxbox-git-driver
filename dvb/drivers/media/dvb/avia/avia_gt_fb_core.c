@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_fb_core.c,v 1.54.2.4 2006/01/22 12:48:42 carjay Exp $
+ * $Id: avia_gt_fb_core.c,v 1.54.2.5 2007/10/09 01:03:38 carjay Exp $
  *
  * AViA eNX/GTX framebuffer driver (dbox-II-project)
  *
@@ -498,8 +498,12 @@ static int avia_gt_fb_pan_display(struct fb_var_screeninfo *var, struct fb_info 
 	return 0;
 }
 
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,15)
 static int avia_gt_fb_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg, 
 			struct fb_info *info)
+#else
+static int avia_gt_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
+#endif
 {
 	fb_copyarea copyarea;
 	unsigned int val;
@@ -573,7 +577,7 @@ int __init avia_gt_fb_init(void)
 	u8 *fb_virmem;
 	u32 fb_size;
 	
-	printk(KERN_INFO "avia_gt_fb: $Id: avia_gt_fb_core.c,v 1.54.2.4 2006/01/22 12:48:42 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_fb: $Id: avia_gt_fb_core.c,v 1.54.2.5 2007/10/09 01:03:38 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 

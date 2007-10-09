@@ -4,9 +4,9 @@
 # necessary
 
 # directory containing the cdk
-CDKDIR:=$(HOME)/cdkdir
+CDKDIR:=$(HOME)/tuxbox/target
 # directory containing the cvs sources
-CVSDIR:=$(HOME)/cvs/tuxbox
+CVSDIR:=$(HOME)/tuxbox/cvs
 
 #######################################
 ARCH=ppc
@@ -42,7 +42,7 @@ all:
 	@$(MAKE) -C $(KERNEL_LOCATION) M=$(DRIVER_TOPDIR) KBUILD_VERBOSE=0 modules
 
 install: all
-	@$(MAKE) -C $(KERNEL_LOCATION) M=$(DRIVER_TOPDIR) KBUILD_VERBOSE=0 modules_install
+	@$(MAKE) -C $(KERNEL_LOCATION) M=$(DRIVER_TOPDIR) KBUILD_VERBOSE=1 modules_install
 
 clean:
 	@$(MAKE) -C $(KERNEL_LOCATION) M=$(shell pwd) KBUILD_VERBOSE=0 clean

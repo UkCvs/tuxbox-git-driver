@@ -22,7 +22,6 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
-#include <linux/config.h>
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/spinlock.h>
@@ -42,8 +41,6 @@ static int debug = 0;
 
 struct tda8044_state {
 	struct i2c_adapter* i2c;
-
-	struct dvb_frontend_ops ops;
 
 	/* configuration settings */
 	const struct tda8044_config* config;
@@ -403,9 +400,15 @@ static void tda8044_reset(struct dvb_frontend* fe)
 }
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+static void tda8044_tasklet(struct work_struct *work)
+{
+	struct tda8044_state* state = container_of(work, struct tda8044_state, worklet);
+#else
 static void tda8044_tasklet(void *priv)
 {
 	struct tda8044_state* state = priv;
+#endif
 	u8 val;
 
 	static const fe_spectral_inversion_t inv_tab[] = {
@@ -477,7 +480,11 @@ static int tda8044_get_frontend(struct dvb_frontend* fe, struct dvb_frontend_par
 	struct tda8044_state* state = (struct tda8044_state*) fe->demodulator_priv;
 
 	if (!state->config->irq)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+		tda8044_tasklet(&state->worklet);
+#else
 		tda8044_tasklet((struct tda8044_state*) fe->demodulator_priv);
+#endif
 
 	p->inversion = state->spectral_inversion;
 	p->u.qpsk.fec_inner = state->code_rate;
@@ -490,7 +497,11 @@ static int tda8044_read_status(struct dvb_frontend* fe, fe_status_t* status)
 	struct tda8044_state* state = (struct tda8044_state*) fe->demodulator_priv;
 
 	if (!state->config->irq)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+		tda8044_tasklet(&state->worklet);
+#else
 		tda8044_tasklet((struct tda8044_state*) fe->demodulator_priv);
+#endif
 
 	*status = state->status;
 
@@ -548,7 +559,11 @@ static void tda8044_release(struct dvb_frontend* fe)
 }
 
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,19)
+static irqreturn_t tda8044_irq(int irq, void *priv)
+#else
 static irqreturn_t tda8044_irq(int irq, void *priv, struct pt_regs *pt)
+#endif
 {
 	disable_irq(irq);
 	schedule_work(priv);
@@ -568,7 +583,7 @@ struct dvb_frontend *tda8044_attach(const struct tda8044_config* config, struct 
 	/* setup the state */
 	state->config = config;
 	state->i2c = i2c;
-	memcpy(&state->ops, &tda8044_ops, sizeof(struct dvb_frontend_ops));
+	memcpy(&state->frontend.ops, &tda8044_ops, sizeof(struct dvb_frontend_ops));
 	state->spectral_inversion = INVERSION_AUTO;
 	state->code_rate = FEC_AUTO;
 	state->status = 0;
@@ -581,14 +596,17 @@ struct dvb_frontend *tda8044_attach(const struct tda8044_config* config, struct 
 	printk("tda8044: Detected tda8044\n");
 
 	if (state->config->irq) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+		INIT_WORK(&state->worklet, tda8044_tasklet);
+#else
 		INIT_WORK(&state->worklet, tda8044_tasklet, state);
+#endif
 		if ((ret = request_irq(state->config->irq, tda8044_irq, SA_ONESHOT, "tda8044", &state->worklet)) < 0) {
 			printk(KERN_ERR "%s: request_irq failed (%d)\n", __FUNCTION__, ret);
 			goto error;
 		}
 	}
 	/* create dvb_frontend */
-	state->frontend.ops = &state->ops;
 	state->frontend.demodulator_priv = state;
 	return &state->frontend;
 

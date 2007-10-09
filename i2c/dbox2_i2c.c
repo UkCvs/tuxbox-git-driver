@@ -33,7 +33,11 @@
 #include <linux/dma-mapping.h>
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,19)
+static void i2c_interrupt(void *);
+#else
 static void i2c_interrupt(void *, struct pt_regs *regs);
+#endif
 
 /* ------------------------------------------------------------------------- */
 
@@ -312,7 +316,11 @@ static int i2c_init(int speed)
 
 /* ------------------------------------------------------------------------- */
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,19)
+static void i2c_interrupt(void *dev_id)
+#else
 static void i2c_interrupt(void *dev_id, struct pt_regs *regs)
+#endif
 {
 	volatile immap_t *immap = (volatile immap_t *)IMAP_ADDR;
 	volatile i2c8xx_t *i2c = (volatile i2c8xx_t *)&immap->im_i2c;
@@ -669,5 +677,5 @@ module_exit(i2c_8xx_module_exit);
 MODULE_AUTHOR("Felix Domke <tmbinc@gmx.net>, Gillem <htoa@gmx.net>");
 MODULE_DESCRIPTION("I2C-Bus MPC8xx Integrated I2C");
 MODULE_LICENSE("GPL");
-MODULE_PARM(debug,"i");
+module_param(debug, uint, 0644);
 MODULE_PARM_DESC(debug, "debug level - 0 off; 1 on");

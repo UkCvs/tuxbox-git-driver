@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_pll.h,v 1.1.2.4 2005/02/08 17:31:24 carjay Exp $
+ * $Id: dbox2_pll.h,v 1.1.2.5 2007/10/09 01:03:45 carjay Exp $
  *
  * Dbox2 PLL driver collection
  *
@@ -29,6 +29,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/i2c.h>
+#include <linux/version.h>
 #include <dvb-core/dvb_frontend.h>
 struct pll_state {
 	u32 clk;

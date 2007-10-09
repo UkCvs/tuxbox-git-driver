@@ -1,5 +1,5 @@
 /*
- * $Id: main.c,v 1.4.2.5 2006/11/09 20:36:13 carjay Exp $
+ * $Id: main.c,v 1.4.2.6 2007/10/09 01:04:06 carjay Exp $
  *
  * Copyright (C) 2006 Uli Tessel <utessel@gmx.de>
  * Linux 2.6 port: Copyright (C) 2006 Carsten Juttner <carjay@gmx.net>
@@ -286,6 +286,7 @@ static void dboxide_insl(unsigned long port, void *addr, u32 count)
 	dboxide_insw(port, addr, count * 2);
 }
 
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,20)
 /* inl: read a single 32 bit word from IDE. 
    As there are no 32 Bit IDE registers, this function
    is not implemented. */
@@ -294,6 +295,7 @@ static u32 dboxide_inl(unsigned long port)
 	NOT_IMPL("inl %lx\n", port);
 	return 0xFFFFFFFF;
 }
+#endif
 
 /* outb: write a single byte to an IDE register */
 static void dboxide_outb(u8 value, unsigned long port)
@@ -326,6 +328,7 @@ static void dboxide_outw(u16 value, unsigned long port)
 	NOT_IMPL("outw %lx %x\n", port, value);
 }
 
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,20)
 /* outl: write a single 32-bit word to an IDE register. 
    As there are no 32 Bit IDE registers, this function 
    is not implemented. */
@@ -333,6 +336,7 @@ static void dboxide_outl(u32 value, unsigned long port)
 {
 	NOT_IMPL("outl %lx %lx\n", port, port);
 }
+#endif
 
 /* write several 16 bit words to an IDE register, typically to the
    data register. 
@@ -457,12 +461,14 @@ static void set_access_functions(ide_hwif_t * hwif)
 	hwif->OUTB = dboxide_outb;
 	hwif->OUTBSYNC = dboxide_outbsync;
 	hwif->OUTW = dboxide_outw;
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,20)
 	hwif->OUTL = dboxide_outl;
+	hwif->INL = dboxide_inl;
+#endif
 	hwif->OUTSW = dboxide_outsw;
 	hwif->OUTSL = dboxide_outsl;
 	hwif->INB = dboxide_inb;
 	hwif->INW = dboxide_inw;
-	hwif->INL = dboxide_inl;
 	hwif->INSW = dboxide_insw;
 	hwif->INSL = dboxide_insl;
 
@@ -816,7 +822,7 @@ static int __init dboxide_init(void)
 	/* register driver will call the scan function above, maybe immediately 
 	   when we are a module, or later when it thinks it is time to do so */
 	printk(KERN_INFO
-	       "dboxide: $Id: main.c,v 1.4.2.5 2006/11/09 20:36:13 carjay Exp $\n");
+	       "dboxide: $Id: main.c,v 1.4.2.6 2007/10/09 01:04:06 carjay Exp $\n");
 
 	ide_register_driver(dboxide_scan);
 
@@ -883,7 +889,7 @@ static int __init dboxide_init(void) {
 	int ret;
 
 	printk(KERN_INFO
-	       "dboxide: $Id: main.c,v 1.4.2.5 2006/11/09 20:36:13 carjay Exp $\n");
+	       "dboxide: $Id: main.c,v 1.4.2.6 2007/10/09 01:04:06 carjay Exp $\n");
 
 	ret = setup_cpld();
 	if (ret < 0)

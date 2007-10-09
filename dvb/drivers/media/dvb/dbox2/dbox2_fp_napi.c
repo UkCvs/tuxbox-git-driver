@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_napi.c,v 1.1.2.4 2006/01/22 12:49:10 carjay Exp $
+ * $Id: dbox2_fp_napi.c,v 1.1.2.5 2007/10/09 01:03:45 carjay Exp $
  *
  * Copyright (C) 2002-2003 Andreas Oberritter <obi@tuxbox.org>
  *
@@ -22,6 +22,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/init.h>
+#include <linux/version.h>
 #include <linux/dvb/frontend.h>
 
 #include <dbox2/dbox2_napi_core.h>

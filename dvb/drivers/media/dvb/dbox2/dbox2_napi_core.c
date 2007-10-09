@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_napi_core.c,v 1.1.2.12 2006/03/01 19:46:16 racker Exp $
+ * $Id: dbox2_napi_core.c,v 1.1.2.13 2007/10/09 01:03:45 carjay Exp $
  *
  * Dbox2 DVB Adapter driver
  *
@@ -55,6 +55,7 @@ static int tda_irq = 0;
 
 static struct dbox2_fe {
 	struct dvb_adapter *dvb_adap;
+	struct platform_device *dvb_pdevice;
 	struct i2c_adapter *i2c_adap;
 	struct dvb_frontend *dvb_fe;
 	struct pll_state pll;
@@ -140,7 +141,7 @@ static int dbox2_fe_setup_ves1820(struct dbox2_fe *state, struct ves1820_config 
 	if (!state->dvb_fe)
 		return -ENODEV;
 
-	dbox2_fp_napi_get_sec_ops(state->dvb_fe->ops);
+	dbox2_fp_napi_get_sec_ops(&state->dvb_fe->ops);
 	/* 	ves1820 use SPI (through FP) */
 	state->pll_set = dbox2_fp_napi_qam_set_freq;
 	
@@ -174,7 +175,7 @@ static int dbox2_fe_setup_ves1x93(struct dbox2_fe *state, struct ves1x93_config 
 	if (!state->dvb_fe)
 		return -ENODEV;
 
-	dbox2_fp_napi_get_sec_ops(state->dvb_fe->ops);
+	dbox2_fp_napi_get_sec_ops(&state->dvb_fe->ops);
 	/* 	ves1893 use SPI (through FP)
 		ves1993 uses I2C (through MPC) */
 	
@@ -411,8 +412,8 @@ static int dbox2_fe_probe(struct device *dev)
 	listen in on the status. Not all ucodes report errors so this might
 	be necessary */
 
-    fe_state.fe_read_status = fe_state.dvb_fe->ops->read_status;
-    fe_state.dvb_fe->ops->read_status = dbox2_napi_status_monitor;
+    fe_state.fe_read_status = fe_state.dvb_fe->ops.read_status;
+    fe_state.dvb_fe->ops.read_status = dbox2_napi_status_monitor;
 
     if ((ret = dvb_register_frontend(fe_state.dvb_adap, fe_state.dvb_fe))<0){
     	printk(KERN_ERR "dbox2_napi: error registering frontend\n");
@@ -444,15 +445,23 @@ static struct device_driver dbox2_fe_driver = {
 static int __init dbox2_napi_init(void)
 {
 	int res;
-	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.12 2006/03/01 19:46:16 racker Exp $\n");
+	printk(KERN_INFO "$Id: dbox2_napi_core.c,v 1.1.2.13 2007/10/09 01:03:45 carjay Exp $\n");
 
 	fe_state.dvb_adap = kmalloc (sizeof(struct dvb_adapter),GFP_KERNEL);
 	if (!fe_state.dvb_adap)
 		return -ENOMEM;
 
-	if ((res = dvb_register_adapter(fe_state.dvb_adap, "C-Cube AViA GTX/eNX with AViA 500/600",THIS_MODULE))<0){
-		printk(KERN_ERR "dbox2_napi: error registering adapter\n");
+	/* Usually this is the parent device, like e.g. the USB- or PCI-device. Since we are
+	   on top of the foodchain we simply create a dummy device. */
+	fe_state.dvb_pdevice = platform_device_register_simple("DVBApi", -1, NULL, 0);
+	if (!fe_state.dvb_pdevice) {
+		return -ENOMEM;
 		goto out_adap;
+	}
+	
+	if ((res = dvb_register_adapter(fe_state.dvb_adap, "C-Cube AViA GTX/eNX with AViA 500/600", THIS_MODULE, &fe_state.dvb_pdevice->dev))<0){
+		printk(KERN_ERR "dbox2_napi: error registering adapter\n");
+		goto out_plat;
 	}
 
 	fe_state.i2c_adap = i2c_get_adapter(0);
@@ -507,6 +516,8 @@ out_i2c:
 	i2c_put_adapter(fe_state.i2c_adap);
 out_dvb:
 	dvb_unregister_adapter(fe_state.dvb_adap);
+out_plat:
+	platform_device_unregister(fe_state.dvb_pdevice);
 out_adap:
 	kfree(fe_state.dvb_adap);
 
@@ -524,6 +535,7 @@ static void __exit dbox2_napi_exit(void)
 	driver_unregister(&dbox2_fe_driver);
 	dvb_unregister_adapter(fe_state.dvb_adap);
 	i2c_put_adapter(fe_state.i2c_adap);
+	platform_device_unregister(fe_state.dvb_pdevice);
 	kfree(fe_state.dvb_adap);
 }
 
@@ -535,8 +547,8 @@ MODULE_DESCRIPTION("dbox2 DVB adapter driver");
 MODULE_AUTHOR("Carsten Juttner <carjay@gmx.net>");
 MODULE_LICENSE("GPL");
 
-MODULE_PARM(tda_drv, "i");
+module_param(tda_drv, uint, 0644);
 MODULE_PARM_DESC(tda_drv, "Select demod driver for Philips 0=tda80xx 1=tda8044h (default)");
-MODULE_PARM(tda_irq, "i");
+module_param(tda_irq, uint, 0644);
 MODULE_PARM_DESC(tda_irq, " Use IRQ for TDA 0=disable (default) 1=enable");
 

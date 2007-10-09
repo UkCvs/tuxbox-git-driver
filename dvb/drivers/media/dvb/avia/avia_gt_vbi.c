@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_vbi.c,v 1.26 2003/08/01 17:31:22 obi Exp $
+ * $Id: avia_gt_vbi.c,v 1.26.4.1 2007/10/09 01:03:39 carjay Exp $
  *
  * vbi driver for AViA eNX/GTX (dbox-II-project)
  *
@@ -86,9 +86,9 @@ void avia_gt_vbi_irq(u16 irq)
 }
 #endif
 
-int __init avia_gt_vbi_init(void)
+int AVIA_GT_INIT avia_gt_vbi_init(void)
 {
-	printk(KERN_INFO "avia_gt_vbi: $Id: avia_gt_vbi.c,v 1.26 2003/08/01 17:31:22 obi Exp $\n");
+	printk(KERN_INFO "avia_gt_vbi: $Id: avia_gt_vbi.c,v 1.26.4.1 2007/10/09 01:03:39 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
@@ -109,7 +109,7 @@ int __init avia_gt_vbi_init(void)
 	return 0;
 }
 
-void __exit avia_gt_vbi_exit(void)
+void AVIA_GT_EXIT avia_gt_vbi_exit(void)
 {
 	avia_gt_vbi_stop();
 	avia_gt_vbi_reset(0);

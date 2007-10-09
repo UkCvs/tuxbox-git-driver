@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_core.c,v 1.48.2.5 2006/01/22 12:48:42 carjay Exp $
+ * $Id: avia_gt_core.c,v 1.48.2.6 2007/10/09 01:03:38 carjay Exp $
  *
  * AViA eNX/GTX core driver (dbox-II-project)
  *
@@ -96,7 +96,9 @@ void avia_gt_free_irq(unsigned short irq)
 	gt_isr_proc_list[AVIA_GT_ISR_PROC_NR(AVIA_GT_IRQ_REG(irq), AVIA_GT_IRQ_BIT(irq))] = NULL;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,19)
+static irqreturn_t avia_gt_irq(int irq, void *dev)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 static irqreturn_t avia_gt_irq(int irq, void *dev, struct pt_regs *regs)
 #else
 static void avia_gt_irq(int irq, void *dev, struct pt_regs *regs)
@@ -139,7 +141,7 @@ static int __init avia_gt_init(void)
 {
 	int result = 0;
 	
-	printk(KERN_INFO "avia_gt_core: $Id: avia_gt_core.c,v 1.48.2.5 2006/01/22 12:48:42 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_core: $Id: avia_gt_core.c,v 1.48.2.6 2007/10/09 01:03:38 carjay Exp $\n");
 
 	if (chip_type == -1) {
 		printk(KERN_INFO "avia_gt_core: autodetecting chip type... ");

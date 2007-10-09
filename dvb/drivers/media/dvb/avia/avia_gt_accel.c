@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_accel.c,v 1.19 2003/09/30 05:45:35 obi Exp $
+ * $Id: avia_gt_accel.c,v 1.19.4.1 2007/10/09 01:03:38 carjay Exp $
  *
  * AViA eNX/GTX accelerator driver (dbox-II-project)
  *
@@ -146,9 +146,9 @@ u32 avia_gt_accel_crc32(u32 buffer, u32 buffer_size, u32 seed)
 	return 0;
 }
 
-int __init avia_gt_accel_init(void)
+int AVIA_GT_INIT avia_gt_accel_init(void)
 {
-	printk(KERN_INFO "avia_gt_accel: $Id: avia_gt_accel.c,v 1.19 2003/09/30 05:45:35 obi Exp $\n");
+	printk(KERN_INFO "avia_gt_accel: $Id: avia_gt_accel.c,v 1.19.4.1 2007/10/09 01:03:38 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 	
@@ -167,7 +167,7 @@ int __init avia_gt_accel_init(void)
 	return 0;
 }
 
-void __exit avia_gt_accel_exit(void)
+void AVIA_GT_EXIT avia_gt_accel_exit(void)
 {
 	if (avia_gt_chip(ENX))
 		enx_reg_set(RSTR0, COPY, 1);

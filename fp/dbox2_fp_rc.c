@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_rc.c,v 1.23.2.3 2005/05/20 00:37:38 carjay Exp $
+ * $Id: dbox2_fp_rc.c,v 1.23.2.4 2007/10/09 01:04:05 carjay Exp $
  *
  * Copyright (C) 2002 by Florian Schirmer <jolt@tuxbox.org>
  *
@@ -233,6 +233,6 @@ void __exit dbox2_fp_rc_exit(void)
 }
 
 #ifdef MODULE
-MODULE_PARM(disable_old_rc, "i");
-MODULE_PARM(disable_new_rc, "i");
+module_param(disable_old_rc, uint, 0644);
+module_param(disable_new_rc, uint, 0644);
 #endif

@@ -21,7 +21,6 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#include <linux/config.h>
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/spinlock.h>
@@ -321,7 +320,11 @@ static int tda80xx_close_loop(struct tda80xx_state* state)
 	return tda80xx_write(state, 0x0b, buf, sizeof(buf));
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,19)
+static irqreturn_t tda80xx_irq(int irq, void *priv)
+#else
 static irqreturn_t tda80xx_irq(int irq, void *priv, struct pt_regs *pt)
+#endif
 {
 	schedule_work(priv);
 
@@ -379,9 +382,15 @@ static void tda80xx_read_status_int(struct tda80xx_state* state)
 	}
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+static void tda80xx_worklet(struct work_struct *work)
+{
+	struct tda80xx_state *state = container_of(work, struct tda80xx_state, worklet);
+#else
 static void tda80xx_worklet(void *priv)
 {
 	struct tda80xx_state *state = priv;
+#endif
 
 	tda80xx_writereg(state, 0x00, 0x04);
 	enable_irq(state->config->irq);
@@ -664,7 +673,7 @@ struct dvb_frontend* tda80xx_attach(const struct tda80xx_config* config,
 	/* setup the state */
 	state->config = config;
 	state->i2c = i2c;
-	memcpy(&state->ops, &tda80xx_ops, sizeof(struct dvb_frontend_ops));
+	memcpy(&state->frontend.ops, &tda80xx_ops, sizeof(struct dvb_frontend_ops));
 	state->spectral_inversion = INVERSION_AUTO;
 	state->code_rate = FEC_AUTO;
 	state->status = 0;
@@ -691,7 +700,11 @@ struct dvb_frontend* tda80xx_attach(const struct tda80xx_config* config,
 
 	/* setup IRQ */
 	if (state->config->irq) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
+		INIT_WORK(&state->worklet, tda80xx_worklet);
+#else
 		INIT_WORK(&state->worklet, tda80xx_worklet, state);
+#endif
 		if ((ret = request_irq(state->config->irq, tda80xx_irq, SA_ONESHOT, "tda80xx", &state->worklet)) < 0) {
 			printk(KERN_ERR "tda80xx: request_irq failed (%d)\n", ret);
 			goto error;
@@ -699,7 +712,6 @@ struct dvb_frontend* tda80xx_attach(const struct tda80xx_config* config,
 	}
 
 	/* create dvb_frontend */
-	state->frontend.ops = &state->ops;
 	state->frontend.demodulator_priv = state;
 	return &state->frontend;
 

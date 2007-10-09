@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_pig.c,v 1.40.4.2 2005/01/25 01:35:51 carjay Exp $
+ * $Id: avia_gt_pig.c,v 1.40.4.3 2007/10/09 01:03:38 carjay Exp $
  *
  * pig driver for AViA eNX/GTX (dbox-II-project)
  *
@@ -172,11 +172,11 @@ void avia_gt_pig_get_info(unsigned char pig, struct avia_gt_pig_info *info){
 	*info = pig_info[pig];
 }
 
-int __init avia_gt_pig_init(void)
+int AVIA_GT_INIT avia_gt_pig_init(void)
 {
 	u8 pig_nr;
 
-	printk(KERN_INFO "avia_gt_pig: $Id: avia_gt_pig.c,v 1.40.4.2 2005/01/25 01:35:51 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_pig: $Id: avia_gt_pig.c,v 1.40.4.3 2007/10/09 01:03:38 carjay Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
@@ -206,7 +206,7 @@ int __init avia_gt_pig_init(void)
 	return 0;
 }
 
-void __exit avia_gt_pig_exit(void)
+void AVIA_GT_EXIT avia_gt_pig_exit(void)
 {
 	avia_gt_pig_hide(0);
 

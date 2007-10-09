@@ -41,8 +41,6 @@ struct at76c651_state {
 
 	struct i2c_adapter* i2c;
 
-	struct dvb_frontend_ops ops;
-
 	const struct at76c651_config* config;
 
 	struct dvb_frontend frontend;
@@ -406,10 +404,9 @@ struct dvb_frontend* at76c651_attach(const struct at76c651_config* config,
 
 	/* finalise state setup */
 	state->revision = at76c651_readreg(state, 0x0f) & 0xfe;
-	memcpy(&state->ops, &at76c651_ops, sizeof(struct dvb_frontend_ops));
+	memcpy(&state->frontend.ops, &at76c651_ops, sizeof(struct dvb_frontend_ops));
 
 	/* create dvb_frontend */
-	state->frontend.ops = &state->ops;
 	state->frontend.demodulator_priv = state;
 	return &state->frontend;
 

@@ -1,5 +1,5 @@
 /*
- * $Id: saa7126_core.c,v 1.45.2.10 2005/12/18 18:34:40 carjay Exp $
+ * $Id: saa7126_core.c,v 1.45.2.11 2007/10/09 01:04:22 carjay Exp $
  * 
  * Philips SAA7126 digital video encoder
  *
@@ -27,12 +27,16 @@
 
 #include <linux/module.h>
 #include <linux/init.h>
+#ifdef CONFIG_DEVFS_FS
 #include <linux/devfs_fs_kernel.h>
+#endif
 #include <linux/i2c.h>
 #include <linux/slab.h>
 #include <linux/video_encoder.h>
 #include <linux/videodev.h>
 #include <linux/version.h>
+#include <linux/fs.h>
+#include <asm/uaccess.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 #include <linux/list.h>
 #include <linux/miscdevice.h>
@@ -187,9 +191,9 @@ static int saa7126_ioctl(struct inode *inode, struct file *file, unsigned int cm
 static int saa7126_open(struct inode *inode, struct file *file);
 
 static struct file_operations saa7126_fops = {
-	owner:		THIS_MODULE,
-	ioctl:		saa7126_ioctl,
-	open:		saa7126_open,
+	.owner = THIS_MODULE,
+	.ioctl = saa7126_ioctl,
+	.open  = saa7126_open,
 };
 
 
@@ -562,10 +566,12 @@ static int saa7126_detect_client(struct i2c_adapter *adapter, int address,
 	}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	#ifdef CONFIG_DEVFS_FS
 	if ((ret = devfs_mk_cdev(MKDEV(MISC_MAJOR,pmd->minor), 
 			S_IFCHR | S_IRUGO | S_IWUGO, "dbox/saa%d", encoder->id))) {
 		goto out_reg;
 	}
+	#endif
 	list_add_tail(&encoder->lhead,&encoder_list);
 #endif
 	dprintk("[%s]: chip found @ 0x%x\n", __FILE__,  client->addr);
@@ -610,7 +616,9 @@ static int saa7126_detach(struct i2c_client *client)
 	int ret;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 	struct saa7126 *encoder = (struct saa7126 *) i2c_get_clientdata(client);
+#ifdef CONFIG_DEVFS_FS
 	devfs_remove("dbox/saa%d",encoder->id);
+#endif
 	misc_deregister(encoder->mdev);
 	kfree(encoder->mdev);
 #else
@@ -984,11 +992,18 @@ static int saa7126_open (struct inode *inode, struct file *file)
 
 static struct i2c_driver i2c_driver_saa7126 = {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,16)
+	.driver = {
+	#endif
 	.owner			= THIS_MODULE,
 #endif
 	.name           = "saa7126_denc",
-	.id             = I2C_DRIVERID_SAA7126,
+	#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,16)
+	},
+	#else
 	.flags          = I2C_DF_NOTIFY,
+	#endif
+	.id             = I2C_DRIVERID_SAA7126,
 	.attach_adapter = &saa7126_attach,
 	.detach_client  = &saa7126_detach,
 	.command        = &saa7126_command
@@ -1013,10 +1028,5 @@ module_exit(saa7126_exit);
 MODULE_DESCRIPTION("SAA7126 digital PAL/NTSC encoder");
 MODULE_AUTHOR("Gillem <htoa@gmx.net>, Andreas Oberritter <obi@saftware.de>");
 MODULE_LICENSE("GPL");
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-module_param(mode,int,0);
-module_param(ntsc,int,0);
-#else
-MODULE_PARM(mode,"i");
-MODULE_PARM(ntsc,"i");
-#endif
+module_param(mode, uint, 0644);
+module_param(ntsc, uint, 0644);
