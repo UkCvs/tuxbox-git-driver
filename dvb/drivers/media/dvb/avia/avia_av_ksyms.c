@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_ksyms.c,v 1.5 2004/07/03 01:18:36 carjay Exp $
+ * $Id: avia_av_ksyms.c,v 1.5.2.1 2007/11/24 14:57:22 seife Exp $
  *
  * AViA 500/600 core driver (dbox-II-project)
  *
@@ -42,6 +42,7 @@ EXPORT_SYMBOL(avia_av_play_state_set_audio);
 EXPORT_SYMBOL(avia_av_play_state_set_video);
 EXPORT_SYMBOL(avia_av_stream_type_set);
 EXPORT_SYMBOL(avia_av_sync_mode_set);
+EXPORT_SYMBOL(avia_av_sync_mode_get);
 EXPORT_SYMBOL(avia_av_audio_pts_to_stc);
 EXPORT_SYMBOL(avia_av_register_video_event_handler);
 EXPORT_SYMBOL(avia_av_unregister_video_event_handler);

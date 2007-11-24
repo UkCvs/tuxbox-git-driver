@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_core.c,v 1.98.2.11 2007/11/24 12:08:13 seife Exp $
+ * $Id: avia_av_core.c,v 1.98.2.12 2007/11/24 14:57:22 seife Exp $
  *
  * AViA 500/600 core driver (dbox-II-project)
  *
@@ -120,6 +120,10 @@ static u16 sample_rate;
 static u8 stream_type_audio;
 static u8 stream_type_video;
 static u8 sync_mode = AVIA_AV_SYNC_MODE_AV;
+/* when audio or video is stopped, sync mode is set to SYNC_MODE_NONE (why?)
+   to be able to reset the sync mode to the previous mode when the device
+   is started again, we need to remember the original mode (before stop) */
+static u8 saved_sync_mode = AVIA_AV_SYNC_MODE_AV;
 static void (*video_event_handler)(u16 w, u16 h, u16 r);
 static u16 video_width;
 static u16 video_height;
@@ -1371,6 +1375,9 @@ int avia_av_play_state_set_video(const u8 new_play_state)
 //			avia_av_cmd(SelectStream, 0x03 - bypass_mode, pid_audio);
 			avia_av_cmd(SelectStream, 0x00, pid_video);
 		}
+		/* reset the saved sync_mode from before PLAY_STATE_STOPPED */
+		play_state_video = AVIA_AV_PLAY_STATE_PLAYING;
+		avia_av_sync_mode_set(saved_sync_mode);
 		break;
 
 	case AVIA_AV_PLAY_STATE_STOPPED:
@@ -1504,14 +1511,24 @@ int avia_av_sync_mode_set(const u8 new_sync_mode)
 		(new_sync_mode != AVIA_AV_SYNC_MODE_AV))
 		return -EINVAL;
 
-	if ((play_state_video != AVIA_AV_PLAY_STATE_STOPPED) || (play_state_audio != AVIA_AV_PLAY_STATE_STOPPED)) {
-		avia_av_dram_write(AV_SYNC_MODE, new_sync_mode);
+	if (new_sync_mode == AVIA_AV_SYNC_MODE_NONE &&	/* remember the sync_mode for the device restart  */
+		sync_mode != AVIA_AV_SYNC_MODE_NONE)	/* but only if it was not already "sync_mode_none */
+		saved_sync_mode = sync_mode;
+
+	if ((play_state_video != AVIA_AV_PLAY_STATE_STOPPED) ||
+	    (play_state_audio != AVIA_AV_PLAY_STATE_STOPPED)) {
+		avia_av_dram_write(AV_SYNC_MODE, (u8)new_sync_mode);
 		sync_mode = new_sync_mode;
 	} else {
 		printk(KERN_WARNING "avia_av_sync_mode_set: tried to set mode while inactive\n");
 	}
 
 	return 0;
+}
+
+int avia_av_sync_mode_get(void)
+{
+	return (int)sync_mode;
 }
 
 int avia_av_set_audio_attenuation(const u8 new_att)
@@ -1543,6 +1560,7 @@ int avia_av_audio_pts_to_stc(const struct pes_header *pes)
 
 	avia_av_sync_mode_set(AVIA_AV_SYNC_MODE_NONE);
 	avia_av_set_stc(pts >> 1, (pts & 1) << 15);
+	/* why not set this to saved_sync_mode? */
 	avia_av_sync_mode_set(AVIA_AV_SYNC_MODE_VIDEO);
 
 	return 0;
@@ -1660,7 +1678,7 @@ static int __init avia_av_core_init(void)
 	avia_info.dram_start = res->start;
 #endif
 
-	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.11 2007/11/24 12:08:13 seife Exp $\n");
+	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.12 2007/11/24 14:57:22 seife Exp $\n");
 
 	if (tv_standard != AVIA_AV_VIDEO_SYSTEM_PAL)
 		tv_standard = AVIA_AV_VIDEO_SYSTEM_NTSC;
