@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_core.c,v 1.98.2.10 2007/10/09 21:52:20 carjay Exp $
+ * $Id: avia_av_core.c,v 1.98.2.11 2007/11/24 12:08:13 seife Exp $
  *
  * AViA 500/600 core driver (dbox-II-project)
  *
@@ -492,10 +492,10 @@ static void avia_av_interrupt(int irq, void *vdev, struct pt_regs *regs)
 		DBG_IRQ("avia_av: IRQ_BUF_F.\n");
 		avia_av_dram_write(BUFF_INT_SRC, 0);
 	}
-	if (status & IRQ_UND)
+	if (status & IRQ_UND) {
 		DBG_IRQ("avia_av: IRQ_UND.\n");
 		avia_av_dram_write(UND_INT_SRC, 0);
-
+	}
 	if (status & IRQ_ERR){
 		u32 src = avia_av_dram_read(ERR_INT_SRC) & 0x0f;
 		DBG_IRQ("avia_av: IRQ_ERR.\n");
@@ -1609,7 +1609,7 @@ int avia_av_wdt_thread(void *arg)
 		if (avia_av_dram_read(PROC_STATE) == 0x04) {
 			if (play_state_video == AVIA_AV_PLAY_STATE_PLAYING) {
 				SUM_DECODED = avia_av_dram_read(N_DECODED);
-				if ((SUM_DECODED == 0x00) | (SUM_DECODED == LAST_SUM_DECODED)) {
+				if ((SUM_DECODED == 0x00) || (SUM_DECODED == LAST_SUM_DECODED)) {
 					dprintk("avia_av_wdt_thread: video decoding stopped ==> restart\n");
 					avia_av_cmd(SelectStream, 0x00, pid_video);
 				}
@@ -1617,7 +1617,7 @@ int avia_av_wdt_thread(void *arg)
 			}
 			if (play_state_audio == AVIA_AV_PLAY_STATE_PLAYING) {
 				SUM_AUD_DECODED = avia_av_dram_read(N_AUD_DECODED);
-				if ((SUM_AUD_DECODED == 0x00) | (SUM_AUD_DECODED == LAST_SUM_AUD_DECODED)) {
+				if ((SUM_AUD_DECODED == 0x00) || (SUM_AUD_DECODED == LAST_SUM_AUD_DECODED)) {
 					dprintk("avia_av_wdt_thread: audio decoding stopped ==> restart\n");
 					avia_av_cmd(SelectStream, 0x03 - bypass_mode, pid_audio);
 				}
@@ -1660,7 +1660,7 @@ static int __init avia_av_core_init(void)
 	avia_info.dram_start = res->start;
 #endif
 
-	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.10 2007/10/09 21:52:20 carjay Exp $\n");
+	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.11 2007/11/24 12:08:13 seife Exp $\n");
 
 	if (tv_standard != AVIA_AV_VIDEO_SYSTEM_PAL)
 		tv_standard = AVIA_AV_VIDEO_SYSTEM_NTSC;
