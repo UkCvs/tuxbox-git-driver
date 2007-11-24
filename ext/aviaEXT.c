@@ -2,7 +2,7 @@
  * Extension device for non-API covered stuff for the Avia
  * (hopefully will disappear at some point)
  *
- * $Id: aviaEXT.c,v 1.4.2.2 2006/12/08 23:19:49 carjay Exp $
+ * $Id: aviaEXT.c,v 1.4.2.3 2007/11/24 15:10:17 seife Exp $
  *
  * Copyright (C) 2004,2006 Carsten Juttner <carjay@gmx.net>
  *
@@ -79,6 +79,15 @@ static int handle_gbus_write(struct cmd_gbus *p)
 	return 0;
 }
 
+static int handle_avsync_ioctl(unsigned int arg)
+{
+	if ((arg != AVIA_AV_SYNC_MODE_NONE) && (arg != AVIA_AV_SYNC_MODE_AUDIO) &&
+	    (arg != AVIA_AV_SYNC_MODE_VIDEO) && (arg != AVIA_AV_SYNC_MODE_AV))
+		return -EINVAL;
+
+	return avia_av_sync_mode_set((char)arg);
+}
+
 static int handle_mem_ioctl(unsigned long arg)
 {
 	unsigned int res = 0;
@@ -144,10 +153,30 @@ static int aviaEXT_ioctl(struct inode *inode, struct file *file,
 		avia_gt_set_playback_mode(arg);
 		break;
 
+	case AVIA_EXT_VIDEO_DIGEST:
+		/* 2006-05-15 rasc */
+ 		avia_av_cmd (Digest,
+			((struct videoDigest *) arg)->x,
+			((struct videoDigest *) arg)->y,
+			((struct videoDigest *) arg)->skip,
+			((struct videoDigest *) arg)->decimation,
+			((struct videoDigest *) arg)->threshold,
+			((struct videoDigest *) arg)->pictureID);
+		break;
+
 	case AVIA_EXT_MEM_CMD:
 		return handle_mem_ioctl(arg);
 		break;
-	
+
+	case AVIA_EXT_AVIA_AVSYNC_GET:
+		if (put_user(avia_av_sync_mode_get(), (int *)arg))
+			return -EFAULT;
+		break;
+
+	case AVIA_EXT_AVIA_AVSYNC_SET:
+		return handle_avsync_ioctl(arg);
+		break;
+
 	default:
 		printk (KERN_WARNING "aviaEXT: unknown ioctl %08x\n",cmd);
 		break;

@@ -29,4 +29,10 @@ aviaEXT:
 		AVIA_EXT_AVIA_PLAYBACK_MODE_GET	(*int)
 			received value reflects the settings above (0= dual pes mode, 1 = spts mode)
 
+		AVIA_EXT_AVIA_AVSYNC_SET (int)
+			see avia_av.h for possible values
+
+		AVIA_EXT_AVIA_AVSYNC_GET (*int)
+			see AVIA_EXT_AVIA_AVSYNC_SET
+
 	for testing there is a tool in "/apps/tuxbox/tools/misc" called - surprise - aviaext ;)

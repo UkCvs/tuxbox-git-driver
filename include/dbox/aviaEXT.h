@@ -2,7 +2,7 @@
  * Extension device for non-API covered stuff for the Avia
  * (hopefully will disappear at some point)
  *
- * $Id: aviaEXT.h,v 1.2.2.1 2006/12/08 23:20:17 carjay Exp $
+ * $Id: aviaEXT.h,v 1.2.2.2 2007/11/24 15:10:17 seife Exp $
  *
  * Copyright (C) 2004 Carsten Juttner <carjay@gmx.met>
  *
@@ -42,8 +42,26 @@ extern void avia_gt_set_playback_mode(int);
 #define AVIA_EXT_AVIA_PLAYBACK_MODE_SET	_IO(AVIA_EXT_MAGIC, 63) /* int */
 #define AVIA_EXT_AVIA_PLAYBACK_MODE_GET	_IO(AVIA_EXT_MAGIC, 64) /* int */
 
+/*
+  AVIA DIGEST mode
+  2006-05-09 rasc  (re-implement from 2001)
+*/
+
+typedef
+struct videoDigest {
+        int16_t x;
+        int16_t y;
+        int32_t skip;
+        int16_t decimation;
+        int16_t threshold;
+        int16_t pictureID;
+} videoDigest_t;
+
+
+#define AVIA_EXT_VIDEO_DIGEST _IO(AVIA_EXT_MAGIC, 65) /* int */
+
 /* debug stuff */
-#define AVIA_EXT_MEM_CMD _IO(AVIA_EXT_MAGIC, 65) /* unsigned int */
+#define AVIA_EXT_MEM_CMD _IO(AVIA_EXT_MAGIC, 66) /* unsigned int */
 
 struct cmdheader {
 	unsigned int cmd;
@@ -58,5 +76,9 @@ struct cmd_gbus {
 	char end;	/* last gbus register to read */
 	unsigned int *buffer; /* buffer in userspace */
 };
+
+/* set / get the avia av sync mode */
+#define AVIA_EXT_AVIA_AVSYNC_SET _IO(AVIA_EXT_MAGIC, 67) /* int */
+#define AVIA_EXT_AVIA_AVSYNC_GET _IO(AVIA_EXT_MAGIC, 68) /* int */
 
 #endif /* AVIAEXT_H */
