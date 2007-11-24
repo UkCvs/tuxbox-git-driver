@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_rc.c,v 1.23.2.4 2007/10/09 01:04:05 carjay Exp $
+ * $Id: dbox2_fp_rc.c,v 1.23.2.5 2007/11/24 11:32:37 seife Exp $
  *
  * Copyright (C) 2002 by Florian Schirmer <jolt@tuxbox.org>
  *
@@ -38,6 +38,8 @@ enum {
 static struct input_dev *rc_input_dev;
 static int disable_old_rc;
 static int disable_new_rc;
+static int philips_rc_patch;
+static u16 old_rc_code;
 
 static struct rc_key {
 	unsigned long code;
@@ -175,6 +177,15 @@ static void dbox2_fp_new_rc_queue_handler(u8 queue_nr)
 	if (disable_new_rc)
 		return;
 
+	/* this is evil and will lose keypresses, it also slows down
+	   the RC. OTOH it gets rid of the random "7"/"8"- events on
+	   some Philips boxes.
+	 */
+	if (philips_rc_patch && (rc_code & 0x1f)!=old_rc_code) {
+		old_rc_code=(rc_code & 0x1f);
+		return;
+	}
+
 	for (key = rc_key_map; key < &rc_key_map[RC_KEY_COUNT]; key++) {
 		if (key->value_new == (rc_code & 0x1f)) {
 			if (timer_pending(&keyup_timer)) {
@@ -235,4 +246,5 @@ void __exit dbox2_fp_rc_exit(void)
 #ifdef MODULE
 module_param(disable_old_rc, uint, 0644);
 module_param(disable_new_rc, uint, 0644);
+module_param(philips_rc_patch, uint, 0644);
 #endif
