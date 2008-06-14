@@ -45,7 +45,11 @@
 
 /* HACK HACK HACK */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,10)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 #include <asm/commproc.h>
+#else
+#include <asm/cpm1.h>
+#endif
 #else
 #include <commproc.h>
 #endif

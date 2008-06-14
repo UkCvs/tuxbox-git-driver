@@ -703,7 +703,7 @@ static void dvb_net_ule( struct net_device *dev, const u8 *buf, size_t buf_len )
 							drop = 1;
 						/* else: destination address matches the MAC address of our receiver device */
 					}
-					/* else: promiscious mode; pass everything up the stack */
+					/* else: promiscuous mode; pass everything up the stack */
 
 					if (drop) {
 #ifdef ULE_DEBUG
@@ -1271,10 +1271,21 @@ static struct net_device_stats * dvb_net_get_stats(struct net_device *dev)
 	return &((struct dvb_net_priv*) dev->priv)->stats;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,25)
+static const struct header_ops dvb_header_ops = {
+	.create		= eth_header,
+	.parse		= eth_header_parse,
+	.rebuild	= eth_rebuild_header,
+};
+#endif
+
 static void dvb_net_setup(struct net_device *dev)
 {
 	ether_setup(dev);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,25)
+	dev->header_ops		= &dvb_header_ops;
+#endif
 	dev->open		= dvb_net_open;
 	dev->stop		= dvb_net_stop;
 	dev->hard_start_xmit	= dvb_net_tx;
@@ -1283,7 +1294,9 @@ static void dvb_net_setup(struct net_device *dev)
 	dev->set_mac_address    = dvb_net_set_mac;
 	dev->mtu		= 4096;
 	dev->mc_count           = 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 	dev->hard_header_cache  = NULL;
+#endif
 	dev->flags |= IFF_NOARP;
 }
 

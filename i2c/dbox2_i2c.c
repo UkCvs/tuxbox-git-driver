@@ -27,7 +27,11 @@
 #include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/version.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 #include <asm/commproc.h>
+#else
+#include <asm/cpm1.h>
+#endif
 #include <asm/pgtable.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 #include <linux/dma-mapping.h>
@@ -605,11 +609,13 @@ static int dbox2_i2c_xfer_safe(struct i2c_adapter *i2c_adap,
 	return dbox2_i2c_xfer(i2c_adap, msgs, num);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 static int algo_control(struct i2c_adapter *adapter, unsigned int cmd,
 			unsigned long arg)
 {
 	return 0;
 }
+#endif
 
 static u32 p8xx_func(struct i2c_adapter *adap)
 {
@@ -622,7 +628,9 @@ static struct i2c_algorithm i2c_8xx_algo = {
 	.id = I2C_ALGO_EXP,
 #endif
 	.master_xfer = dbox2_i2c_xfer_safe,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 	.algo_control = algo_control,
+#endif
 	.functionality = p8xx_func,
 };
 

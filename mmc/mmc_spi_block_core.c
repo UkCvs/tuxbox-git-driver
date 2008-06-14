@@ -2,7 +2,7 @@
 #include <linux/timer.h>
 
 /*
- * $Id: mmc_spi_block_core.c,v 1.1.2.3 2007/10/12 20:59:25 carjay Exp $
+ * $Id: mmc_spi_block_core.c,v 1.1.2.4 2008/06/14 19:04:55 seife Exp $
  *
  * Block device driver for a MMC/SD card in SPI mode using GPIOs
  * Gendisk routines
@@ -125,13 +125,24 @@ static void mmc_spi_request(struct request_queue *q)
 			}
 			spin_lock_irq(q->queue_lock);
 		}
+/* i am not too certain, that the >2.6.25 code is correct, but i have no hardware
+   to test it */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 		ret = end_that_request_chunk(req, success, nr_sectors * hd_hardsectsizes[0]);
+#else
+		ret = blk_end_request(req, success ? 0 : -EIO, nr_sectors * hd_hardsectsizes[0]);
+#endif
 		if (!ret) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 			blkdev_dequeue_request(req);
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,15)
 			end_that_request_last(req);
 #else
 			end_that_request_last(req, success);
+#endif
+#else
+			if (__blk_end_request(req, success ? 0 : -EIO, 0))
+				BUG();
 #endif
 		}
 	}
@@ -425,7 +436,7 @@ static int gendisk_fini(struct gendisk *gd)
 static int mmc_spi_probe(struct platform_device *pdev)
 {
 	int rc;
-	printk("$Id: mmc_spi_block_core.c,v 1.1.2.3 2007/10/12 20:59:25 carjay Exp $\n");
+	printk("$Id: mmc_spi_block_core.c,v 1.1.2.4 2008/06/14 19:04:55 seife Exp $\n");
 
 	rc = mmc_spi_hardware_init();
 	if (rc != 0) {

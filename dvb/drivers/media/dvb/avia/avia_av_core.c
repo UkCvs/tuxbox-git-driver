@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_core.c,v 1.98.2.12 2007/11/24 14:57:22 seife Exp $
+ * $Id: avia_av_core.c,v 1.98.2.13 2008/06/14 19:04:46 seife Exp $
  *
  * AViA 500/600 core driver (dbox-II-project)
  *
@@ -45,7 +45,11 @@
 #include <asm/hardirq.h>
 #include <asm/irq.h>
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,25)
+#include <asm/cpm1.h>
+#else
 #include <asm/commproc.h>
+#endif
 #include <asm/io.h>
 #include <asm/uaccess.h>
 
@@ -1678,7 +1682,7 @@ static int __init avia_av_core_init(void)
 	avia_info.dram_start = res->start;
 #endif
 
-	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.12 2007/11/24 14:57:22 seife Exp $\n");
+	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.13 2008/06/14 19:04:46 seife Exp $\n");
 
 	if (tv_standard != AVIA_AV_VIDEO_SYSTEM_PAL)
 		tv_standard = AVIA_AV_VIDEO_SYSTEM_NTSC;
