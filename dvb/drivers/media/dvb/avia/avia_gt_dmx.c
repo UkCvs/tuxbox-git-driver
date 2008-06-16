@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_dmx.c,v 1.210.2.7 2007/10/09 01:03:38 carjay Exp $
+ * $Id: avia_gt_dmx.c,v 1.210.2.8 2008/06/16 10:15:00 seife Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -70,7 +70,7 @@ static struct avia_gt_ucode_info *ucode_info;
 static struct avia_gt_dmx_queue *msgqueue;
 static int force_stc_reload;
 static sAviaGtDmxQueue queue_list[AVIA_GT_DMX_QUEUE_COUNT];
-static int hw_sections = 1;
+static int hw_sections;
 static int no_watchdog;
 
 enum {
@@ -1432,7 +1432,7 @@ int AVIA_GT_INIT avia_gt_dmx_init(void)
 	u32 queue_addr;
 	u8 queue_nr;
 	
-	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.210.2.7 2007/10/09 01:03:38 carjay Exp $\n");;
+	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.210.2.8 2008/06/16 10:15:00 seife Exp $\n");;
 
 	gt_info = avia_gt_get_info();
 	ucode_info = avia_gt_dmx_get_ucode_info();
@@ -1622,5 +1622,5 @@ MODULE_PARM_DESC(ucode, "path to risc microcode");
 MODULE_PARM(hw_sections, "i");
 MODULE_PARM(no_watchdog, "i");
 #endif
-MODULE_PARM_DESC(hw_sections, "hw_sections: 0=disabled, 1=enabled if possible (default)");
+MODULE_PARM_DESC(hw_sections, "hw_sections: 0=disabled (default), 1=enabled if possible");
 MODULE_PARM_DESC(no_watchdog, "0: wd enabled, 1: wd disabled");
