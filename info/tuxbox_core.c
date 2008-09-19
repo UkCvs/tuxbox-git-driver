@@ -18,7 +18,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * $Id: tuxbox_core.c,v 1.5 2003/03/05 09:51:20 waldi Exp $
+ * $Id: tuxbox_core.c,v 1.5.4.1 2008/09/19 22:43:42 seife Exp $
  */
 
 #include <linux/module.h>
@@ -69,12 +69,18 @@ int tuxbox_proc_create_entry (const char *name, mode_t mode, struct proc_dir_ent
 
 static int tuxbox_proc_create (void)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 	if (!proc_bus) {
 		printk("tuxbox: /proc/bus does not exist\n");
 		return -ENOENT;
 	}
+#endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 	if (!(proc_bus_tuxbox = proc_mkdir ("tuxbox", proc_bus)))
+#else
+	if (!(proc_bus_tuxbox = proc_mkdir ("bus/tuxbox", NULL)))
+#endif
 		goto error;
 
 	if (tuxbox_proc_create_entry ("capabilities", 0444, proc_bus_tuxbox, &tuxbox_capabilities, &tuxbox_proc_read, NULL))
@@ -103,7 +109,11 @@ static void tuxbox_proc_destroy (void)
 	remove_proc_entry ("submodel", proc_bus_tuxbox);
 	remove_proc_entry ("vendor", proc_bus_tuxbox);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 	remove_proc_entry ("tuxbox", proc_bus);
+#else
+	remove_proc_entry ("bus/tuxbox", NULL);
+#endif
 }
 
 int __init tuxbox_init (void)

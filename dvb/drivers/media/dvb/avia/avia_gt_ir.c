@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_ir.c,v 1.30.4.5 2005/02/09 04:35:37 carjay Exp $
+ * $Id: avia_gt_ir.c,v 1.30.4.6 2008/09/19 22:43:42 seife Exp $
  * 
  * AViA eNX/GTX ir driver (dbox-II-project)
  *
@@ -30,13 +30,18 @@
 #include <linux/sched.h>
 #include <linux/vmalloc.h>
 #include <linux/wait.h>
+#include <linux/version.h>
 
 #include "avia_gt.h"
 #include "avia_gt_ir.h"
 
 DECLARE_WAIT_QUEUE_HEAD(rx_wait);
 DECLARE_WAIT_QUEUE_HEAD(tx_wait);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 DECLARE_MUTEX(ir_sem);
+#else
+DEFINE_MUTEX(ir_sem);
+#endif
 
 static struct ir_client clientlist[2]; /* max. 2 clients (RX,TX) */
 
@@ -286,19 +291,31 @@ int avia_gt_ir_register(struct ir_client *irc){
 	if (!irc)
 		return -EINVAL;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 	if (down_interruptible(&ir_sem))
+#else
+	if (mutex_lock_interruptible(&ir_sem))
+#endif
 		return -ERESTARTSYS;
 
 	if ((irc->flags & (clientlist[0].flags | clientlist[1].flags))||
 			(clientlist[0].flags!=0 && clientlist[1].flags!=0)){
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 		up(&ir_sem);
+#else
+		mutex_unlock(&ir_sem);
+#endif
 		return -EUSERS;
 	}
 
 	if (irc->flags & AVIA_GT_IR_RX) {
 		rx_buffer = (sAviaGtIrPulse*) vmalloc (RX_MAX * sizeof (sAviaGtIrPulse));
 		if (!rx_buffer){
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 			up(&ir_sem);
+#else
+			mutex_unlock(&ir_sem);
+#endif
 			return -ENOMEM;
 		}
 		memset (rx_buffer, 0, RX_MAX * sizeof(sAviaGtIrPulse));
@@ -306,7 +323,11 @@ int avia_gt_ir_register(struct ir_client *irc){
 			printk(KERN_ERR "avia_gt_ir: unable to get rx interrupt\n");
 			kfree(rx_buffer);
 			rx_buffer = NULL;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 			up(&ir_sem);
+#else
+			mutex_unlock(&ir_sem);
+#endif
 			return -EIO;
 		}
 	}
@@ -320,7 +341,11 @@ int avia_gt_ir_register(struct ir_client *irc){
 				vfree (rx_buffer);
 				rx_buffer = NULL;
 			}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 			up(&ir_sem);
+#else
+			mutex_unlock(&ir_sem);
+#endif
 			return -EIO;
 		}
 	}
@@ -339,17 +364,29 @@ int avia_gt_ir_register(struct ir_client *irc){
 		clientnr = 1;
 
 	clientlist[clientnr] = *irc;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 	up(&ir_sem);
+#else
+	mutex_unlock(&ir_sem);
+#endif
 	return clientnr;
 }
 
 int avia_gt_ir_unregister(int ir_handle){
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 	if (down_interruptible(&ir_sem))
+#else
+	if (mutex_lock_interruptible(&ir_sem))
+#endif
 		return -ERESTARTSYS;
 
 	if ( (ir_handle>1) || (!clientlist[ir_handle].flags)){
 		printk ("avia_gt_ir: invalid client handle");
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 		up(&ir_sem);
+#else
+		mutex_unlock(&ir_sem);
+#endif
 		return -EIO;
 	}
 
@@ -363,13 +400,17 @@ int avia_gt_ir_unregister(int ir_handle){
 	avia_gt_ir_reset(0);
 
 	clientlist[ir_handle].flags=0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 	up(&ir_sem);
+#else
+	mutex_unlock(&ir_sem);
+#endif
 	return 0;
 }
 
 int avia_gt_ir_init(void)
 {
-	printk(KERN_INFO "avia_gt_ir: $Id: avia_gt_ir.c,v 1.30.4.5 2005/02/09 04:35:37 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_ir: $Id: avia_gt_ir.c,v 1.30.4.6 2008/09/19 22:43:42 seife Exp $\n");
 
 	do_gettimeofday(&last_timestamp);
 	

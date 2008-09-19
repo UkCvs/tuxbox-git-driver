@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_proc.c,v 1.14.2.4 2006/01/22 12:48:42 carjay Exp $
+ * $Id: avia_av_proc.c,v 1.14.2.5 2008/09/19 22:43:42 seife Exp $
  *
  * AViA 500/600 proc driver (dbox-II-project)
  *
@@ -29,6 +29,7 @@
 #include <linux/module.h>
 #include <linux/proc_fs.h>
 #include <linux/vmalloc.h>
+#include <linux/version.h>
 
 #include "avia_av.h"
 #include "avia_av_proc.h"
@@ -130,28 +131,41 @@ int avia_av_proc_init(void)
 	struct proc_dir_entry *proc_bus_avia_dram;
 	struct proc_dir_entry *proc_bus_avia_debug;
 
-	printk("avia_av_proc: $Id: avia_av_proc.c,v 1.14.2.4 2006/01/22 12:48:42 carjay Exp $\n");
+	printk("avia_av_proc: $Id: avia_av_proc.c,v 1.14.2.5 2008/09/19 22:43:42 seife Exp $\n");
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 	if (!proc_bus) {
 		printk("avia_av_proc: /proc/bus does not exist");
 		return -ENOENT;
 	}
 
 	proc_bus_avia = create_proc_read_entry("bitstream", 0, proc_bus, &avia_av_proc_read_bitstream_settings, NULL);
+#else
+	proc_bus_avia = create_proc_read_entry("bus/bitstream", 0, NULL, &avia_av_proc_read_bitstream_settings, NULL);
+#endif
+
 	if (!proc_bus_avia) {
 		printk("avia_av_proc: could not create /proc/bus/bitstream");
 		return -ENOENT;
 	}
 	proc_bus_avia->owner = THIS_MODULE;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 	proc_bus_avia_dram = create_proc_read_entry("avia_dram", 0, proc_bus, &avia_av_proc_read_dram, NULL);
+#else
+	proc_bus_avia_dram = create_proc_read_entry("bus/avia_dram", 0, NULL, &avia_av_proc_read_dram, NULL);
+#endif
 	if (!proc_bus_avia_dram) {
 		printk("avia_av_proc: could not create /proc/bus/avia_dram");
 		return -ENOENT;
 	}
 	proc_bus_avia_dram->owner = THIS_MODULE;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 	proc_bus_avia_debug = create_proc_read_entry("avia_debug", 0, proc_bus, &avia_av_proc_read_debug, NULL);
+#else
+	proc_bus_avia_debug = create_proc_read_entry("bus/avia_debug", 0, NULL, &avia_av_proc_read_debug, NULL);
+#endif
 	if (!proc_bus_avia_debug) {
 		printk("avia_av_proc: could not create /proc/bus/avia_debug");
 		return -ENOENT;
@@ -163,9 +177,15 @@ int avia_av_proc_init(void)
 
 void avia_av_proc_exit(void)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 	remove_proc_entry("avia_dram", proc_bus);
 	remove_proc_entry("bitstream", proc_bus);
 	remove_proc_entry("avia_debug", proc_bus);
+#else
+	remove_proc_entry("bus/avia_dram", NULL);
+	remove_proc_entry("bus/bitstream", NULL);
+	remove_proc_entry("bus/avia_debug", NULL);
+#endif
 }
 
 #if defined(STANDALONE)
