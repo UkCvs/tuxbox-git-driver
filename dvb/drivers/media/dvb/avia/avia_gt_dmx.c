@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_dmx.c,v 1.210.2.8 2008/06/16 10:15:00 seife Exp $
+ * $Id: avia_gt_dmx.c,v 1.210.2.9 2008/11/23 10:26:25 seife Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -386,7 +386,9 @@ static u32 avia_gt_dmx_queue_data_get(struct avia_gt_dmx_queue *queue, void *des
 	q = &queue_list[queue->index];
 
 	if (count > bytes_avail) {
-		printk(KERN_ERR "avia_gt_dmx: queue_data_move: %d bytes requested, %d available\n", count, bytes_avail);
+		if (printk_ratelimit())
+			printk(KERN_ERR "avia_gt_dmx: queue_data_move: queue %d: %d bytes requested, %d available\n",
+					queue->index, count, bytes_avail);
 		count = bytes_avail;
 	}
 
@@ -1432,7 +1434,7 @@ int AVIA_GT_INIT avia_gt_dmx_init(void)
 	u32 queue_addr;
 	u8 queue_nr;
 	
-	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.210.2.8 2008/06/16 10:15:00 seife Exp $\n");;
+	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.210.2.9 2008/11/23 10:26:25 seife Exp $\n");;
 
 	gt_info = avia_gt_get_info();
 	ucode_info = avia_gt_dmx_get_ucode_info();
