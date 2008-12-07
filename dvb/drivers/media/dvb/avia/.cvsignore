@@ -4,3 +4,4 @@ avia_gt_config.h
 *.ko
 *o.cmd
 *.mod.c
+modules.order

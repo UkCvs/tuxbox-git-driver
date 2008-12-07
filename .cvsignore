@@ -2,3 +2,4 @@
 .config
 .tmp_versions
 Module.symvers
+modules.order
