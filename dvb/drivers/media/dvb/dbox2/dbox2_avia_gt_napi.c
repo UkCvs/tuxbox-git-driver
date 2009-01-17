@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_avia_gt_napi.c,v 1.1.2.4 2007/10/09 01:03:45 carjay Exp $
+ * $Id: dbox2_avia_gt_napi.c,v 1.1.2.5 2009/01/17 07:09:44 seife Exp $
  * 
  * AViA GTX/eNX demux dvb api driver (dbox-II-project)
  *
@@ -819,7 +819,7 @@ int __init avia_gt_napi_init(void)
 {
 	int result;
 
-	printk(KERN_INFO "avia_gt_napi: $Id: dbox2_avia_gt_napi.c,v 1.1.2.4 2007/10/09 01:03:45 carjay Exp $\n");
+	printk(KERN_INFO "avia_gt_napi: $Id: dbox2_avia_gt_napi.c,v 1.1.2.5 2009/01/17 07:09:44 seife Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
@@ -932,7 +932,7 @@ init_failed_free_section:
 	return result;
 }
 
-void __exit avia_gt_napi_exit(void)
+void avia_gt_napi_exit(void)
 {
 	if (ca_dev)
 		dvb_unregister_device(ca_dev);

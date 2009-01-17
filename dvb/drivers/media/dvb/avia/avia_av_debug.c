@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_debug.c,v 1.1.2.1 2006/12/05 20:54:52 carjay Exp $
+ * $Id: avia_av_debug.c,v 1.1.2.2 2009/01/17 07:09:44 seife Exp $
  *
  * AViA 500/600 debug (dbox-II-project)
  *
@@ -35,6 +35,7 @@ char *syncmode2string(unsigned int mode)
 	CASESTRING(AVIA_AV_SYNC_MODE_AUDIO);
 	CASESTRING(AVIA_AV_SYNC_MODE_VIDEO);
 	CASESTRING(AVIA_AV_SYNC_MODE_AV);
+	case 1:  return "enable last syncmode";
 	default: return "unknown syncmode";
 	}
 }

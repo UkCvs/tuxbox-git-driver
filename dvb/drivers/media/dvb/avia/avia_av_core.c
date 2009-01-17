@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_core.c,v 1.98.2.13 2008/06/14 19:04:46 seife Exp $
+ * $Id: avia_av_core.c,v 1.98.2.14 2009/01/17 07:09:44 seife Exp $
  *
  * AViA 500/600 core driver (dbox-II-project)
  *
@@ -1506,9 +1506,12 @@ int avia_av_stream_type_set(const u8 new_stream_type_video, const u8 new_stream_
 }
 
 
-int avia_av_sync_mode_set(const u8 new_sync_mode)
+int avia_av_sync_mode_set(u8 new_sync_mode)
 {
 	DBG_SETUP("avia_av_sync_mode_set: %s\n", syncmode2string(new_sync_mode));
+	if (new_sync_mode == 1)	/* magic "enable last sync mode" parameter. */
+		new_sync_mode = saved_sync_mode;
+
 	if ((new_sync_mode != AVIA_AV_SYNC_MODE_NONE) &&
 		(new_sync_mode != AVIA_AV_SYNC_MODE_AUDIO) &&
 		(new_sync_mode != AVIA_AV_SYNC_MODE_VIDEO) &&
@@ -1682,7 +1685,7 @@ static int __init avia_av_core_init(void)
 	avia_info.dram_start = res->start;
 #endif
 
-	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.13 2008/06/14 19:04:46 seife Exp $\n");
+	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.98.2.14 2009/01/17 07:09:44 seife Exp $\n");
 
 	if (tv_standard != AVIA_AV_VIDEO_SYSTEM_PAL)
 		tv_standard = AVIA_AV_VIDEO_SYSTEM_NTSC;

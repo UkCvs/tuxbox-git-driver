@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_avia_av_napi.c,v 1.1.2.1 2005/01/31 03:04:12 carjay Exp $
+ * $Id: dbox2_avia_av_napi.c,v 1.1.2.2 2009/01/17 07:09:44 seife Exp $
  *
  * AViA 500/600 DVB API driver (dbox-II-project)
  *
@@ -502,9 +502,9 @@ static int avia_av_napi_audio_ioctl(struct inode *inode, struct file *file, unsi
 
 	case AUDIO_SET_AV_SYNC:
 		if (arg)
-			avia_av_sync_mode_set(AVIA_AV_SYNC_MODE_AV);
+			avia_av_sync_mode_set(1);
 		else
-			avia_av_sync_mode_set(AVIA_AV_SYNC_MODE_NONE);
+			avia_av_sync_mode_set(0);
 		audiostate.AV_sync_state = arg;
 		break;
 
@@ -748,7 +748,7 @@ int __init avia_av_napi_init(void)
 {
 	int result;
 
-	printk(KERN_INFO "avia_av_napi: $Id: dbox2_avia_av_napi.c,v 1.1.2.1 2005/01/31 03:04:12 carjay Exp $\n");
+	printk(KERN_INFO "avia_av_napi: $Id: dbox2_avia_av_napi.c,v 1.1.2.2 2009/01/17 07:09:44 seife Exp $\n");
 
 	audiostate.AV_sync_state = 0;
 	audiostate.mute_state = 0;
@@ -799,7 +799,7 @@ fail_0:
 	return result;
 }
 
-void __exit avia_av_napi_exit(void)
+void avia_av_napi_exit(void)
 {
 	dvb_unregister_device(audio_dev);
 	dvb_unregister_device(video_dev);
