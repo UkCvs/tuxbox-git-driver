@@ -21,7 +21,9 @@ obj-y	+= dvb/
 obj-y	+= i2c/
 obj-y	+= event/
 obj-y	+= lcd/
+ifeq ($(DRIVER_MMC),yes)
 obj-y	+= mmc/
+endif
 obj-y	+= saa7126/
 #obj-y	+= dvb2eth/
 obj-$(CONFIG_IDE)	+= ide/
