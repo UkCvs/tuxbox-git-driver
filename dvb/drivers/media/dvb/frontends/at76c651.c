@@ -133,10 +133,22 @@ static int at76c651_set_auto_config(struct at76c651_state *state)
 	 */
 
 	at76c651_writereg(state, 0x10, 0x06);
-	at76c651_writereg(state, 0x11, ((state->qam == 5) || (state->qam == 7)) ? 0x12 : 0x10);
+	at76c651_writereg(state, 0x11, ((state->qam == 5) || (state->qam == 7)) ? 0x12 : 0x17);
 	at76c651_writereg(state, 0x15, 0x28);
-	at76c651_writereg(state, 0x20, 0x09);
-	at76c651_writereg(state, 0x24, ((state->qam == 5) || (state->qam == 7)) ? 0xC0 : 0x90);
+	at76c651_writereg(state, 0x20, 0x01);
+
+	switch (state->qam) {
+	case 5:	/* QAM_32 */
+	case 7:	/* QAM_128 */
+		at76c651_writereg(state, 0x24, 0xC0);
+		break;
+	case 8:	/* QAM_256 */
+		at76c651_writereg(state, 0x24, 0xB0);
+		break;
+	default:
+		at76c651_writereg(state, 0x24, 0x90);
+	}
+
 	at76c651_writereg(state, 0x30, 0x90);
 	if (state->qam == 5)
 		at76c651_writereg(state, 0x35, 0x2A);
@@ -149,6 +161,10 @@ static int at76c651_set_auto_config(struct at76c651_state *state)
 		at76c651_writereg(state, 0x2E, 0x38);
 		at76c651_writereg(state, 0x2F, 0x13);
 	}
+
+	at76c651_writereg(state, 0x33, 0x8a);
+	at76c651_writereg(state, 0x34, 0xad); //v12 bd
+	at76c651_writereg(state, 0x51, 0x12); //11
 
 	at76c651_disable_interrupts(state);
 
