@@ -18,13 +18,16 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * $Id: tuxbox_hardware_dbox2.c,v 1.5.4.1 2005/01/15 01:52:47 carjay Exp $
+ * $Id: tuxbox_hardware_dbox2.c,v 1.5.4.2 2009/02/03 20:56:48 rhabarber1848 Exp $
  */
 
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/version.h>
 #include <linux/errno.h>
+#ifdef CONFIG_MTD
+#include <linux/mtd/mtd.h>
+#endif
 #include <asm/io.h>
 
 #include "tuxbox_internal.h"
@@ -39,17 +42,104 @@ tuxbox_dbox2_mid_t tuxbox_dbox2_mid;
 EXPORT_SYMBOL(tuxbox_dbox2_gt);
 EXPORT_SYMBOL(tuxbox_dbox2_mid);
 
+/* 
+	If this is ever going to be a kernel built-in we 
+	could make sure this was called before MTD so no
+	need to	create an unnecessary dependency.
+ */
 
-static int vendor_read (void)
+#if defined(MODULE) && defined(CONFIG_MTD)
+static struct mtd_info *bmon_part_info;
+static char *bmonname = "BR bootloader";
+
+static void mtd_add(struct mtd_info *info)
+{
+	if (!strncmp(bmonname,info->name,strlen(bmonname))) {
+		/* we have a match, store this data */
+		bmon_part_info = info;
+	}
+}
+
+static void mtd_remove(struct mtd_info *info)
+{ /* unused, but cannot be NULL */
+}
+
+static struct mtd_notifier mtd = {
+	.add = mtd_add,
+	.remove = mtd_remove
+};
+
+static int flash_read_mid(void)
+{
+	/* 
+		If we let MTD manage the flash we cannot simply access
+		it (because MTD might have put it in a state that is not
+		giving any usable output).
+		
+		So we need to register ourselves as a user and properly ask
+		for permission to access the bootloader.
+	*/
+
+	int ret = 0;
+	size_t retlen;
+	char mid;
+
+	register_mtd_user(&mtd);
+	
+	if (!bmon_part_info) {
+		printk(KERN_ERR "tuxbox: BMon partition \"%s\" not found\n",bmonname);
+		ret = -EIO;
+		goto frm_exit;
+	}
+
+	if (bmon_part_info->size!=0x20000) {
+		printk(KERN_ERR "tuxbox: BMon partition has unexpected size %d\n",bmon_part_info->size);
+		ret = -EIO;
+		goto frm_exit;
+	}
+
+	ret = bmon_part_info->read(bmon_part_info, 0x1FFE0, 1, &retlen, &mid);
+	if (ret) {
+		printk(KERN_ERR "tuxbox: BMon partition read error\n");
+		goto frm_exit;
+	}
+	
+	if (!retlen) {
+		printk(KERN_ERR "tuxbox: BMon partition read returned 0 bytes\n");
+		ret = -EIO;
+		goto frm_exit;
+	}
+
+	tuxbox_dbox2_mid = mid;
+
+frm_exit:
+	unregister_mtd_user(&mtd);
+	return ret;
+}
+
+#else /* CONFIG_MTD */
+
+static int flash_read_mid(void)
 {
 	unsigned char *conf = (unsigned char *) ioremap (0x1001FFE0, 0x20);
-
 	if (!conf) {
-		printk("tuxbox: Could not remap memory\n");
+		printk(KERN_ERR "tuxbox: Could not remap memory\n");
 		return -EIO;
 	}
 
 	tuxbox_dbox2_mid = conf[0];
+	iounmap (conf);
+	
+	return 0;
+}
+
+#endif
+
+
+static int vendor_read (void)
+{
+	if (flash_read_mid()<0)
+		return -EIO;
 
 	switch (tuxbox_dbox2_mid) {
 		case TUXBOX_DBOX2_MID_NOKIA:
@@ -66,9 +156,11 @@ static int vendor_read (void)
 			tuxbox_vendor = TUXBOX_VENDOR_SAGEM;
 			tuxbox_dbox2_gt = TUXBOX_DBOX2_GT_ENX;
 			break;
-	}
 
-	iounmap (conf);
+		default:
+			printk(KERN_ERR "unknown DBOX2 mid %d!\n", tuxbox_dbox2_mid);
+			break;
+	}
 
 	return 0;
 }
