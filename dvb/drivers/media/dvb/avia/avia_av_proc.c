@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_proc.c,v 1.14.2.5 2008/09/19 22:43:42 seife Exp $
+ * $Id: avia_av_proc.c,v 1.14.2.6 2009/02/12 21:00:36 rhabarber1848 Exp $
  *
  * AViA 500/600 proc driver (dbox-II-project)
  *
@@ -125,13 +125,25 @@ static int avia_av_proc_read_dram(char *page, char **start, off_t off, int count
 	return n;
 }
 
+static int avia_av_proc_read_avia_version( char *page, char **start, off_t off, int count, int *eof, void *data )
+{
+	int len;
+	if (avia_av_is500()) {
+		len = sprintf(page, "avia500\n");
+	} else {
+		len = sprintf(page, "avia600\n");
+	}
+	return len;
+}
+
 int avia_av_proc_init(void)
 {
 	struct proc_dir_entry *proc_bus_avia;
 	struct proc_dir_entry *proc_bus_avia_dram;
 	struct proc_dir_entry *proc_bus_avia_debug;
+	struct proc_dir_entry *proc_bus_avia_version;
 
-	printk("avia_av_proc: $Id: avia_av_proc.c,v 1.14.2.5 2008/09/19 22:43:42 seife Exp $\n");
+	printk("avia_av_proc: $Id: avia_av_proc.c,v 1.14.2.6 2009/02/12 21:00:36 rhabarber1848 Exp $\n");
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 	if (!proc_bus) {
@@ -172,6 +184,18 @@ int avia_av_proc_init(void)
 	}
 	proc_bus_avia_debug->owner = THIS_MODULE;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
+	proc_bus_avia_version = create_proc_read_entry( "avia_version", 0, proc_bus, &avia_av_proc_read_avia_version, NULL);
+#else
+	proc_bus_avia_version = create_proc_read_entry("bus/avia_version", 0, NULL, &avia_av_proc_read_avia_version, NULL);
+#endif
+	if (!proc_bus_avia_version) {
+		printk("avia_av_proc: could not create /proc/bus/avia_version");
+		return -ENOENT;
+	}
+
+	proc_bus_avia_version->owner = THIS_MODULE;
+
 	return 0;
 }
 
@@ -181,10 +205,12 @@ void avia_av_proc_exit(void)
 	remove_proc_entry("avia_dram", proc_bus);
 	remove_proc_entry("bitstream", proc_bus);
 	remove_proc_entry("avia_debug", proc_bus);
+	remove_proc_entry("avia_version", proc_bus);
 #else
 	remove_proc_entry("bus/avia_dram", NULL);
 	remove_proc_entry("bus/bitstream", NULL);
 	remove_proc_entry("bus/avia_debug", NULL);
+	remove_proc_entry("bus/avia_version", NULL);
 #endif
 }
 
