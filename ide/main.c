@@ -1,5 +1,5 @@
 /*
- * $Id: main.c,v 1.4.2.6 2007/10/09 01:04:06 carjay Exp $
+ * $Id: main.c,v 1.4.2.7 2009/02/12 12:41:51 rhabarber1848 Exp $
  *
  * Copyright (C) 2006 Uli Tessel <utessel@gmx.de>
  * Linux 2.6 port: Copyright (C) 2006 Carsten Juttner <carjay@gmx.net>
@@ -29,11 +29,19 @@
 #include <asm/errno.h>
 #include <asm/irq.h>
 #include <asm/8xx_immap.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,25)
+#include <asm/cpm1.h>
+#else
 #include <asm/commproc.h>
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,25)
+#include <linux/delay.h>
+#endif
+#include <syslib/m8xx_wdt.h>
 
 static uint idebase = 0;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
@@ -41,6 +49,7 @@ static struct platform_device *ide_dev;
 #else
 static int ideindex = -1;
 #endif
+static int irq6 = 0;
 
 /* address-offsets of features in the CPLD 
   (we can't call them registers...) */
@@ -76,6 +85,9 @@ extern void dboxide_insw_loop(uint ctrl_address,
 extern void dboxide_outsw_loop(uint ctrl_address,
 			       uint data_address, void *src, int count);
 
+/* enable/disable low level traces */
+#undef TRACE_DBOXIDE
+
 /* trace routines */
 extern void dboxide_log_trace(unsigned int typ, unsigned int a, unsigned int b);
 extern void dboxide_print_trace(void);
@@ -87,6 +99,17 @@ extern void dboxide_print_trace(void);
 #define TRACE_LOG_OUTW  0x05
 #define TRACE_LOG_OUTSW 0x06
 
+/* replace fixed printk strings with char * */
+const char *modname = "dboxide:";
+#define DBOXIDE_PRINTK(txt, a...) printk( "%s "txt, modname, ##a)
+
+/* knwon DBox 2 IDE vendors  */
+const char *dboxide_vendors[] = {
+	"Unknown",
+	"Gurgel",
+	"DboxBaer or kpt.ahab/Stingray"
+}; 
+
 const char *dboxide_trace_msg[] = {
 	NULL,
 	"INB  ",
@@ -97,15 +120,22 @@ const char *dboxide_trace_msg[] = {
 	"OUTSW",
 };
 
+#ifdef TRACE_DBOXIDE
+/* debug/performance information */
+static int dboxide_max_printk = 0;
+/* max Num of performance traces */
+#define DBOXIDE_MAX_PRINTK 1000 
+#endif
+
 /* some functions are not implemented and I don't expect we ever
    need them. But if one of them is called, we can work on that. */
-#define NOT_IMPL(txt, a...) printk( "dboxide: NOT IMPLEMENTED: "txt, ##a )
+#define NOT_IMPL(txt, a...) printk( "%s NOT IMPLEMENTED: "txt, modname, ##a )
 
 /* whenever a something didn't work as expected: print everything
    that might be interesting for the developers what has happened */
 void dboxide_problem(const char *msg)
 {
-	printk("dboxide: %s\n", msg);
+	printk("%s %s\n", modname, msg);
 	printk("CPLD Status is %08x\n", CPLD_IN(CPLD_READ_CTRL));
 	dboxide_print_trace();
 }
@@ -160,9 +190,9 @@ static u8 dboxide_inb(unsigned long port)
 
 	val >>= 8;
 	val &= 0xFF;
-
+#ifdef TRACE_DBOXIDE
 	dboxide_log_trace(TRACE_LOG_INB, port, val);
-
+#endif
 	return val;
 }
 
@@ -185,9 +215,9 @@ static u16 dboxide_inw(unsigned long port)
 	val = CPLD_IN(CPLD_READ_FIFO);
 
 	val &= 0xFFFF;
-
+#ifdef TRACE_DBOXIDE
 	dboxide_log_trace(TRACE_LOG_INW, port, val);
-
+#endif
 	return val;
 }
 
@@ -197,12 +227,19 @@ static u16 dboxide_inw(unsigned long port)
 static void dboxide_insw(unsigned long port, void *addr, u32 count)
 {
 	uint *dest = addr;
-
+	register uint a;
+	register uint b;
+#ifdef TRACE_DBOXIDE
+	u32 busywait = 00;
+	u32 numwords = count; 
+#endif
 	/* special for ATAPI: the kernel calls insw with count=1?! */
 	if (count<4)
 	{
 		short * sdest = addr;
-		/*printk("dboxide: short insw %d\n", (int)count);*/
+#ifdef TRACE_DBOXIDE
+		printk("%s short insw %d\n", modname, (int)count);
+#endif
 		for (;count>0;count--)
 		{
 			*sdest++ = dboxide_inw( port ); 
@@ -211,49 +248,68 @@ static void dboxide_insw(unsigned long port, void *addr, u32 count)
 	}
 
 
+	/* outcommented for better performance, errorchecking is not needed
+
 	if (CPLD_FIFO_LEVEL() != 0)
 		dboxide_problem("insw: fifo not empty?!");
+	*/
+#ifdef TRACE_DBOXIDE
 	dboxide_log_trace(TRACE_LOG_INSW, port, count);
+#endif
 
 	/* activate reading to fifo with auto repeat */
 	CPLD_OUT(CPLD_WRITE_CTRL, port);
 	CPLD_OUT(CPLD_WRITE_CTRL, port | CPLD_CTRL_ENABLE | CPLD_CTRL_REPEAT);
 
 	/* todo: replace the code below by an assembler implementation in this
-	   routine */
+	   routine 
+
+	   jojo: did some tests using a simple busywait counter. It doesn't look
+		like we need an assembler optimization, because we'd wait only
+		faster. The current C code has already 65-70 busywaits per 
+		sector, so assembler wouldn't accelerate much more.
+
 	dboxide_insw_loop(idebase + CPLD_READ_CTRL, idebase + CPLD_READ_FIFO,
 			  dest, count);
+	*/
 
 	{
-		register uint a;
-		register uint b;
-		register uint c;
-		register uint d;
 
 		while (count > 16) {
 			while (CPLD_FIFO_LEVEL() != 0xF) {
+#ifdef TRACE_DBOXIDE
+				busywait++;
+#endif 
 			};
 			a = CPLD_IN(CPLD_READ_FIFO);	/* read 2 16 bit words */
 			b = CPLD_IN(CPLD_READ_FIFO);	/* read 2 16 bit words */
-			while (CPLD_FIFO_LEVEL() != 0xF) {
-			};
-			c = CPLD_IN(CPLD_READ_FIFO);	/* read 2 16 bit words */
-			d = CPLD_IN(CPLD_READ_FIFO);	/* read 2 16 bit words */
 			dest[0] = a;
 			dest[1] = b;
-			dest[2] = c;
-			dest[3] = d;
+			while (CPLD_FIFO_LEVEL() != 0xF) {
+#ifdef TRACE_DBOXIDE
+				busywait++; 
+#endif
+			};
+			a = CPLD_IN(CPLD_READ_FIFO);	/* read 2 16 bit words */
+			b = CPLD_IN(CPLD_READ_FIFO);	/* read 2 16 bit words */
+			dest[2] = a;
+			dest[3] = b;
+
 			count -= 8;
 			dest += 4;
 		}
 
 		while (count > 4) {
 			while (CPLD_FIFO_LEVEL() != 0xF) {
+#ifdef TRACE_DBOXIDE
+				busywait++; 
+#endif
 			};
 			a = CPLD_IN(CPLD_READ_FIFO);	/* read 2 16 bit words */
 			b = CPLD_IN(CPLD_READ_FIFO);	/* read 2 16 bit words */
 			dest[0] = a;
 			dest[1] = b;
+
 			count -= 4;
 			dest += 2;
 		}
@@ -261,20 +317,30 @@ static void dboxide_insw(unsigned long port, void *addr, u32 count)
 	}
 
 	if (count != 4)
-		printk
-		    ("dboxide: oops: insw: something has gone wrong: count is %d\n",
-		     count);
+		printk ("%s oops: insw: something has gone wrong: count is %d\n", modname, count);
 
 	/* wait until fifo is full = 4 Words */
 	while (CPLD_FIFO_LEVEL() != 0xF) {
+#ifdef TRACE_DBOXIDE
+		busywait++; 
+#endif
 	};
 
 	/* then stop reading from ide */
 	CPLD_OUT(CPLD_WRITE_CTRL, port);
 
 	/* and read the final 4 16 bit words */
-	dest[0] = CPLD_IN(CPLD_READ_FIFO);
-	dest[1] = CPLD_IN(CPLD_READ_FIFO);
+	a = CPLD_IN(CPLD_READ_FIFO);	/* read 2 16 bit words */
+	b = CPLD_IN(CPLD_READ_FIFO);	/* read 2 16 bit words */
+	dest[0] = a;
+	dest[1] = b;
+
+#ifdef TRACE_DBOXIDE
+	if (dboxide_max_printk < DBOXIDE_MAX_PRINTK) {
+		dboxide_max_printk++;
+		printk("%s: insw: count=0x%lx, busywait=%ld\n", modname, numwords, busywait);
+	}
+#endif
 }
 
 /* insl reads several 32 bit words from an IDE register.
@@ -302,9 +368,9 @@ static void dboxide_outb(u8 value, unsigned long port)
 {
 	if (CPLD_FIFO_LEVEL() != 0)
 		dboxide_problem("outb: fifo not empty?!");
-
+#ifdef TRACE_DBOXIDE
 	dboxide_log_trace(TRACE_LOG_OUTB, port, value);
-
+#endif
 	CPLD_OUT(CPLD_WRITE_CTRL, port | CPLD_CTRL_ENABLE | CPLD_CTRL_WRITING);
 	CPLD_OUT(CPLD_WRITE_FIFO_LOW, value << 8);
 
@@ -345,27 +411,37 @@ static void dboxide_outsw(unsigned long port, void *addr, u32 count)
 {
 	uint *src = addr;
 
+//	u32 busywait = 0;
+//	u32 numwords = count; 
+
+/*
 	if (CPLD_FIFO_LEVEL() != 0)
 		dboxide_problem("outsw: fifo not empty?!");
-
+*/
+#ifdef TRACE_DBOXIDE
 	dboxide_log_trace(TRACE_LOG_OUTSW, port, count);
-
+#endif
 	/* activate writing to fifo with auto repeat */
 	CPLD_OUT(CPLD_WRITE_CTRL,
 		 port | CPLD_CTRL_WRITING | CPLD_CTRL_ENABLE |
 		 CPLD_CTRL_REPEAT);
 
+/*
 	dboxide_outsw_loop(idebase + CPLD_READ_CTRL, idebase + CPLD_READ_FIFO,
 			   src, count);
+*/
 
 	{
 		register int a;
 		register int b;
 
-		while (count > 2) {
+		while (count > 0) {
 			a = *src++;
 			b = *src++;
 			while (CPLD_FIFO_LEVEL() != 0) {
+#ifdef TRACE_DBOXIDE
+				busywait++;
+#endif
 			};
 			CPLD_OUT(CPLD_WRITE_FIFO, a);
 			CPLD_OUT(CPLD_WRITE_FIFO, b);
@@ -375,7 +451,10 @@ static void dboxide_outsw(unsigned long port, void *addr, u32 count)
 
 		if (count == 2) {
 			a = *src++; 
-			while (CPLD_FIFO_LEVEL()!=0) {
+			while (CPLD_FIFO_LEVEL()!=0) { 
+#ifdef TRACE_DBOXIDE
+				busywait++;
+#endif
 			};
 			CPLD_OUT( CPLD_WRITE_FIFO, a );
 		}
@@ -385,6 +464,13 @@ static void dboxide_outsw(unsigned long port, void *addr, u32 count)
 
 	/* and stop writing to IDE */
 	CPLD_OUT(CPLD_WRITE_CTRL, port | CPLD_CTRL_WRITING);
+
+#ifdef TRACE_DBOXIDE
+	if (dboxide_max_printk < DBOXIDE_MAX_PRINTK) {
+		dboxide_max_printk++;
+		printk("%s: outsw: count=0x%lx, busywait=%ld\n", modname, numwords, busywait);
+	}
+#endif
 }
 
 /* outsl writes several 32 bit words to an IDE register. 
@@ -396,13 +482,151 @@ static void dboxide_outsl(unsigned long port, void *addr, u32 count)
 	dboxide_outsw(port, addr, count * 2);
 }
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,25)
+static void dboxide_tf_load(ide_drive_t *drive, ide_task_t *task)
+{
+ide_hwif_t *hwif = drive->hwif;
+	struct ide_io_ports *io_ports = &hwif->io_ports;
+	struct ide_taskfile *tf = &task->tf;
+	u8 HIHI = (task->tf_flags & IDE_TFLAG_LBA48) ? 0xE0 : 0xEF;
+
+	if (task->tf_flags & IDE_TFLAG_FLAGGED)
+		HIHI = 0xFF;
+
+	//ide_set_irq(drive, 1);
+
+	if (task->tf_flags & IDE_TFLAG_OUT_DATA)
+		dboxide_outw((tf->hob_data << 8) | tf->data, io_ports->data_addr);
+	if (task->tf_flags & IDE_TFLAG_OUT_HOB_FEATURE)
+		dboxide_outb(tf->hob_feature, io_ports->feature_addr);
+	if (task->tf_flags & IDE_TFLAG_OUT_HOB_NSECT)
+		dboxide_outb(tf->hob_nsect, io_ports->nsect_addr);
+	if (task->tf_flags & IDE_TFLAG_OUT_HOB_LBAL)
+		dboxide_outb(tf->hob_lbal, io_ports->lbal_addr);
+	if (task->tf_flags & IDE_TFLAG_OUT_HOB_LBAM)
+		dboxide_outb(tf->hob_lbam, io_ports->lbam_addr);
+	if (task->tf_flags & IDE_TFLAG_OUT_HOB_LBAH)
+		dboxide_outb(tf->hob_lbah, io_ports->lbah_addr);
+	if (task->tf_flags & IDE_TFLAG_OUT_FEATURE)
+		dboxide_outb(tf->feature, io_ports->feature_addr);
+	if (task->tf_flags & IDE_TFLAG_OUT_NSECT)
+		dboxide_outb(tf->nsect, io_ports->nsect_addr);
+	if (task->tf_flags & IDE_TFLAG_OUT_LBAL)
+		dboxide_outb(tf->lbal, io_ports->lbal_addr);
+	if (task->tf_flags & IDE_TFLAG_OUT_LBAM)
+		dboxide_outb(tf->lbam, io_ports->lbam_addr);
+	if (task->tf_flags & IDE_TFLAG_OUT_LBAH)
+		dboxide_outb(tf->lbah, io_ports->lbah_addr);
+	if (task->tf_flags & IDE_TFLAG_OUT_DEVICE)
+		dboxide_outb((tf->device & HIHI) | drive->select.all,
+		     io_ports->device_addr);
+#ifdef TRACE_DBOXIDE
+	/* show what happened so far... */
+	dboxide_problem("dboxide_tf_load");
+#endif
+}
+
+static void dboxide_tf_read(ide_drive_t *drive, ide_task_t *task)
+{
+	ide_hwif_t *hwif = drive->hwif;
+	struct ide_io_ports *io_ports = &hwif->io_ports;
+	struct ide_taskfile *tf = &task->tf;
+
+	if (task->tf_flags & IDE_TFLAG_IN_DATA) {
+		u16 data = dboxide_inw(io_ports->data_addr);
+
+		tf->data = data & 0xff;
+		tf->hob_data = (data >> 8) & 0xff;
+	}
+
+	/* be sure we're looking at the low order bits */
+	dboxide_outb(drive->ctl & ~0x80, io_ports->ctl_addr);
+
+	if (task->tf_flags & IDE_TFLAG_IN_NSECT)
+		tf->nsect  = dboxide_inb(io_ports->nsect_addr);
+	if (task->tf_flags & IDE_TFLAG_IN_LBAL)
+		tf->lbal   = dboxide_inb(io_ports->lbal_addr);
+	if (task->tf_flags & IDE_TFLAG_IN_LBAM)
+		tf->lbam   = dboxide_inb(io_ports->lbam_addr);
+	if (task->tf_flags & IDE_TFLAG_IN_LBAH)
+		tf->lbah   = dboxide_inb(io_ports->lbah_addr);
+	if (task->tf_flags & IDE_TFLAG_IN_DEVICE)
+		tf->device = dboxide_inb(io_ports->device_addr);
+
+	if (task->tf_flags & IDE_TFLAG_LBA48) {
+		dboxide_outb(drive->ctl | 0x80, io_ports->ctl_addr);
+
+		if (task->tf_flags & IDE_TFLAG_IN_HOB_FEATURE)
+			tf->hob_feature = dboxide_inb(io_ports->feature_addr);
+		if (task->tf_flags & IDE_TFLAG_IN_HOB_NSECT)
+			tf->hob_nsect   = dboxide_inb(io_ports->nsect_addr);
+		if (task->tf_flags & IDE_TFLAG_IN_HOB_LBAL)
+			tf->hob_lbal    = dboxide_inb(io_ports->lbal_addr);
+		if (task->tf_flags & IDE_TFLAG_IN_HOB_LBAM)
+			tf->hob_lbam    = dboxide_inb(io_ports->lbam_addr);
+		if (task->tf_flags & IDE_TFLAG_IN_HOB_LBAH)
+			tf->hob_lbah    = dboxide_inb(io_ports->lbah_addr);
+	}
+#ifdef TRACE_DBOXIDE
+	/* show what happened so far... */
+	dboxide_problem("dboxide_tf_read");
+#endif
+
+}
+
+
+static void dboxide_input_data(ide_drive_t *drive, struct request *rq,
+			   void *buf, unsigned int len)
+{
+	unsigned long data_addr = drive->hwif->io_ports.data_addr;
+
+	len++;
+
+	if (drive->io_32bit) {
+		dboxide_insl(data_addr, buf, len / 4);
+
+		if ((len & 3) >= 2)
+			dboxide_insw(data_addr, (u8 *)buf + (len & ~3), 1);
+	} else
+		dboxide_insw(data_addr, buf, len / 2);
+#ifdef TRACE_DBOXIDE
+	/* show what happened so far... */
+	dboxide_problem("dboxide_input_data %8x %8x", data_addr, len);
+#endif
+
+}
+
+static void dboxide_output_data(ide_drive_t *drive,  struct request *rq,
+			    void *buf, unsigned int len)
+{
+	unsigned long data_addr = drive->hwif->io_ports.data_addr;
+
+	len++;
+
+	if (drive->io_32bit) {
+		dboxide_outsl(data_addr, buf, len / 4);
+
+		if ((len & 3) >= 2)
+			dboxide_outsw(data_addr, (u8 *)buf + (len & ~3), 1);
+	} else
+		dboxide_outsw(data_addr, buf, len / 2);
+#ifdef TRACE_DBOXIDE
+	/* show what happened so far... */
+	dboxide_problem("dboxide_output_data %8x %8x", data_addr, len);
+#endif
+
+}
+
+
+#endif
+
 /*---------------------------------------------------------*/
 /* acknowledge the interrupt? */
 /*---------------------------------------------------------*/
 
 int dboxide_ack_intr(ide_hwif_t * hwif)
 {
-	printk("dboxide: ack irq\n");
+	printk("%s ack irq\n", modname);
 	return 1;
 }
 
@@ -411,10 +635,12 @@ int dboxide_ack_intr(ide_hwif_t * hwif)
 /* also works without them                                 */
 /*---------------------------------------------------------*/
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 void dboxide_tuneproc(ide_drive_t * drive, u8 pio)
 {
-	printk("dboxide: tuneproc called: %d\n", pio);
+	printk("%s tuneproc called: %d\n", modname, pio);
 }
+#endif
 
 /*---------------------------------------------------------*/
 /* end of functions called via function pointer */
@@ -432,20 +658,22 @@ static int configure_interrupt(void)
 	/* As this routine is the only one that needs to know about
 	   wich interrupt is used in this code, it returns the number
 	   so it can be given to the kernel */
-	return CPM_IRQ_OFFSET + CPMVEC_PIO_PC15;
+
+
+	return CPM_IRQ_OFFSET + ( irq6 ? -4 : CPMVEC_PIO_PC15);
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 static void reset_function_pointer(ide_hwif_t *hwif)
 {
 	int i;
+	printk("%s reset_function_pointer called\n", modname);
 	for (i = 0; i < ARRAY_SIZE(hwif->hw.io_ports); i++) {
 		uint addr;
 
 		addr = hwif->hw.io_ports[i];
 		if ((addr > idebase) && (addr <= idebase + 0x100))
 			hwif->hw.io_ports[i] = addr - idebase;
-
 		addr = hwif->io_ports[i];
 		if ((addr > idebase) && (addr <= idebase + 0x100))
 			hwif->io_ports[i] = addr - idebase;
@@ -457,22 +685,39 @@ static void reset_function_pointer(ide_hwif_t *hwif)
    functions */
 static void set_access_functions(ide_hwif_t * hwif)
 {
+#ifdef TRACE_DBOXIDE
+	printk("%s set_access_functions called\n", modname);
+#endif
 	hwif->mmio = 2;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 	hwif->OUTB = dboxide_outb;
 	hwif->OUTBSYNC = dboxide_outbsync;
 	hwif->OUTW = dboxide_outw;
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,20)
 	hwif->OUTL = dboxide_outl;
-	hwif->INL = dboxide_inl;
 #endif
 	hwif->OUTSW = dboxide_outsw;
 	hwif->OUTSL = dboxide_outsl;
 	hwif->INB = dboxide_inb;
 	hwif->INW = dboxide_inw;
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,20)
+	hwif->INL = dboxide_inl;
+#endif
 	hwif->INSW = dboxide_insw;
 	hwif->INSL = dboxide_insl;
+#else
+	hwif->INB         = dboxide_inb;
+	hwif->OUTB        = dboxide_outb;
+	hwif->OUTBSYNC    = dboxide_outbsync;
+	hwif->tf_load     = dboxide_tf_load;
+	hwif->tf_read     = dboxide_tf_read;
+	hwif->input_data  = dboxide_input_data;
+	hwif->output_data = dboxide_output_data;
+#endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 	hwif->tuneproc = dboxide_tuneproc;
+#endif
 
 #if 0
 	hwif->ack_intr = dboxide_ack_intr;
@@ -492,15 +737,18 @@ static void set_access_functions(ide_hwif_t * hwif)
    initial address is different for 2.4 and 2.6. */
 static void init_hw_struct( ide_hwif_t *hwif, unsigned long idebase)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 	hw_regs_t *hw;
 
-	hwif->chipset = ide_unknown;
 	hwif->tuneproc = NULL;
+#endif
+	hwif->chipset = ide_unknown;
 	hwif->mate = NULL;
 	hwif->channel = 0;
 
-	strncpy (hwif->name, "dbox2 ide", sizeof(hwif->name));
+	strncpy (hwif->name, "DBox2 IDE", sizeof(hwif->name));
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 	hw = &hwif->hw;
 	memset(hw, 0, sizeof(hw_regs_t));
 
@@ -519,6 +767,38 @@ static void init_hw_struct( ide_hwif_t *hwif, unsigned long idebase)
 	hwif->irq = hw->irq = configure_interrupt();
 
 	memcpy(hwif->io_ports, hw->io_ports, sizeof(hw->io_ports));
+#else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
+
+	hwif->io_ports[IDE_DATA_OFFSET] 	= idebase + 0x0010;
+	hwif->io_ports[IDE_ERROR_OFFSET] 	= idebase + 0x0011;
+	hwif->io_ports[IDE_NSECTOR_OFFSET] 	= idebase + 0x0012;
+	hwif->io_ports[IDE_SECTOR_OFFSET] 	= idebase + 0x0013;
+	hwif->io_ports[IDE_LCYL_OFFSET] 	= idebase + 0x0014;
+	hwif->io_ports[IDE_HCYL_OFFSET] 	= idebase + 0x0015;
+	hwif->io_ports[IDE_SELECT_OFFSET] 	= idebase + 0x0016;
+	hwif->io_ports[IDE_STATUS_OFFSET] 	= idebase + 0x0017;
+
+	hwif->io_ports[IDE_CONTROL_OFFSET] 	= idebase + 0x004E;
+	hwif->io_ports[IDE_IRQ_OFFSET] 	  	= idebase + 0x004E;
+
+	hwif->irq = configure_interrupt();
+#else
+	hwif->io_ports.data_addr 	= idebase + 0x0010;
+	hwif->io_ports.error_addr 	= idebase + 0x0011;
+	hwif->io_ports.nsect_addr 	= idebase + 0x0012;
+	hwif->io_ports.lbal_addr  	= idebase + 0x0013;
+	hwif->io_ports.lbam_addr 	= idebase + 0x0014;
+	hwif->io_ports.lbah_addr 	= idebase + 0x0015;
+	hwif->io_ports.device_addr 	= idebase + 0x0016;
+	hwif->io_ports.status_addr 	= idebase + 0x0017;
+
+	hwif->io_ports.ctl_addr 	= idebase + 0x004E;
+	hwif->io_ports.irq_addr	  	= idebase + 0x004E;
+	hwif->irq = configure_interrupt();
+#endif
+
+#endif
 }
 
 /* the CPLD is connected to CS2, which should be inactive.
@@ -531,18 +811,18 @@ static int activate_cs2(void)
 	uint br2 = memctl->memc_br2;
 
 	if (br2 & 0x1) {
-		printk("dboxide: cs2 already activated\n");
+		printk("%s cs2 already activated\n", modname);
 		return 0;
 	}
 
 	if (br2 != 0x02000080) {
-		printk("dboxide: cs2: unexpected value for br2: %08x\n", br2);
+		printk("%s cs2: unexpected value for br2: %08x\n", modname, br2);
 		return 0;
 	}
 
 	br2 |= 0x1;
 
-	printk("dboxide: activating cs2\n");
+	printk("%s activating cs2\n", modname );
 	memctl->memc_br2 = br2;
 
 	return 1;
@@ -556,27 +836,76 @@ static int deactivate_cs2(void)
 	uint br2 = memctl->memc_br2;
 
 	if (br2 != 0x02000081) {
-		printk("dboxide: cs2 configuration unexpected: %08x\n", br2);
+		printk("%s cs2 configuration unexpected: %08x\n", modname, br2);
 		return 0;
 	}
 
+	printk("%s deactivating cs2\n", modname);
 	br2 &= ~1;
-
-	printk("dboxide: deactivating cs2\n");
 	memctl->memc_br2 = br2;
 
 	return 1;
+}
+
+/*read out id-code, this value can only get on first read!*/
+static unsigned int read_if_idcode(void) 
+{
+	static unsigned int idcode;
+	static int alreadyread = 0;
+	if (!alreadyread) {
+		idcode = CPLD_IN(CPLD_READ_FIFO);
+		alreadyread = 1;
+	}
+	return idcode;
+}
+
+static int write_if_idcodeback(unsigned int idcode) 
+{
+	CPLD_OUT(CPLD_WRITE_FIFO, idcode);
+}
+
+static int ide_software_reset_drives(void) 
+{
+        int i, j, tmp;
+
+	for (i = 0; i<10; i++) {
+		dboxide_outb(0x0E, 0x4E		/*IDE_CONTROL_REG*/);
+		udelay(10);
+		dboxide_outb(0x0A, 0x4E		/*IDE_CONTROL_REG*/);
+		udelay(10);
+		for (j = 0; j < 200; j++) {
+			tmp = dboxide_inb(0x17	/*IDE_STATUS_REG*/);
+			if (!(tmp & 0x80))
+				break;
+			IDE_DELAY();
+	        }
+        	if (tmp & 0x80)
+			printk("%s timeout, drive is still busy\n", modname);
+		tmp = dboxide_inb(0x11 		/*IDE_ERROR_REG*/);
+
+        	if (tmp == 1) {
+			printk("%s sreset succeeded\n", modname);
+			return 1;
+		}
+	}
+	printk("%s sreset failed, status: 0x%04x\n", modname, tmp);
+	return 0;
 }
 
 /* detect_cpld: Check that the CPLD really works */
 static int detect_cpld(void)
 {
 	int i;
-	uint check, back;
+	int vendor_idx = 0;	/* index into vendor table */
+
+	uint check, back, idcode;
 	uint patterns[2] = { 0xCAFEFEED, 0xBEEFC0DE };
 
 	/* This detection code not only checks that there is a CPLD,
 	   but also that it does work more or less as expected.  */
+
+	/*read out identifynumber*/
+	idcode = read_if_idcode();
 
 	/* first perform a walking bit test via data register:
 	   this checks that there is a data register and
@@ -589,7 +918,7 @@ static int detect_cpld(void)
 		back = CPLD_IN(CPLD_READ_DATA);
 		if (check != back) {
 			printk
-			    ("dboxide: probing dbox2 IDE CPLD: walking bit test failed: %08x != %08x\n",
+			    ("%s probing DBox2 IDE CPLD: walking bit test failed: %08x != %08x\n", modname, 
 			     check, back);
 			return 0;
 		}
@@ -600,20 +929,20 @@ static int detect_cpld(void)
 		back = CPLD_IN(CPLD_READ_DATA);
 		if (check != back) {
 			printk
-			    ("dboxide: probing dbox2 IDE CPLD: walking bit test failed: %08x != %08x\n",
+			    ("%s probing DBox2 IDE CPLD: walking bit test failed: %08x != %08x\n", modname,
 			     check, back);
 			return 0;
 		}
 	}
 
-	/* second: check ctrl register.
-	   this also activates the IDE Reset. */
-	check = 0x00FF0007;
+	/* second: check ctrl register.*/
+	check = 0x0012001F; /* Activate PIO Mode 4 timing and remove IDE Reset */
+
 	CPLD_OUT(CPLD_WRITE_CTRL_TIMING, check);
 	back = CPLD_IN(CPLD_READ_CTRL);
 	if ((back & check) != check) {
 		printk
-		    ("dboxide: probing dbox2 IDE CPLD: ctrl register not valid: %08x != %08x\n",
+		    ("%s probing DBox2 IDE CPLD: ctrl register not valid: %08x != %08x\n", modname,
 		     check, back & check);
 		return 0;
 	}
@@ -627,7 +956,7 @@ static int detect_cpld(void)
 
 	if (i == 0) {
 		printk
-		    ("dboxide: fifo seems to have data but clearing did not succeed\n");
+		    ("%s fifo seems to have data but clearing did not succeed\n", modname);
 		return 0;
 	}
 
@@ -638,19 +967,19 @@ static int detect_cpld(void)
 	/* and read them back */
 	back = CPLD_IN(CPLD_READ_FIFO);
 	if (back != patterns[0]) {
-		printk("dboxide: fifo did not store first test pattern\n");
+		printk("%s fifo did not store first test pattern\n", modname);
 		return 0;
 	}
 	back = CPLD_IN(CPLD_READ_FIFO);
 	if (back != patterns[1]) {
-		printk("dboxide: fifo did not store second test pattern\n");
+		printk("%s fifo did not store second test pattern\n", modname);
 		return 0;
 	}
 
 	/* now the fifo must be empty again */
 	back = CPLD_IN(CPLD_READ_CTRL);
 	if ((back & 0xF0000000) != 0) {
-		printk("dboxide: fifo not empty after test\n");
+		printk("%s fifo not empty after test\n", modname);
 		return 0;
 	}
 
@@ -659,8 +988,8 @@ static int detect_cpld(void)
 	CPLD_OUT(CPLD_WRITE_FIFO, check);
 	back = CPLD_IN(CPLD_READ_FIFO);
 	if (back != check) {
-		printk("dboxide: final fifo clear did not work: %x!=%x\n", back,
-		       check);
+		printk("%s final fifo clear did not work: %x!=%x\n", modname, 
+			back, check);
 		return 0;
 	}
 
@@ -670,12 +999,25 @@ static int detect_cpld(void)
 	   will probe for drives etc, so this will check a lot
 	 */
 
+	switch (idcode) {
+		case 0:
+		case 0x50505050:
+			vendor_idx = 1;		/* Gurgel */
+			break;
+		case 0x556c6954:
+			vendor_idx = 2;		/* DboxBaer or kpt.ahab/Stingray */
+			break;
+	}
+	printk("%s IDE-Interface detected, %08x, Vendor: %s\n", modname, 
+		idcode, dboxide_vendors[vendor_idx]);
+
+
 	/* before going releasing IDE Reset, wait some time... */
 	for (i = 0; i < 10; i++)
 		IDE_DELAY();
 
-	/* Activate PIO Mode 4 timing and remove IDE Reset */
-	CPLD_OUT(CPLD_WRITE_CTRL_TIMING, 0x0012001F);
+	/*Reset Drives via IDE-Device-Control-Register (SRST)*/
+	ide_software_reset_drives();
 
 	/* finally set all bits in data register, so nothing
 	   useful is read when the CPLD is accessed by the
@@ -716,14 +1058,14 @@ static int setup_cpld(void)
 	map_memory();
 
 	if (idebase == 0) {
-		printk(KERN_ERR "dboxide: address space of dbox2 IDE CPLD not mapped to kernel address space\n");
+		printk(KERN_ERR "%s address space of DBox2 IDE CPLD not mapped to kernel address space\n", modname);
 		return -ENOMEM;
 	}
 
-	printk(KERN_INFO "dboxide: address space of DBox2 IDE CPLD is at: 0x%08x\n", idebase);
+	printk(KERN_INFO "%s address space of DBox2 IDE CPLD is at: 0x%08x\n", modname, idebase);
 
 	if (detect_cpld() == 0) {
-		printk(KERN_ERR "dboxide: not a valid dbox2 IDE CPLD detected\n");
+		printk(KERN_ERR "%s not a valid DBox2 IDE CPLD detected\n", modname);
 		unmap_memory();
 		return -ENODEV;
 	}
@@ -790,7 +1132,7 @@ static void dboxide_register(void)
 		ide_probe_module(1);
 
 	} else {
-		printk("dboxide: no hwif was given\n");
+		printk("%s no hwif was given\n", modname);
 	}
 }
 
@@ -822,7 +1164,7 @@ static int __init dboxide_init(void)
 	/* register driver will call the scan function above, maybe immediately 
 	   when we are a module, or later when it thinks it is time to do so */
 	printk(KERN_INFO
-	       "dboxide: $Id: main.c,v 1.4.2.6 2007/10/09 01:04:06 carjay Exp $\n");
+	       "%s $Id: main.c,v 1.4.2.7 2009/02/12 12:41:51 rhabarber1848 Exp $\n", modname);
 
 	ide_register_driver(dboxide_scan);
 
@@ -834,6 +1176,7 @@ static void __exit dboxide_exit(void)
 {
 	if (idebase != 0) {
 		CPLD_OUT(CPLD_WRITE_CTRL_TIMING, 0x00FF0007);
+		write_if_idcodeback(read_if_idcode());
 	}
 
 	idebase = 0;
@@ -849,6 +1192,9 @@ static void __exit dboxide_exit(void)
 #else
 static int dbox2_ide_probe(struct platform_device *pdev)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,25)
+	u8 idx[4] = { 0xff, 0xff, 0xff, 0xff };
+#endif
 	ide_hwif_t *hwif = &ide_hwifs[pdev->id];
 
 	init_hw_struct(hwif, 0);
@@ -859,8 +1205,18 @@ static int dbox2_ide_probe(struct platform_device *pdev)
 
 	/* tell kernel to the interface
 		(the default is not to probe) */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
 	hwif->noprobe = 0;
+#else
+	hwif->drives[0].noprobe=0;
+	hwif->drives[1].noprobe=0;
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 	probe_hwif_init(hwif);
+#else
+	idx[0] = hwif->index;
+	ide_device_add(idx, NULL);
+#endif
 
 	platform_set_drvdata(pdev, hwif);
 	
@@ -871,7 +1227,15 @@ static int dbox2_ide_remove(struct platform_device *pdev)
 {
 	ide_hwif_t *hwif = platform_get_drvdata(pdev);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 	ide_unregister(hwif - ide_hwifs);
+#else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,26)
+	ide_unregister(hwif - ide_hwifs, 0, 0);
+#else	
+	ide_unregister(hwif);
+#endif
+#endif
 	
 	return 0;
 }
@@ -889,7 +1253,7 @@ static int __init dboxide_init(void) {
 	int ret;
 
 	printk(KERN_INFO
-	       "dboxide: $Id: main.c,v 1.4.2.6 2007/10/09 01:04:06 carjay Exp $\n");
+	       "%s $Id: main.c,v 1.4.2.7 2009/02/12 12:41:51 rhabarber1848 Exp $\n", modname);
 
 	ret = setup_cpld();
 	if (ret < 0)
@@ -913,9 +1277,10 @@ static int __init dboxide_init(void) {
 /* dbox_ide_exit is called when the module is unloaded */
 static void __exit dboxide_exit(void)
 {
-	if (idebase != 0)
+	if (idebase != 0) {
 		CPLD_OUT(CPLD_WRITE_CTRL_TIMING, 0x00FF0007);
-
+		write_if_idcodeback(read_if_idcode());
+	}
 	if (ide_dev)
 		platform_device_unregister(ide_dev);
 
@@ -924,13 +1289,14 @@ static void __exit dboxide_exit(void)
 	unmap_memory();
 	deactivate_cs2();
 
-	printk("dboxide: driver unloaded\n");
+	printk("%s driver unloaded\n", modname);
 }
 #endif
 
 module_init(dboxide_init);
 module_exit(dboxide_exit);
 
+module_param(irq6,int,0);
 MODULE_AUTHOR("Uli Tessel <utessel@gmx.de>");
-MODULE_DESCRIPTION("DBOX IDE CPLD Interface driver");
+MODULE_DESCRIPTION("DBox2 IDE CPLD Interface driver");
 MODULE_LICENSE("GPL");

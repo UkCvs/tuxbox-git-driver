@@ -2,6 +2,7 @@
 #include <linux/version.h>
 #include <asm/time.h>
 #include <asm/uaccess.h>
+#include <syslib/m8xx_wdt.h>
 
 #define TRACE_WITH_CALLSTACK 1
 
@@ -11,10 +12,10 @@
 #define STACK_DEPTH 4
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-extern void m8xx_wdt_reset(void);
-#endif
+/* enable debug trace if TRACE_ENABLE is defined */
+#undef TRACE_ENABLE
 
+extern void mpc8xx_wdt_reset(void);
 extern char *dboxide_trace_msg[];
 
 typedef struct IDETraceData {
@@ -29,11 +30,14 @@ typedef struct IDETraceData {
 
 } IDETraceData;
 
+#ifdef TRACE_ENABLE
 static int traceIdx;
 static IDETraceData trace[TRACE_DEPTH];
+#endif
 
 static void log_backtrace(IDETraceData * td)
 {
+#ifdef TRACE_ENABLE
 #ifdef TRACE_WITH_CALLSTACK
 	int cnt = 0;
 	unsigned long i;
@@ -55,10 +59,12 @@ static void log_backtrace(IDETraceData * td)
 		sp = *(unsigned long **)sp;
 	}
 #endif
+#endif
 }
 
 static void print_callstack(IDETraceData * t)
 {
+#ifdef TRACE_ENABLE
 #ifdef TRACE_WITH_CALLSTACK
 	int j;
 	for (j = 0; j < STACK_DEPTH; j++) {
@@ -71,10 +77,12 @@ static void print_callstack(IDETraceData * t)
 	}
 	printk("\n");
 #endif
+#endif
 }
 
 void dboxide_log_trace(unsigned int typ, unsigned int a, unsigned int b)
 {
+#ifdef TRACE_ENABLE
 	IDETraceData *t = &trace[traceIdx];
 	traceIdx = (traceIdx + 1) & ((TRACE_DEPTH) - 1);
 
@@ -84,13 +92,16 @@ void dboxide_log_trace(unsigned int typ, unsigned int a, unsigned int b)
 	t->b = b;
 
 	log_backtrace(t);
+#endif
 }
 
 void dboxide_print_trace(void)
 {
+#ifdef TRACE_ENABLE
 	int i;
 	IDETraceData *t;
 	printk("dboxide: trace\n");
+
 	for (i = TRACE_DEPTH - 1; i > 0; i--) {
 		int idx = (traceIdx + i) & ((TRACE_DEPTH) - 1);
 		t = &trace[idx];
@@ -104,14 +115,16 @@ void dboxide_print_trace(void)
 		print_callstack(t);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-		/* this can take a while and when not printing to console the watchdog is not served 
-           FIXME: symbol is not (yet) exposed in 2.6 */
+		/* this can take a while and when not printing to console the watchdog is not served */
 		if ((i & 7) == 0)
 			m8xx_wdt_reset();
+#else
+		/* requires modified linux/driver/watchdog/mpc8xx_wdt.c */
+		if ((i & 7) == 0)
+			mpc8xx_wdt_reset();
 #endif
-
 		t->typ = 0;
 	}
-
 	printk("trace end.\n");
+#endif
 }
