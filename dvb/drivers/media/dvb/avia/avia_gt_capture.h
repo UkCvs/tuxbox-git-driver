@@ -48,6 +48,18 @@ struct avia_gt_capture_info {
 	unsigned long oddoffset;	// offset odd from even or 0 if no odd data is present
 };
 
+#define AVIA_GT_CAPTURE_SET_INPUT_POS		1
+#define AVIA_GT_CAPTURE_SET_INPUT_SIZE		2
+#define AVIA_GT_CAPTURE_SET_OUTPUT_SIZE		3
+#define AVIA_GT_CAPTURE_START			4
+#define AVIA_GT_CAPTURE_STOP			5
+
+#define capture_set_input_pos(fd, x, y)			ioctl(fd, AVIA_GT_CAPTURE_SET_INPUT_POS, ((x & 0xFFFF) | ((y & 0xFFFF) << 16)))
+#define capture_set_input_size(fd, width, height)	ioctl(fd, AVIA_GT_CAPTURE_SET_INPUT_SIZE, ((width & 0xFFFF) | ((height & 0xFFFF) << 16)))
+#define capture_set_output_size(fd, width, height)	ioctl(fd, AVIA_GT_CAPTURE_SET_OUTPUT_SIZE, ((width & 0xFFFF) | ((height & 0xFFFF) << 16)))
+#define capture_start(fd)				ioctl(fd, AVIA_GT_CAPTURE_START, 0)
+#define capture_stop(fd)				ioctl(fd, AVIA_GT_CAPTURE_STOP, 0)
+
 extern int avia_gt_capture_apply_params(struct avia_gt_capture_params *params, struct avia_gt_capture_info *info);
 extern int avia_gt_capture_get_params(struct avia_gt_capture_params *params);
 extern void avia_gt_capture_get_info(struct avia_gt_capture_info *info);
