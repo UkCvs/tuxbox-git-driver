@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_rc.c,v 1.23.2.5 2007/11/24 11:32:37 seife Exp $
+ * $Id: dbox2_fp_rc.c,v 1.23.2.6 2009/08/10 17:54:58 barf Exp $
  *
  * Copyright (C) 2002 by Florian Schirmer <jolt@tuxbox.org>
  *
@@ -72,12 +72,12 @@ static struct rc_key {
 	{KEY_HELP,			0x17, 0x82},
 	{KEY_SETUP,			0x18, 0x27},
 	{KEY_TOPLEFT,			0x1B, 0xff},
-	{KEY_TOPRIGHT,			0x1C, 0xff},
-	{KEY_BOTTOMLEFT,		0x1D, 0xff},
-	{KEY_BOTTOMRIGHT,		0x1E, 0xff},
+	{KEY_TOPRIGHT,			0x1C, 0xfb},
+	{KEY_BOTTOMLEFT,		0x1D, 0xfd},
+	{KEY_BOTTOMRIGHT,		0x1E, 0xfc},
 	{KEY_HOME,			0x1F, 0x20},
-	{KEY_PAGEDOWN,			0x53, 0x53},
-	{KEY_PAGEUP,			0x54, 0x54},
+	{KEY_PAGEDOWN,			0x19, 0x53},
+	{KEY_PAGEUP,			0x1A, 0x54},
 };
 
 #define RC_KEY_COUNT	ARRAY_SIZE(rc_key_map)
