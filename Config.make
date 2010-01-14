@@ -45,6 +45,9 @@ endif
 ifeq ($(DRIVER_MMC),yes)
 CONFIG_DBOX2_MMC		:= m
 endif
+ifeq ($(DRIVER_RTC),yes)
+CONFIG_DBOX2_RTC		:= m
+endif
 
 export	TOPDIR HPATH
 
