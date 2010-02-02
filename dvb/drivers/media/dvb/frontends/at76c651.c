@@ -422,7 +422,7 @@ static int at76c651_ioctl(struct dvb_frontend *fe, unsigned int cmd, void *arg)
 	case FE_READ_SIGNAL_STRENGTH:
 	{
 		u8 gain = at76c651_readreg(fe->i2c, 0x91);
-		*(u16 *)arg = gain;
+		*((u16 *)arg) = (gain << 8) | gain;
 		break;
 	}
 
