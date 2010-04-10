@@ -505,7 +505,7 @@ static int ves1x93_ioctl (struct dvb_frontend *fe, unsigned int cmd, void *arg)
 
 	case FE_READ_SIGNAL_STRENGTH:
 	{
-		u8 signal = ~ves1x93_readreg (i2c, 0x0b);
+		u8 signal = ves1x93_readreg (i2c, 0x0b);
 		*((u16*) arg) = (signal << 8) | signal;
 		break;
 	}

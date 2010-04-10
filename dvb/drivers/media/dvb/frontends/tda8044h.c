@@ -656,7 +656,7 @@ static int tda8044_ioctl(struct dvb_frontend *fe, unsigned int cmd, void *arg)
 
 	case FE_READ_SIGNAL_STRENGTH:
 	{
-		u8 gain = ~tda8044_readreg(fe->i2c, 0x01);
+		u8 gain = tda8044_readreg(fe->i2c, 0x01);
 		*((u16*) arg) = (gain << 8) | gain;
 		break;
 	}
