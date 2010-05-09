@@ -569,6 +569,9 @@ static int tda8044_set_voltage(struct dvb_i2c_bus *i2c, fe_sec_voltage_t voltage
 		return tda8044_writereg(i2c, 0x20, 0x3f);
 	case SEC_VOLTAGE_18:
 		return tda8044_writereg(i2c, 0x20, 0xbf);
+	/* this is dbox2 specific, 0x00 enables loopthrough */
+	case SEC_VOLTAGE_OFF:
+		return tda8044_writereg(i2c, 0x20, 0x00);
 	default:
 		return -EINVAL;
 	}
