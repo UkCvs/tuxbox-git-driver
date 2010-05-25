@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_core.c,v 1.101 2010/05/09 11:08:16 rhabarber1848 Exp $
+ * $Id: avia_av_core.c,v 1.102 2010/05/25 19:58:20 dbt Exp $
  *
  * AViA 500/600 core driver (dbox-II-project)
  *
@@ -1501,19 +1501,18 @@ int avia_av_wdt_thread(void)
 	int LAST_SUM_DECODED = 0;
 	int LAST_SUM_AUD_DECODED = 0;
 	int counter = 0;  
-	int timeout = 0;
                         
 	dvb_kernel_thread_setup ("avia_av_wdt");
 	printk ("avia_av_core: Starting avia_av_wdt thread.\n");
 	for(;;){
-		/* sleep for one second or until we got a wakeup signal */
-		timeout = !interruptible_sleep_on_timeout(&avia_av_wdt_sleep, 100);
+		/* sleep till we got a wakeup signal */        
+		interruptible_sleep_on(&avia_av_wdt_sleep);
 
-		if (counter >= 100 || timeout) {
+		if (counter >= 100) {		
 			if (avia_av_dram_read(PROC_STATE) == 0x04) {
 				if (play_state_video == AVIA_AV_PLAY_STATE_PLAYING) {
 					SUM_DECODED = avia_av_dram_read(N_DECODED);
-					if ((SUM_DECODED == 0x00) || (SUM_DECODED == LAST_SUM_DECODED)) {
+					if ((SUM_DECODED == 0x00) | (SUM_DECODED == LAST_SUM_DECODED)) {
 						printk("avia_av_wdt_thread: video decoding stopped ==> restart\n");
 						avia_av_cmd(SelectStream, 0x00, pid_video);
 					}
@@ -1521,7 +1520,7 @@ int avia_av_wdt_thread(void)
 				}
 				if (play_state_audio == AVIA_AV_PLAY_STATE_PLAYING) {
 					SUM_AUD_DECODED = avia_av_dram_read(N_AUD_DECODED);
-					if ((SUM_AUD_DECODED == 0x00) || (SUM_AUD_DECODED == LAST_SUM_AUD_DECODED)) {
+					if ((SUM_AUD_DECODED == 0x00) | (SUM_AUD_DECODED == LAST_SUM_AUD_DECODED)) {
 						printk("avia_av_wdt_thread: audio decoding stopped ==> restart\n");
 						avia_av_cmd(SelectStream, 0x03 - bypass_mode, pid_audio);
 					}
@@ -1541,7 +1540,7 @@ int __init avia_av_core_init(void)
 {
 	int err;
 
-	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.101 2010/05/09 11:08:16 rhabarber1848 Exp $\n");
+	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.102 2010/05/25 19:58:20 dbt Exp $\n");
 
 	if ((tv_standard < AVIA_AV_VIDEO_SYSTEM_PAL) ||
 		(tv_standard > AVIA_AV_VIDEO_SYSTEM_NTSC))
