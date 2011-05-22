@@ -257,9 +257,9 @@ static int ves1x93_init (struct dvb_i2c_bus *i2c)
 
 	if (demod_type == DEMOD_VES1993) {
 		if (board_type == BOARD_NOKIA_DBOX2)
-			tuner_write(i2c, "\x06\x5c\x83\x60", 4);
+			tuner_write(i2c, (u8*)"\x06\x5c\x83\x60", 4);
 		else if (board_type == BOARD_SAGEM_DBOX2)
-			tuner_write(i2c, "\x25\x70\x92\x40", 4);
+			tuner_write(i2c, (u8*)"\x25\x70\x92\x40", 4);
 	}
 
 	return 0;

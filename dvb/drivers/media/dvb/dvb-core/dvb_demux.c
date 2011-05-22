@@ -1079,7 +1079,7 @@ static int dvbdmx_write(struct dmx_demux *demux, const char *buf, size_t count)
 
 	if (down_interruptible (&dvbdemux->mutex))
 		return -ERESTARTSYS;
-	dvb_dmx_swfilter(dvbdemux, buf, count);
+	dvb_dmx_swfilter(dvbdemux, (u8*)buf, count);
 	up(&dvbdemux->mutex);
 
 	if (signal_pending(current))

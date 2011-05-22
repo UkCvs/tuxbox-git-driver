@@ -106,7 +106,7 @@ static struct file_operations lcd_fops = {
 	llseek:		lcd_seek,
 };
 
-static struct file_vars f_vars;
+struct file_vars f_vars;
 
 //static int lcd_initialized;
 
@@ -465,7 +465,8 @@ static ssize_t lcd_read (struct file *file, char *buf, size_t count,
 static ssize_t lcd_write (struct file *file, const char *buf, size_t count,
 			     loff_t *offset)
 {
-	char *obp, *bp;
+	char *obp;
+	unsigned char *bp;
 	int pa,col;
 
 	if (count<=0) {
@@ -485,7 +486,7 @@ static ssize_t lcd_write (struct file *file, const char *buf, size_t count,
 		return -EFAULT;
 	}
 
-	bp = obp;
+	bp = (unsigned char *)obp;
 
 	if ( LCD_MODE == LCD_MODE_BIN ) {
 		if ( (count!=LCD_BUFFER_SIZE) ) {

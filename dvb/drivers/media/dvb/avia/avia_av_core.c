@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_core.c,v 1.102 2010/05/25 19:58:20 dbt Exp $
+ * $Id: avia_av_core.c,v 1.103 2011/05/22 15:16:34 rhabarber1848 Exp $
  *
  * AViA 500/600 core driver (dbox-II-project)
  *
@@ -870,7 +870,7 @@ int avia_av_set_video_system(int video_system)
 
 /* ---------------------------------------------------------------------- */
 /* shamelessly stolen from sound_firmware.c */
-static int errno;
+int errno;
 
 static
 int avia_av_firmware_read(const char *fn, char **fp)
@@ -1540,7 +1540,7 @@ int __init avia_av_core_init(void)
 {
 	int err;
 
-	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.102 2010/05/25 19:58:20 dbt Exp $\n");
+	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.103 2011/05/22 15:16:34 rhabarber1848 Exp $\n");
 
 	if ((tv_standard < AVIA_AV_VIDEO_SYSTEM_PAL) ||
 		(tv_standard > AVIA_AV_VIDEO_SYSTEM_NTSC))

@@ -1,5 +1,5 @@
 /*
- * $Id: main.c,v 1.14 2009/06/19 14:39:26 seife Exp $
+ * $Id: main.c,v 1.15 2011/05/22 15:16:35 rhabarber1848 Exp $
  *
  * Copyright (C) 2006 Uli Tessel <utessel@gmx.de>
  * Linux 2.6 port: Copyright (C) 2006 Carsten Juttner <carjay@gmx.net>
@@ -588,11 +588,6 @@ static unsigned int read_if_idcode(void)
 	return idcode;
 }
 
-static int write_if_idcodeback(unsigned int idcode) 
-{
-	CPLD_OUT(CPLD_WRITE_FIFO, idcode);
-}
-
 static int ide_software_reset_drives(void) 
 {
         int i, j, tmp;
@@ -899,7 +894,7 @@ int __init dboxide_init(void)
 	/* register driver will call the scan function above, maybe immediately 
 	   when we are a module, or later when it thinks it is time to do so */
 	printk(KERN_INFO
-	       "dboxide: $Id: main.c,v 1.14 2009/06/19 14:39:26 seife Exp $\n");
+	       "dboxide: $Id: main.c,v 1.15 2011/05/22 15:16:35 rhabarber1848 Exp $\n");
 
 	ide_register_driver(dboxide_scan);
 
@@ -911,7 +906,7 @@ static void __exit dboxide_exit(void)
 {
 	if (idebase != 0) {
 		CPLD_OUT(CPLD_WRITE_CTRL_TIMING, 0x00FF0007);
-		write_if_idcodeback(read_if_idcode());
+		CPLD_OUT(CPLD_WRITE_FIFO, read_if_idcode());
 	}
 
 	idebase = 0;
@@ -970,7 +965,7 @@ int __init dboxide_init(void) {
 	int ret;
 
 	printk(KERN_INFO
-	       "dboxide: $Id: main.c,v 1.14 2009/06/19 14:39:26 seife Exp $\n");
+	       "dboxide: $Id: main.c,v 1.15 2011/05/22 15:16:35 rhabarber1848 Exp $\n");
 
 	ret = setup_cpld();
 	if (ret < 0)
@@ -996,7 +991,7 @@ static void __exit dboxide_exit(void)
 {
 	if (idebase != 0) {
 		CPLD_OUT(CPLD_WRITE_CTRL_TIMING, 0x00FF0007);
-		write_if_idcodeback(read_if_idcode());
+		CPLD_OUT(CPLD_WRITE_FIFO, read_if_idcode());
 	}
 
 	if (ide_dev)

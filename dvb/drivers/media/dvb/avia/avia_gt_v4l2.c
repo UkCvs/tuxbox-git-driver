@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_v4l2.c,v 1.12 2003/09/30 04:54:03 obi Exp $
+ * $Id: avia_gt_v4l2.c,v 1.13 2011/05/22 15:16:34 rhabarber1848 Exp $
  *
  * AViA eNX/GTX v4l2 driver (dbox-II-project)
  *
@@ -41,6 +41,7 @@
 #include "avia_gt.h"
 #include "avia_gt_pig.h"
 
+#define AVIA_GT_V4L2_NAME	"AViA eNX/GTX digital tv picture"
 #define AVIA_GT_V4L2_DRIVER	"avia"
 #define AVIA_GT_V4L2_CARD	"AViA eNX/GTX"
 #define AVIA_GT_V4L2_BUS_INFO	"AViA core"
@@ -99,7 +100,7 @@ static int avia_gt_v4l2_ioctl(struct inode *inode, struct file *file, unsigned i
 			if (input->index != 0)
 				return -EINVAL;
 				
-			strcpy(input->name, "AViA eNX/GTX digital tv picture");
+			memcpy(input->name, AVIA_GT_V4L2_NAME, (sizeof(input->name) < sizeof(AVIA_GT_V4L2_NAME)) ? sizeof(input->name) : sizeof(AVIA_GT_V4L2_NAME));
 			input->type = V4L2_INPUT_TYPE_TUNER;
 			input->audioset = 0;
 			input->tuner = 0;
@@ -132,9 +133,9 @@ static int avia_gt_v4l2_ioctl(struct inode *inode, struct file *file, unsigned i
 		{
 			struct v4l2_capability *capability = (struct v4l2_capability *)arg;
 
-			strcpy(capability->driver, AVIA_GT_V4L2_DRIVER);
-			strcpy(capability->card, AVIA_GT_V4L2_CARD);
-			strcpy(capability->bus_info, AVIA_GT_V4L2_BUS_INFO);
+			memcpy(capability->driver, AVIA_GT_V4L2_DRIVER, sizeof(AVIA_GT_V4L2_DRIVER));
+			memcpy(capability->card, AVIA_GT_V4L2_CARD, sizeof(AVIA_GT_V4L2_CARD));
+			memcpy(capability->bus_info, AVIA_GT_V4L2_BUS_INFO, sizeof(AVIA_GT_V4L2_BUS_INFO));
 			capability->version = AVIA_GT_V4L2_VERSION;
 			capability->capabilities = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_VIDEO_OVERLAY | V4L2_CAP_READWRITE | V4L2_CAP_STREAMING;
 			
@@ -222,7 +223,7 @@ static struct video_device device_info = {
 static int __init avia_gt_v4l2_init(void)
 {
 
-	printk("avia_gt_v4l2: $Id: avia_gt_v4l2.c,v 1.12 2003/09/30 04:54:03 obi Exp $\n");
+	printk("avia_gt_v4l2: $Id: avia_gt_v4l2.c,v 1.13 2011/05/22 15:16:34 rhabarber1848 Exp $\n");
 	
 	return video_register_device(&device_info, VFL_TYPE_GRABBER, -1);
 

@@ -291,7 +291,7 @@ inline int stv6412_set_fblk( struct i2c_client *client, int type )
 
 int stv6412_get_status(struct i2c_client *client)
 {
-	unsigned char byte;
+	char byte;
 
 	byte = 0;
 

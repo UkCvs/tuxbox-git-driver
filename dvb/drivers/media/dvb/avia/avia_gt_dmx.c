@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_dmx.c,v 1.210 2004/06/26 16:08:15 carjay Exp $
+ * $Id: avia_gt_dmx.c,v 1.211 2011/05/22 15:16:34 rhabarber1848 Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -49,7 +49,7 @@
 static void avia_gt_dmx_bh_task(void *tl_data);
 static void avia_gt_pcr_irq(unsigned short irq);
 
-static int errno;
+int errno;
 static sAviaGtInfo *gt_info;
 static struct avia_gt_ucode_info *ucode_info;
 static struct avia_gt_dmx_queue *msgqueue;
@@ -1260,7 +1260,7 @@ int avia_gt_dmx_disable_clip_mode(u8 queue_nr)
 	return avia_gt_dmx_enable_disable_clip_mode(queue_nr, 0);
 }
 
-ssize_t avia_gt_dmx_queue_write(u8 queue_nr, const u8 *buf, size_t count, u32 nonblock)
+ssize_t avia_gt_dmx_queue_write(u8 queue_nr, const char *buf, size_t count, u32 nonblock)
 {
 	sAviaGtDmxQueue *q = avia_gt_dmx_get_queue_info(queue_nr);
 	size_t todo = count, n;
@@ -1313,7 +1313,7 @@ int __init avia_gt_dmx_init(void)
 	u32 queue_addr;
 	u8 queue_nr;
 	
-	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.210 2004/06/26 16:08:15 carjay Exp $\n");;
+	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.211 2011/05/22 15:16:34 rhabarber1848 Exp $\n");;
 
 	gt_info = avia_gt_get_info();
 	ucode_info = avia_gt_dmx_get_ucode_info();

@@ -309,7 +309,7 @@ inline int cxa2126_get_logic(void)
 
 int cxa2126_get_status(struct i2c_client *client)
 {
-	unsigned char byte;
+	char byte;
 
 	if (1 != i2c_master_recv(client,&byte,1))
 	{

@@ -139,9 +139,9 @@ int fp_cmd(struct i2c_client *client, u8 cmd, u8 *res, u32 size)
 }
 
 
-int fp_sendcmd(struct i2c_client *client, u8 b0, u8 b1)
+int fp_sendcmd(struct i2c_client *client, char b0, char b1)
 {
-	u8 cmd [] = { b0, b1 };
+	char cmd [] = { b0, b1 };
 
 	dprintk("fp.o: fp_sendcmd: %02x %02x\n", b0, b1);
 

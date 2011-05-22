@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_napi.c,v 1.14 2004/04/26 17:46:36 derget Exp $
+ * $Id: dbox2_fp_napi.c,v 1.15 2011/05/22 15:16:35 rhabarber1848 Exp $
  *
  * Copyright (C) 2002-2003 Andreas Oberritter <obi@tuxbox.org>
  *
@@ -149,10 +149,10 @@ int dbox2_fp_napi_sec_ioctl(struct dvb_frontend *frontend, unsigned int cmd, voi
 	case FE_DISEQC_SEND_BURST:
 		switch ((fe_sec_mini_cmd_t) arg) {
 		case SEC_MINI_A:
-			dbox2_fp_sec_diseqc_cmd("\x00\x00\x00\x00", 4);
+			dbox2_fp_sec_diseqc_cmd((u8 *)"\x00\x00\x00\x00", 4);
 			break;
 		case SEC_MINI_B:
-			dbox2_fp_sec_diseqc_cmd("\xff", 1);
+			dbox2_fp_sec_diseqc_cmd((u8 *)"\xff", 1);
 			break;
 		default:
 			return -EINVAL;

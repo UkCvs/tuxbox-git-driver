@@ -18,7 +18,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * $Id: tuxbox_hardware_dbox2.c,v 1.8 2008/07/22 19:26:18 dbt Exp $
+ * $Id: tuxbox_hardware_dbox2.c,v 1.9 2011/05/22 15:16:35 rhabarber1848 Exp $
  */
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -108,7 +108,7 @@ static int flash_read_mid(void)
 
 	int ret = 0;
 	size_t retlen;
-	char mid;
+	u8 mid;
 
 	register_mtd_user(&mtd);
 	
@@ -198,12 +198,6 @@ static unsigned int read_if_idcode(void)
 	return idcode;
 }
 
-
-static int write_if_idcodeback(unsigned int idcode) 
-{
-	CPLD_OUT(CPLD_WRITE_FIFO, idcode);
-}
-
 /* detect_cpld: Check that the CPLD really works */
 static int detect_cpld(void)
 {
@@ -284,7 +278,7 @@ static int detect_cpld(void)
 	   will probe for drives etc, so this will check a lot
 	 */
 
-	write_if_idcodeback(idcode);
+	CPLD_OUT(CPLD_WRITE_FIFO, idcode);
 
 	return 1;
 }

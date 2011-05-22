@@ -1,5 +1,5 @@
 /*
- * $Id: saa7126_core.c,v 1.49 2006/05/27 10:24:37 barf Exp $
+ * $Id: saa7126_core.c,v 1.50 2011/05/22 15:16:35 rhabarber1848 Exp $
  * 
  * Philips SAA7126 digital video encoder
  *
@@ -244,7 +244,7 @@ struct saa7126
 static struct i2c_driver i2c_driver_saa7126;
 
 
-static int saa7126_readbuf (struct i2c_client *client, char reg, char *buf, short len)
+static int saa7126_readbuf (struct i2c_client *client, u8 reg, u8 *buf, short len)
 {
 	int ret;
 	struct i2c_msg msg [] = { { addr: client->addr, flags: 0, len: 1, buf: &reg },
@@ -262,7 +262,7 @@ static int saa7126_readbuf (struct i2c_client *client, char reg, char *buf, shor
 
 static int saa7126_writebuf (struct i2c_client *client, u8 reg, u8 *data, u8 datalen)
 {
-	u8 buf[SAA7126_I2C_BLOCK_SIZE + 1];
+	char buf[SAA7126_I2C_BLOCK_SIZE + 1];
 	u8 len;
 	u16 i;
 
@@ -649,7 +649,7 @@ static int saa7126_output_control(struct i2c_client *client, u8 inp)
 
 /* ------------------------------------------------------------------------- */
 
-static int saa7126_vps_set_data(struct i2c_client *client, char *buf)
+static int saa7126_vps_set_data(struct i2c_client *client, u8 *buf)
 {
 	u8 reg_54;
 
@@ -658,7 +658,7 @@ static int saa7126_vps_set_data(struct i2c_client *client, char *buf)
 
 	if (buf[0] == 1) {
 		reg_54 |= 0x80;
-		i2c_master_send(client, buf, 5);
+		i2c_master_send(client, (char *)buf, 5);
 	}
 
 	else if (buf[1] == 0) {
@@ -675,7 +675,7 @@ static int saa7126_vps_set_data(struct i2c_client *client, char *buf)
 	return 0;
 }
 
-static int saa7126_vps_get_data(struct i2c_client *client, char *buf)
+static int saa7126_vps_get_data(struct i2c_client *client, u8 *buf)
 {
 	u8 reg_54;
 
@@ -790,7 +790,7 @@ static int saa7126_ioctl (struct inode *inode, struct file *file, unsigned int c
 	struct saa7126 *encoder = (struct saa7126 *) file->private_data;
 	struct i2c_client *client = (struct i2c_client *) encoder->i2c_client;
 
-	char saa_data[SAA_DATA_SIZE];
+	u8 saa_data[SAA_DATA_SIZE];
 	void *parg = (void *) arg;
 	int val;
 

@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_timer.c,v 1.14 2005/01/02 19:45:47 carjay Exp $
+ * $Id: dbox2_fp_timer.c,v 1.15 2011/05/22 15:16:35 rhabarber1848 Exp $
  *
  * Copyright (C) 2002 by Andreas Oberritter <obi@tuxbox.org>
  *
@@ -57,7 +57,7 @@ dbox2_fp_timer_get_boot_trigger (void)
 int
 dbox2_fp_timer_set (u16 minutes)
 {
-	u8 cmd [] = { 0x00, minutes & 0xFF, minutes >> 8 };
+	char cmd [] = { 0x00, minutes & 0xFF, minutes >> 8 };
 
 	switch (mid) {
 	case TUXBOX_DBOX2_MID_NOKIA:

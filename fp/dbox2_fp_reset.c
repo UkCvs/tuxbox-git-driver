@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_reset.c,v 1.5 2005/12/04 12:31:25 carjay Exp $
+ * $Id: dbox2_fp_reset.c,v 1.6 2011/05/22 15:16:35 rhabarber1848 Exp $
  *
  * Copyright (C) 2002 by Andreas Oberritter <obi@tuxbox.org>
  *
@@ -87,7 +87,7 @@ void dbox2_fp_power_off (void)
 
 int dbox2_fp_reset_cam (void) /* needed for sagem / philips? */
 {
-	u8 msg [] = { 0x05, 0xef };
+	char msg [] = { 0x05, 0xef };
 
 	if (mid == TUXBOX_DBOX2_MID_NOKIA) {
 	
@@ -112,7 +112,7 @@ int dbox2_fp_reset_cam (void) /* needed for sagem / philips? */
 
 int dbox2_fp_reset (u8 type)
 {
-	u8 msg [] = { 0x22, type };
+	char msg [] = { 0x22, type };
 
 	if (i2c_master_send(fp_i2c_client, msg, sizeof(msg)) != sizeof(msg))
 		return -1;

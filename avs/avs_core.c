@@ -1,5 +1,5 @@
 /*
- * $Id: avs_core.c,v 1.27 2004/01/10 16:36:34 alexw Exp $
+ * $Id: avs_core.c,v 1.28 2011/05/22 15:16:34 rhabarber1848 Exp $
  * 
  * audio/video switch core driver (dbox-II-project)
  *
@@ -57,9 +57,9 @@
 TUXBOX_INFO(dbox2_mid);
 
 #define dprintk if (debug) printk
-static int debug;
+int debug;
 static int addr;
-static int type = CXAAUTO;
+int type = CXAAUTO;
 
 static devfs_handle_t devfs_handle;
 

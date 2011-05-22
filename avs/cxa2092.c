@@ -343,7 +343,7 @@ inline int cxa2092_get_logic( int sw )
 
 int cxa2092_get_status(struct i2c_client *client)
 {
-	unsigned char byte[1];
+	char byte[1];
 	int i;
 	byte[0] = 0;
 
