@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_napi.c,v 1.204 2011/05/22 15:16:34 rhabarber1848 Exp $
+ * $Id: avia_gt_napi.c,v 1.205 2011/05/23 19:26:42 rhabarber1848 Exp $
  * 
  * AViA GTX/eNX demux dvb api driver (dbox-II-project)
  *
@@ -73,12 +73,12 @@ static u8 *section;
 static spinlock_t section_lock = SPIN_LOCK_UNLOCKED;
 
 /* 0=DualPES, 1=SPTS */
-static int avia_gt_get_playback_mode(void)
+int avia_gt_get_playback_mode(void)
 {
 	return mode;
 }
 
-static void avia_gt_set_playback_mode(int new_mode)
+void avia_gt_set_playback_mode(int new_mode)
 {
 	mode = !!new_mode;
 }
@@ -826,7 +826,7 @@ static int __init avia_gt_napi_init(void)
 {
 	int result;
 
-	printk(KERN_INFO "avia_gt_napi: $Id: avia_gt_napi.c,v 1.204 2011/05/22 15:16:34 rhabarber1848 Exp $\n");
+	printk(KERN_INFO "avia_gt_napi: $Id: avia_gt_napi.c,v 1.205 2011/05/23 19:26:42 rhabarber1848 Exp $\n");
 
 	gt_info = avia_gt_get_info();
 

@@ -1,5 +1,5 @@
 /*
- * $Id: avia_av_core.c,v 1.103 2011/05/22 15:16:34 rhabarber1848 Exp $
+ * $Id: avia_av_core.c,v 1.104 2011/05/23 19:26:42 rhabarber1848 Exp $
  *
  * AViA 500/600 core driver (dbox-II-project)
  *
@@ -51,12 +51,12 @@
 
 TUXBOX_INFO(dbox2_gt);
 
-static int sptsfix = 0;
-static int tv_standard;
-static int no_watchdog;
-static char *firmware;
+int sptsfix = 0;
+int tv_standard;
+int no_watchdog;
+char *firmware;
 
-static int debug;
+int debug;
 #define dprintk if (debug) printk
 
 static volatile u8 *aviamem;
@@ -1540,7 +1540,7 @@ int __init avia_av_core_init(void)
 {
 	int err;
 
-	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.103 2011/05/22 15:16:34 rhabarber1848 Exp $\n");
+	printk(KERN_INFO "avia_av: $Id: avia_av_core.c,v 1.104 2011/05/23 19:26:42 rhabarber1848 Exp $\n");
 
 	if ((tv_standard < AVIA_AV_VIDEO_SYSTEM_PAL) ||
 		(tv_standard > AVIA_AV_VIDEO_SYSTEM_NTSC))

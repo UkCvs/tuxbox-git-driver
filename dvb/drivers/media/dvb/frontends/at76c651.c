@@ -46,7 +46,7 @@
 #include "dvb_i2c.h"
 #include "dvb_functions.h"
 
-static int debug = 0;
+int debug = 0;
 static u8 at76c651_qam;
 static u8 at76c651_revision;
 

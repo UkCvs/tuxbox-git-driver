@@ -33,10 +33,10 @@
 #include "dvb_frontend.h"
 #include "dvb_functions.h"
   
-static int debug = 0;
+int debug = 0;
 #define dprintk	if (debug) printk
 
-static int board_type = 0;
+int board_type = 0;
 #define BOARD_SIEMENS_PCI	0
 #define BOARD_NOKIA_DBOX2	1
 #define BOARD_SAGEM_DBOX2	2

@@ -33,7 +33,7 @@
 #include "dvbdev.h"
 #include "dvb_functions.h"
 
-static int dvbdev_debug = 0;
+int dvbdev_debug = 0;
 #define dprintk if (dvbdev_debug) printk
 
 static LIST_HEAD(dvb_adapter_list);

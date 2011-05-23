@@ -166,7 +166,6 @@
 
 #ifdef __KERNEL__
 
-extern int type;
 extern int debug;
 
 int scart_command( unsigned int cmd, void *arg );

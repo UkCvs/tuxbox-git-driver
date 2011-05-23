@@ -34,7 +34,7 @@ static void i2c_interrupt(void *, struct pt_regs *regs);
 /* ------------------------------------------------------------------------- */
 
 /* parameter stuff */
-static int debug;
+int debug;
 
 #define dprintk(fmt, args...) if (debug) printk( fmt, ## args )
 

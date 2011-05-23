@@ -62,8 +62,8 @@ static u8 fp_revision;
 
 static devfs_handle_t devfs_handle;
 
-static int debug;
-static int useimap = 1;
+int debug;
+int useimap = 1;
 
 #define dprintk(fmt, args...) if (debug) printk(fmt, ##args)
 

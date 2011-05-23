@@ -36,7 +36,7 @@
 #include "dvb_functions.h"
 
 MODULE_PARM(debug,"i");
-static int debug = 0;
+int debug = 0;
 
 #define dprintk	if (debug) printk
 

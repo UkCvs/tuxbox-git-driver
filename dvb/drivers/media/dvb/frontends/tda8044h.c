@@ -34,7 +34,7 @@
 #define TDA8044_IRQ	14
 #define TSA5059_PLL_CLK	4000000	/* 4 MHz */
 
-static int debug = 0;
+int debug = 0;
 #define dprintk	if (debug) printk
 
 struct tda8044 {
