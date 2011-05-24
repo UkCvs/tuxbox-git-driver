@@ -1,5 +1,5 @@
 /*
- * $Id: ds1307.c,v 1.2 2011/05/23 19:26:41 rhabarber1848 Exp $
+ * $Id: ds1307.c,v 1.3 2011/05/24 05:25:11 rhabarber1848 Exp $
  *
  * I2C driver for Dallas (Maxim) DS1307 Real Time Clock.
  * Some code 'borrowed' from the DS1302 driver.
@@ -211,7 +211,7 @@ static int attach_adapter(struct i2c_adapter *adap)
 
 static int ds1307_readreg(struct i2c_client *pclient, int reg)
 {
-	unsigned char c = reg;
+	char c = reg;
 
 	dprintk("ds1307: %s\n",__FUNCTION__);
 	
@@ -232,7 +232,7 @@ static int ds1307_readreg(struct i2c_client *pclient, int reg)
 
 static int ds1307_writereg(struct i2c_client *pclient, int val, int reg)
 {
-	unsigned char buf[2];
+	char buf[2];
 
 	dprintk("ds1307: %s\n",__FUNCTION__);
 	
@@ -444,7 +444,7 @@ static __init int ds1307_init(void)
 { 
 	int             res;
 
-	printk(KERN_INFO "ds1307: $Id: ds1307.c,v 1.2 2011/05/23 19:26:41 rhabarber1848 Exp $\n");
+	printk(KERN_INFO "ds1307: $Id: ds1307.c,v 1.3 2011/05/24 05:25:11 rhabarber1848 Exp $\n");
 
 	if ((res = i2c_add_driver(&rtc_i2c_driver)))
 	{
