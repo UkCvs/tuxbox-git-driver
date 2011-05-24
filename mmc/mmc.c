@@ -197,7 +197,7 @@ static int mmc_read_block(unsigned char *data, unsigned int src_addr)
 static void mmc_request(request_queue_t *q)
 {
 	unsigned int mmc_address;
-	unsigned char *buffer_address;
+	char *buffer_address;
 	int nr_sectors;
 	int i;
 	int cmd;
@@ -221,7 +221,7 @@ static void mmc_request(request_queue_t *q)
 			spin_unlock_irq(&io_request_lock);
 			for (i = 0; i < nr_sectors; i++)
 			{
-				rc = mmc_read_block(buffer_address, mmc_address);
+				rc = mmc_read_block((unsigned char*)buffer_address, mmc_address);
 				if (rc != 0)
 				{
 					printk("mmc: error in mmc_read_block (%d)\n", rc);
@@ -241,7 +241,7 @@ static void mmc_request(request_queue_t *q)
 			spin_unlock_irq(&io_request_lock);
 			for (i = 0; i < nr_sectors; i++)
 			{
-				rc = mmc_write_block(mmc_address, buffer_address);
+				rc = mmc_write_block(mmc_address, (unsigned char*)buffer_address);
 				if (rc != 0)
 				{
 					printk("mmc: error in mmc_write_block (%d)\n", rc);
@@ -527,7 +527,7 @@ static struct block_device_operations mmc_bdops =
 #endif
 };
 
-static struct gendisk hd_gendisk = {
+struct gendisk hd_gendisk = {
 	major:		MAJOR_NR,
 	major_name:	DEVICE_NAME,
 	minor_shift:	6,

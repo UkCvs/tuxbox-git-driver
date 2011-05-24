@@ -144,7 +144,7 @@ static struct block_device_operations mmc_bdops =
 #endif
 };
 
-static struct gendisk hd_gendisk = {
+struct gendisk hd_gendisk = {
 	major:		MAJOR_NR,
 	major_name:	DEVICE_NAME,
 	minor_shift:	6,
@@ -1239,7 +1239,7 @@ static int mmc_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, u
 static void mmc_request(request_queue_t *q)
 {
 	unsigned int mmc_address;
-	unsigned char *buffer_address;
+	char *buffer_address;
 	int nr_sectors;
 	int i;
 	int cmd;
@@ -1263,7 +1263,7 @@ static void mmc_request(request_queue_t *q)
 			spin_unlock_irq(&io_request_lock);
 			for (i = 0; i < nr_sectors; i++)
 			{
-				rc = mmc_read_block(buffer_address, mmc_address);
+				rc = mmc_read_block((unsigned char*)buffer_address, mmc_address);
 				if (rc != 0)
 				{
 					printk(KERN_ERR "mmc: error in mmc_read_block (%d)\n", rc);
@@ -1283,7 +1283,7 @@ static void mmc_request(request_queue_t *q)
 			spin_unlock_irq(&io_request_lock);
 			for (i = 0; i < nr_sectors; i++)
 			{
-				rc = mmc_write_block(mmc_address, buffer_address);
+				rc = mmc_write_block(mmc_address, (unsigned char*)buffer_address);
 				if (rc != 0)
 				{
 					printk(KERN_ERR "mmc: error in mmc_write_block (%d)\n", rc);
@@ -1384,7 +1384,7 @@ static int __init mmc_driver_init(void)
 {
 	int rc;
 
-	printk(KERN_INFO "$Id: mmccombo.c,v 1.3 2009/11/22 15:37:18 rhabarber1848 Exp $\n");
+	printk(KERN_INFO "$Id: mmccombo.c,v 1.4 2011/05/24 18:02:32 rhabarber1848 Exp $\n");
 
 	if ((wiringopt > 4) || (wiringopt == 3))
 	{
