@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_tuner.c,v 1.5 2011/05/22 15:16:35 rhabarber1848 Exp $
+ * $Id: dbox2_fp_tuner.c,v 1.6 2011/05/31 17:15:38 rhabarber1848 Exp $
  *
  * Copyright (C) 2002 by Andreas Oberritter <obi@tuxbox.org>
  *
@@ -37,7 +37,11 @@ dbox2_fp_tuner_init (void)
 int
 dbox2_fp_tuner_write_qam (u8 *buf, u8 len)
 {
+#if __GNUC__ > 3
 	char msg [len + 3];
+#else
+	u8 msg [len + 3];
+#endif
 
 	msg[0] = 0x00;
 	msg[1] = 0x07;
@@ -54,7 +58,11 @@ dbox2_fp_tuner_write_qam (u8 *buf, u8 len)
 int
 dbox2_fp_tuner_write_qpsk (u8 *buf, u8 len)
 {
+#if __GNUC__ > 3
 	char msg [len + 2];
+#else
+	u8 msg [len + 2];
+#endif
 
 	msg[0] = 0x00;
 	msg[1] = 0x05;

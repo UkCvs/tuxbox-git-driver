@@ -66,7 +66,11 @@ enum {
 
 #define TSA5059_PLL_CLK		4000000	/* 4 MHz */
 
+#if __GNUC__ > 3
 int debug = 1;
+#else
+static int debug = 1;
+#endif
 #define dprintk	if (debug) printk
 
 struct tda80xx {

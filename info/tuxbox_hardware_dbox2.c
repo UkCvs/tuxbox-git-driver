@@ -18,7 +18,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * $Id: tuxbox_hardware_dbox2.c,v 1.9 2011/05/22 15:16:35 rhabarber1848 Exp $
+ * $Id: tuxbox_hardware_dbox2.c,v 1.10 2011/05/31 17:15:39 rhabarber1848 Exp $
  */
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -108,7 +108,11 @@ static int flash_read_mid(void)
 
 	int ret = 0;
 	size_t retlen;
+#if __GNUC__ > 3
 	u8 mid;
+#else
+	char mid;
+#endif
 
 	register_mtd_user(&mtd);
 	

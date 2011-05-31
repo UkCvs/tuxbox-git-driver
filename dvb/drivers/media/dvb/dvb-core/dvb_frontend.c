@@ -38,8 +38,13 @@
 #include "dvb_functions.h"
 
 
+#if __GNUC__ > 3
 int dvb_frontend_debug = 0;
 int dvb_shutdown_timeout = 5;
+#else
+static int dvb_frontend_debug = 0;
+static int dvb_shutdown_timeout = 5;
+#endif
 
 #define dprintk if (dvb_frontend_debug) printk
 

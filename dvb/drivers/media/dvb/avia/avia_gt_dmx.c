@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_dmx.c,v 1.212 2011/05/23 19:26:42 rhabarber1848 Exp $
+ * $Id: avia_gt_dmx.c,v 1.213 2011/05/31 17:15:38 rhabarber1848 Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -49,13 +49,21 @@
 static void avia_gt_dmx_bh_task(void *tl_data);
 static void avia_gt_pcr_irq(unsigned short irq);
 
+#if __GNUC__ > 3
 int errno;
+#else
+static int errno;
+#endif
 static sAviaGtInfo *gt_info;
 static struct avia_gt_ucode_info *ucode_info;
 static struct avia_gt_dmx_queue *msgqueue;
 static int force_stc_reload;
 static sAviaGtDmxQueue queue_list[AVIA_GT_DMX_QUEUE_COUNT];
+#if __GNUC__ > 3
 int hw_sections = 1;
+#else
+static int hw_sections = 1;
+#endif
 
 /* video, audio, teletext can be mapped to one "interested" user queue */
 static int queue_client[AVIA_GT_DMX_QUEUE_USER_START] = { -1, -1, -1 };
@@ -1259,8 +1267,11 @@ int avia_gt_dmx_disable_clip_mode(u8 queue_nr)
 {
 	return avia_gt_dmx_enable_disable_clip_mode(queue_nr, 0);
 }
-
+#if __GNUC__ > 3
 ssize_t avia_gt_dmx_queue_write(u8 queue_nr, const char *buf, size_t count, u32 nonblock)
+#else
+ssize_t avia_gt_dmx_queue_write(u8 queue_nr, const u8 *buf, size_t count, u32 nonblock)
+#endif
 {
 	sAviaGtDmxQueue *q = avia_gt_dmx_get_queue_info(queue_nr);
 	size_t todo = count, n;
@@ -1313,7 +1324,7 @@ int __init avia_gt_dmx_init(void)
 	u32 queue_addr;
 	u8 queue_nr;
 	
-	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.212 2011/05/23 19:26:42 rhabarber1848 Exp $\n");;
+	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.213 2011/05/31 17:15:38 rhabarber1848 Exp $\n");;
 
 	gt_info = avia_gt_get_info();
 	ucode_info = avia_gt_dmx_get_ucode_info();

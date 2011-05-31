@@ -144,7 +144,11 @@ static struct block_device_operations mmc_bdops =
 #endif
 };
 
+#if __GNUC__ > 3
 struct gendisk hd_gendisk = {
+#else
+static struct gendisk hd_gendisk = {
+#endif
 	major:		MAJOR_NR,
 	major_name:	DEVICE_NAME,
 	minor_shift:	6,
@@ -1239,7 +1243,11 @@ static int mmc_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, u
 static void mmc_request(request_queue_t *q)
 {
 	unsigned int mmc_address;
+#if __GNUC__ > 3
 	char *buffer_address;
+#else
+	unsigned char *buffer_address;
+#endif
 	int nr_sectors;
 	int i;
 	int cmd;
@@ -1263,7 +1271,11 @@ static void mmc_request(request_queue_t *q)
 			spin_unlock_irq(&io_request_lock);
 			for (i = 0; i < nr_sectors; i++)
 			{
+#if __GNUC__ > 3
 				rc = mmc_read_block((unsigned char*)buffer_address, mmc_address);
+#else
+				rc = mmc_read_block(buffer_address, mmc_address);
+#endif
 				if (rc != 0)
 				{
 					printk(KERN_ERR "mmc: error in mmc_read_block (%d)\n", rc);
@@ -1283,7 +1295,11 @@ static void mmc_request(request_queue_t *q)
 			spin_unlock_irq(&io_request_lock);
 			for (i = 0; i < nr_sectors; i++)
 			{
+#if __GNUC__ > 3
 				rc = mmc_write_block(mmc_address, (unsigned char*)buffer_address);
+#else
+				rc = mmc_write_block(mmc_address, buffer_address);
+#endif
 				if (rc != 0)
 				{
 					printk(KERN_ERR "mmc: error in mmc_write_block (%d)\n", rc);
@@ -1384,7 +1400,7 @@ static int __init mmc_driver_init(void)
 {
 	int rc;
 
-	printk(KERN_INFO "$Id: mmccombo.c,v 1.4 2011/05/24 18:02:32 rhabarber1848 Exp $\n");
+	printk(KERN_INFO "$Id: mmccombo.c,v 1.5 2011/05/31 17:15:39 rhabarber1848 Exp $\n");
 
 	if ((wiringopt > 4) || (wiringopt == 3))
 	{

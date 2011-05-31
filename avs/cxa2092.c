@@ -343,7 +343,11 @@ inline int cxa2092_get_logic( int sw )
 
 int cxa2092_get_status(struct i2c_client *client)
 {
+#if __GNUC__ > 3
 	char byte[1];
+#else
+	unsigned char byte[1];
+#endif
 	int i;
 	byte[0] = 0;
 

@@ -34,7 +34,11 @@ static void i2c_interrupt(void *, struct pt_regs *regs);
 /* ------------------------------------------------------------------------- */
 
 /* parameter stuff */
+#if __GNUC__ > 3
 int debug;
+#else
+static int debug;
+#endif
 
 #define dprintk(fmt, args...) if (debug) printk( fmt, ## args )
 

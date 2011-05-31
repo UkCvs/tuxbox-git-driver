@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_napi.c,v 1.205 2011/05/23 19:26:42 rhabarber1848 Exp $
+ * $Id: avia_gt_napi.c,v 1.206 2011/05/31 17:15:38 rhabarber1848 Exp $
  * 
  * AViA GTX/eNX demux dvb api driver (dbox-II-project)
  *
@@ -73,12 +73,20 @@ static u8 *section;
 static spinlock_t section_lock = SPIN_LOCK_UNLOCKED;
 
 /* 0=DualPES, 1=SPTS */
+#if __GNUC__ > 3
 int avia_gt_get_playback_mode(void)
+#else
+static int avia_gt_get_playback_mode(void)
+#endif
 {
 	return mode;
 }
 
+#if __GNUC__ > 3
 void avia_gt_set_playback_mode(int new_mode)
+#else
+static void avia_gt_set_playback_mode(int new_mode)
+#endif
 {
 	mode = !!new_mode;
 }
@@ -498,7 +506,11 @@ static int avia_gt_napi_start_feed_section(struct dvb_demux_feed *dvbdmxfeed)
 	return avia_gt_dmx_queue_start (queue->index,SECTION,dvbdmxfeed->pid);
 }
 
+#if __GNUC__ > 3
 static int avia_gt_napi_write_to_decoder(struct dvb_demux_feed *dvbdmxfeed, const char *buf, size_t count)
+#else
+static int avia_gt_napi_write_to_decoder(struct dvb_demux_feed *dvbdmxfeed, const u8 *buf, size_t count)
+#endif
 {
 	/* count is always 188 with current dvb-core,
 	   so there is always exactly one ts packet in buf. */
@@ -826,7 +838,7 @@ static int __init avia_gt_napi_init(void)
 {
 	int result;
 
-	printk(KERN_INFO "avia_gt_napi: $Id: avia_gt_napi.c,v 1.205 2011/05/23 19:26:42 rhabarber1848 Exp $\n");
+	printk(KERN_INFO "avia_gt_napi: $Id: avia_gt_napi.c,v 1.206 2011/05/31 17:15:38 rhabarber1848 Exp $\n");
 
 	gt_info = avia_gt_get_info();
 
@@ -858,7 +870,11 @@ static int __init avia_gt_napi_init(void)
 	demux.feednum = 31;
 	demux.start_feed = avia_gt_napi_start_feed;
 	demux.stop_feed = avia_gt_napi_stop_feed;
+#if __GNUC__ > 3
 	demux.write_to_decoder = (int (*) (struct dvb_demux_feed *feed, const u8 *buf, size_t len))avia_gt_napi_write_to_decoder;
+#else
+	demux.write_to_decoder = avia_gt_napi_write_to_decoder;
+#endif
 
 	if (hw_crc) {
 		demux.check_crc32 = avia_gt_napi_crc32;

@@ -198,8 +198,13 @@ int cam_write_message(char *buf, size_t count)
  */
 static void cam_task(void *data)
 {
+#if __GNUC__ > 3
 	char buffer[130];
 	char caid[9] = { 0x50, 0x06, 0x23, 0x84, 0x01, 0x02, 0xFF, 0xFF, 0x00 };
+#else
+	unsigned char buffer[130];
+	unsigned char caid[9] = { 0x50, 0x06, 0x23, 0x84, 0x01, 0x02, 0xFF, 0xFF, 0x00 };
+#endif
 	int len, i;
 
 	if (down_interruptible(&cam_busy))
@@ -335,7 +340,11 @@ static int do_firmwrite(void *firmware, size_t len)
 	return 0;
 }
 
+#if __GNUC__ > 3
 int errno;
+#else
+static int errno;
+#endif
 
 static int do_firmread(const char *fn, char **fp)
 {
@@ -393,7 +402,7 @@ static int __init cam_init(void)
 	char *microcode;
 	int len;
 
-	printk(KERN_INFO "$Id: cam.c,v 1.31 2011/05/22 15:16:34 rhabarber1848 Exp $\n");
+	printk(KERN_INFO "$Id: cam.c,v 1.32 2011/05/31 17:15:38 rhabarber1848 Exp $\n");
 
 	if (!mio) {
 		printk(KERN_ERR "cam: mio address unknown\n");

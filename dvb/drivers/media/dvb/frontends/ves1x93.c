@@ -33,10 +33,18 @@
 #include "dvb_frontend.h"
 #include "dvb_functions.h"
   
+#if __GNUC__ > 3
 int debug = 0;
+#else
+static int debug = 0;
+#endif
 #define dprintk	if (debug) printk
 
+#if __GNUC__ > 3
 int board_type = 0;
+#else
+static int board_type = 0;
+#endif
 #define BOARD_SIEMENS_PCI	0
 #define BOARD_NOKIA_DBOX2	1
 #define BOARD_SAGEM_DBOX2	2
@@ -257,9 +265,17 @@ static int ves1x93_init (struct dvb_i2c_bus *i2c)
 
 	if (demod_type == DEMOD_VES1993) {
 		if (board_type == BOARD_NOKIA_DBOX2)
+#if __GNUC__ > 3
 			tuner_write(i2c, (u8*)"\x06\x5c\x83\x60", 4);
+#else
+			tuner_write(i2c, "\x06\x5c\x83\x60", 4);
+#endif
 		else if (board_type == BOARD_SAGEM_DBOX2)
+#if __GNUC__ > 3
 			tuner_write(i2c, (u8*)"\x25\x70\x92\x40", 4);
+#else
+			tuner_write(i2c, "\x25\x70\x92\x40", 4);
+#endif
 	}
 
 	return 0;

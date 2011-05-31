@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_sec.c,v 1.8 2011/05/22 15:16:35 rhabarber1848 Exp $
+ * $Id: dbox2_fp_sec.c,v 1.9 2011/05/31 17:15:38 rhabarber1848 Exp $
  *
  * Copyright (C) 2002-2003 Andreas Oberritter <obi@tuxbox.org>
  *
@@ -46,8 +46,13 @@ dbox2_fp_sec_get_status (void)
 int
 dbox2_fp_sec_diseqc_cmd (u8 *cmd, u8 len)
 {
+#if __GNUC__ > 3
 	u8 msg[8];
 	u8 status_cmd;
+#else
+	unsigned char msg[8];
+	unsigned char status_cmd;
+#endif
 	int c;
 	int sleep_perbyte;
 	int sleeptime;
@@ -87,7 +92,11 @@ dbox2_fp_sec_diseqc_cmd (u8 *cmd, u8 len)
 	if (mid == TUXBOX_DBOX2_MID_SAGEM) {
 
 		if (len > 1) {
+#if __GNUC__ > 3
 			i2c_master_send(fp_i2c_client, (char *)msg, len + 2);
+#else
+			i2c_master_send(fp_i2c_client, msg, len + 2);
+#endif
 			udelay(1000*100); /* <- ;) */
 		}
 
@@ -142,7 +151,11 @@ dbox2_fp_sec_diseqc_cmd (u8 *cmd, u8 len)
 static int
 dbox2_fp_sec_set (u8 power, u8 voltage, u8 high_voltage, u8 tone)
 {
+#if __GNUC__ > 3
 	char msg[2];
+#else
+	u8 msg[2];
+#endif
 
 	sec_power = power;
 	sec_voltage = voltage;

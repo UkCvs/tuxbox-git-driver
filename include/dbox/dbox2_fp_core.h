@@ -1,5 +1,5 @@
 /*
- * $Id: dbox2_fp_core.h,v 1.5 2011/05/22 15:16:35 rhabarber1848 Exp $
+ * $Id: dbox2_fp_core.h,v 1.6 2011/05/31 17:15:39 rhabarber1848 Exp $
  *
  * Copyright (C) 2002 by Andreas Oberritter <obi@tuxbox.org>
  *
@@ -43,7 +43,11 @@ struct fp_data
 int dbox2_fp_queue_alloc(u8 queue_nr, queue_proc_t queue_proc);
 void dbox2_fp_queue_free(u8 queue_nr);
 int fp_cmd (struct i2c_client * client, u8 cmd, u8 * res, u32 size);
+#if __GNUC__ > 3
 int fp_sendcmd (struct i2c_client * client, char b0, char b1);
+#else
+int fp_sendcmd (struct i2c_client * client, u8 b0, u8 b1);
+#endif
 struct i2c_client * fp_get_i2c (void);
 
 #endif /* __dbox2_fp_core_h__ */

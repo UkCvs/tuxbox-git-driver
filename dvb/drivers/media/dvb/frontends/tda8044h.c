@@ -34,7 +34,11 @@
 #define TDA8044_IRQ	14
 #define TSA5059_PLL_CLK	4000000	/* 4 MHz */
 
+#if __GNUC__ > 3
 int debug = 0;
+#else
+static int debug = 0;
+#endif
 #define dprintk	if (debug) printk
 
 struct tda8044 {

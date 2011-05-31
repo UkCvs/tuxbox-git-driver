@@ -291,7 +291,11 @@ inline int stv6412_set_fblk( struct i2c_client *client, int type )
 
 int stv6412_get_status(struct i2c_client *client)
 {
+#if __GNUC__ > 3
 	char byte;
+#else
+	unsigned char byte;
+#endif
 
 	byte = 0;
 
