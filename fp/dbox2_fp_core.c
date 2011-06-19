@@ -62,13 +62,8 @@ static u8 fp_revision;
 
 static devfs_handle_t devfs_handle;
 
-#if __GNUC__ > 3
-int debug;
-int useimap = 1;
-#else
 static int debug;
-static int useimap = 1;
-#endif
+int useimap = 1;
 
 #define dprintk(fmt, args...) if (debug) printk(fmt, ##args)
 
@@ -144,17 +139,9 @@ int fp_cmd(struct i2c_client *client, u8 cmd, u8 *res, u32 size)
 }
 
 
-#if __GNUC__ > 3
-int fp_sendcmd(struct i2c_client *client, char b0, char b1)
-#else
 int fp_sendcmd(struct i2c_client *client, u8 b0, u8 b1)
-#endif
 {
-#if __GNUC__ > 3
-	char cmd [] = { b0, b1 };
-#else
 	u8 cmd [] = { b0, b1 };
-#endif
 
 	dprintk("fp.o: fp_sendcmd: %02x %02x\n", b0, b1);
 

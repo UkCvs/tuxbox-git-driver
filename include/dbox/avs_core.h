@@ -166,9 +166,6 @@
 
 #ifdef __KERNEL__
 
-#if __GNUC__ <= 3
-extern int type;
-#endif
 extern int debug;
 
 int scart_command( unsigned int cmd, void *arg );

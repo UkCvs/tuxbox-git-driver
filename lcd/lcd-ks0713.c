@@ -106,11 +106,7 @@ static struct file_operations lcd_fops = {
 	llseek:		lcd_seek,
 };
 
-#if __GNUC__ > 3
-struct file_vars f_vars;
-#else
 static struct file_vars f_vars;
-#endif
 
 //static int lcd_initialized;
 
@@ -469,12 +465,7 @@ static ssize_t lcd_read (struct file *file, char *buf, size_t count,
 static ssize_t lcd_write (struct file *file, const char *buf, size_t count,
 			     loff_t *offset)
 {
-#if __GNUC__ > 3
-	char *obp;
-	unsigned char *bp;
-#else
 	char *obp, *bp;
-#endif
 	int pa,col;
 
 	if (count<=0) {
@@ -494,11 +485,7 @@ static ssize_t lcd_write (struct file *file, const char *buf, size_t count,
 		return -EFAULT;
 	}
 
-#if __GNUC__ > 3
-	bp = (unsigned char *)obp;
-#else
 	bp = obp;
-#endif
 
 	if ( LCD_MODE == LCD_MODE_BIN ) {
 		if ( (count!=LCD_BUFFER_SIZE) ) {

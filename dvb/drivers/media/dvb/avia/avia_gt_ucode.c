@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_ucode.c,v 1.16 2011/05/31 17:15:38 rhabarber1848 Exp $
+ * $Id: avia_gt_ucode.c,v 1.17 2011/06/19 11:49:27 rhabarber1848 Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -1039,11 +1039,7 @@ void avia_gt_dmx_load_ucode(void)
 {
 	int fd;
 	mm_segment_t fs;
-#if __GNUC__ > 3
-	char ucode_fs_buf[2048];
-#else
 	u8 ucode_fs_buf[2048];
-#endif
 	u16 *ucode_buf = NULL;
 	loff_t file_size;
 	u32 flags;

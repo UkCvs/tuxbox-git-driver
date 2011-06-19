@@ -1079,11 +1079,7 @@ static int dvbdmx_write(struct dmx_demux *demux, const char *buf, size_t count)
 
 	if (down_interruptible (&dvbdemux->mutex))
 		return -ERESTARTSYS;
-#if __GNUC__ > 3
-	dvb_dmx_swfilter(dvbdemux, (u8*)buf, count);
-#else
 	dvb_dmx_swfilter(dvbdemux, buf, count);
-#endif
 	up(&dvbdemux->mutex);
 
 	if (signal_pending(current))

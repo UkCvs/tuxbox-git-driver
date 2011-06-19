@@ -97,6 +97,4 @@ typedef struct file_vars
 	int row;
 	int col;
 } file_vars;
-
-extern struct file_vars f_vars;
 #endif

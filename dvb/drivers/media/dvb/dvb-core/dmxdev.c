@@ -36,11 +36,7 @@
 #include "dvb_functions.h"
 
 MODULE_PARM(debug,"i");
-#if __GNUC__ > 3
-int debug = 0;
-#else
 static int debug = 0;
-#endif
 
 #define dprintk	if (debug) printk
 

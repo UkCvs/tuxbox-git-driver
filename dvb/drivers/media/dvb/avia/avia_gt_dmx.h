@@ -111,11 +111,7 @@ void avia_gt_dmx_disable_framer(void);
 int avia_gt_dmx_enable_clip_mode(u8 queue_nr);
 int avia_gt_dmx_disable_clip_mode(u8 queue_nr);
 
-#if __GNUC__ > 3
-int avia_gt_dmx_queue_write(u8 queue_nr, const char *buf, size_t count, u32 nonblock);
-#else
 int avia_gt_dmx_queue_write(u8 queue_nr, const u8 *buf, size_t count, u32 nonblock);
-#endif
 int avia_gt_dmx_queue_nr_get_bytes_free(u8 queue_nr);
 
 int avia_gt_dmx_init(void);

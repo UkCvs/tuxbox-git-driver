@@ -1,4 +1,4 @@
-//  $Id: mmc2.c,v 1.6 2011/05/31 17:15:39 rhabarber1848 Exp $
+//  $Id: mmc2.c,v 1.7 2011/06/19 11:49:29 rhabarber1848 Exp $
 //
 //  MMC2.c
 //  General MMC device driver for dbox Modem Connector
@@ -68,8 +68,6 @@ static struct timer_list mmc_timer;
 static int mmc_media_detect = 0;
 static int mmc_media_changed = 1;
 
-extern struct gendisk hd_gendisk;
-
 /////////////////////
 // prototypes
 static int mmc_open(struct inode *inode, struct file *filp);
@@ -89,11 +87,7 @@ static struct block_device_operations mmc_bdops =
 #endif
 };
 
-#if __GNUC__ > 3
-struct gendisk hd_gendisk = {
-#else
 static struct gendisk hd_gendisk = {
-#endif
 	major:		MAJOR_NR,
 	major_name:	DEVICE_NAME,
 	minor_shift:	6,
@@ -697,11 +691,7 @@ static int mmc_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, u
 static void mmc_request(request_queue_t *q)
 {
 	unsigned int mmc_address;
-#if __GNUC__ > 3
-	char *buffer_address;
-#else
 	unsigned char *buffer_address;
-#endif
 	int nr_sectors;
 	int i;
 	int cmd;
@@ -725,11 +715,7 @@ static void mmc_request(request_queue_t *q)
 			spin_unlock_irq(&io_request_lock);
 			for (i = 0; i < nr_sectors; i++)
 			{
-#if __GNUC__ > 3
-				rc = mmc_read_block((unsigned char*)buffer_address, mmc_address);
-#else
 				rc = mmc_read_block(buffer_address, mmc_address);
-#endif
 				if (rc != 0)
 				{
 					printk("mmc: error in mmc_read_block (%d)\n", rc);
@@ -749,11 +735,7 @@ static void mmc_request(request_queue_t *q)
 			spin_unlock_irq(&io_request_lock);
 			for (i = 0; i < nr_sectors; i++)
 			{
-#if __GNUC__ > 3
-				rc = mmc_write_block(mmc_address, (unsigned char*)buffer_address);
-#else
 				rc = mmc_write_block(mmc_address, buffer_address);
-#endif
 				if (rc != 0)
 				{
 					printk("mmc: error in mmc_write_block (%d)\n", rc);
@@ -805,7 +787,7 @@ static int __init mmc_driver_init(void)
 {
 	int rc;
 
-    printk("mmc2 Driver $Id: mmc2.c,v 1.6 2011/05/31 17:15:39 rhabarber1848 Exp $\n");
+    printk("mmc2 Driver $Id: mmc2.c,v 1.7 2011/06/19 11:49:29 rhabarber1848 Exp $\n");
 	rc = devfs_register_blkdev(MAJOR_NR, DEVICE_NAME, &mmc_bdops);
 	if (rc < 0)
 	{

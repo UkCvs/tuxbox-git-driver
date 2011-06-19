@@ -1,5 +1,5 @@
 /*
- * $Id: saa7126_core.c,v 1.51 2011/05/31 17:15:39 rhabarber1848 Exp $
+ * $Id: saa7126_core.c,v 1.52 2011/06/19 11:49:29 rhabarber1848 Exp $
  * 
  * Philips SAA7126 digital video encoder
  *
@@ -244,11 +244,7 @@ struct saa7126
 static struct i2c_driver i2c_driver_saa7126;
 
 
-#if __GNUC__ > 3
-static int saa7126_readbuf (struct i2c_client *client, u8 reg, u8 *buf, short len)
-#else
 static int saa7126_readbuf (struct i2c_client *client, char reg, char *buf, short len)
-#endif
 {
 	int ret;
 	struct i2c_msg msg [] = { { addr: client->addr, flags: 0, len: 1, buf: &reg },
@@ -266,11 +262,7 @@ static int saa7126_readbuf (struct i2c_client *client, char reg, char *buf, shor
 
 static int saa7126_writebuf (struct i2c_client *client, u8 reg, u8 *data, u8 datalen)
 {
-#if __GNUC__ > 3
-	char buf[SAA7126_I2C_BLOCK_SIZE + 1];
-#else
 	u8 buf[SAA7126_I2C_BLOCK_SIZE + 1];
-#endif
 	u8 len;
 	u16 i;
 
@@ -657,11 +649,7 @@ static int saa7126_output_control(struct i2c_client *client, u8 inp)
 
 /* ------------------------------------------------------------------------- */
 
-#if __GNUC__ > 3
-static int saa7126_vps_set_data(struct i2c_client *client, u8 *buf)
-#else
 static int saa7126_vps_set_data(struct i2c_client *client, char *buf)
-#endif
 {
 	u8 reg_54;
 
@@ -670,11 +658,7 @@ static int saa7126_vps_set_data(struct i2c_client *client, char *buf)
 
 	if (buf[0] == 1) {
 		reg_54 |= 0x80;
-#if __GNUC__ > 3
-		i2c_master_send(client, (char *)buf, 5);
-#else
 		i2c_master_send(client, buf, 5);
-#endif
 	}
 
 	else if (buf[1] == 0) {
@@ -691,11 +675,7 @@ static int saa7126_vps_set_data(struct i2c_client *client, char *buf)
 	return 0;
 }
 
-#if __GNUC__ > 3
-static int saa7126_vps_get_data(struct i2c_client *client, u8 *buf)
-#else
 static int saa7126_vps_get_data(struct i2c_client *client, char *buf)
-#endif
 {
 	u8 reg_54;
 
@@ -810,11 +790,7 @@ static int saa7126_ioctl (struct inode *inode, struct file *file, unsigned int c
 	struct saa7126 *encoder = (struct saa7126 *) file->private_data;
 	struct i2c_client *client = (struct i2c_client *) encoder->i2c_client;
 
-#if __GNUC__ > 3
-	u8 saa_data[SAA_DATA_SIZE];
-#else
 	char saa_data[SAA_DATA_SIZE];
-#endif
 	void *parg = (void *) arg;
 	int val;
 

@@ -33,11 +33,7 @@
 #include "dvbdev.h"
 #include "dvb_functions.h"
 
-#if __GNUC__ > 3
 int dvbdev_debug = 0;
-#else
-static int dvbdev_debug = 0;
-#endif
 #define dprintk if (dvbdev_debug) printk
 
 static LIST_HEAD(dvb_adapter_list);

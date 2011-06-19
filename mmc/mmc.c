@@ -197,11 +197,7 @@ static int mmc_read_block(unsigned char *data, unsigned int src_addr)
 static void mmc_request(request_queue_t *q)
 {
 	unsigned int mmc_address;
-#if __GNUC__ > 3
-	char *buffer_address;
-#else
 	unsigned char *buffer_address;
-#endif
 	int nr_sectors;
 	int i;
 	int cmd;
@@ -225,11 +221,7 @@ static void mmc_request(request_queue_t *q)
 			spin_unlock_irq(&io_request_lock);
 			for (i = 0; i < nr_sectors; i++)
 			{
-#if __GNUC__ > 3
-				rc = mmc_read_block((unsigned char*)buffer_address, mmc_address);
-#else
 				rc = mmc_read_block(buffer_address, mmc_address);
-#endif
 				if (rc != 0)
 				{
 					printk("mmc: error in mmc_read_block (%d)\n", rc);
@@ -249,11 +241,7 @@ static void mmc_request(request_queue_t *q)
 			spin_unlock_irq(&io_request_lock);
 			for (i = 0; i < nr_sectors; i++)
 			{
-#if __GNUC__ > 3
-				rc = mmc_write_block(mmc_address, (unsigned char*)buffer_address);
-#else
 				rc = mmc_write_block(mmc_address, buffer_address);
-#endif
 				if (rc != 0)
 				{
 					printk("mmc: error in mmc_write_block (%d)\n", rc);
@@ -302,7 +290,7 @@ static int mmc_release(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-extern struct gendisk hd_gendisk;
+static struct gendisk hd_gendisk;
 
 static int mmc_revalidate(kdev_t dev)
 {
@@ -539,11 +527,7 @@ static struct block_device_operations mmc_bdops =
 #endif
 };
 
-#if __GNUC__ > 3
-struct gendisk hd_gendisk = {
-#else
 static struct gendisk hd_gendisk = {
-#endif
 	major:		MAJOR_NR,
 	major_name:	DEVICE_NAME,
 	minor_shift:	6,

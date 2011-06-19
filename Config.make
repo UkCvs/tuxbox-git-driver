@@ -26,8 +26,17 @@ STRIP		= $(CROSS_COMPILE)strip
 OBJCOPY		= $(CROSS_COMPILE)objcopy
 OBJDUMP		= $(CROSS_COMPILE)objdump
 
+check_gcc = $(shell if $(CC) $(1) -S -o /dev/null -xc /dev/null > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi)
+
 CPPFLAGS	:= -D__KERNEL__ -DMODULE -I$(DRIVER_TOPDIR)/include -I$(DRIVER_TOPDIR)/dvb/include -I$(KERNEL_LOCATION)/include
 CFLAGS		:= $(CPPFLAGS) -Wall -Wstrict-prototypes -Wno-trigraphs -Werror -O2 -fno-strict-aliasing -fno-common -fomit-frame-pointer
+
+# disable pointer signedness warnings in gcc 4.0
+CFLAGS += $(call check_gcc,-Wno-pointer-sign,)
+
+# disable stupid and dangerous "optimization" in gcc 3.2+
+CFLAGS += $(call check_gcc,-fno-delete-null-pointer-checks,)
+
 AFLAGS		:= -D__ASSEMBLY__ $(CPPFLAGS)
 
 MODLIB		:= $(INSTALL_MOD_PATH)/lib/modules/$(KERNELRELEASE)

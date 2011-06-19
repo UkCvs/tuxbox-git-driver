@@ -46,11 +46,7 @@
 #include "dvb_i2c.h"
 #include "dvb_functions.h"
 
-#if __GNUC__ > 3
-int debug = 0;
-#else
 static int debug = 0;
-#endif
 static u8 at76c651_qam;
 static u8 at76c651_revision;
 
