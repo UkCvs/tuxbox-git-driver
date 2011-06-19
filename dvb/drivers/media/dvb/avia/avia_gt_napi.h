@@ -61,4 +61,7 @@ struct pes_header {
 	unsigned marker_bit_2			: 1;
 } __attribute__ ((packed));
 
+void avia_gt_set_playback_mode(int new_mode);
+int avia_gt_get_playback_mode(void);
+
 #endif

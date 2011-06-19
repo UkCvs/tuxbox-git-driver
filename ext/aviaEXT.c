@@ -2,7 +2,7 @@
  * Extension device for non-API covered stuff for the Avia
  * (hopefully will disappear at some point)
  *
- * $Id: aviaEXT.c,v 1.5 2006/05/21 23:01:10 rasc Exp $
+ * $Id: aviaEXT.c,v 1.6 2011/06/19 11:51:17 rhabarber1848 Exp $
  *
  * Copyright (C) 2004 Carsten Juttner <carjay@gmx.net>
  *
@@ -29,6 +29,7 @@
 #include <asm/uaccess.h>
 
 #include "avia_av.h"
+#include "avia_gt_napi.h"
 #include <dbox/aviaEXT.h>
 
 static devfs_handle_t devfs_h;

@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_dmx.c,v 1.214 2011/06/19 11:49:27 rhabarber1848 Exp $
+ * $Id: avia_gt_dmx.c,v 1.215 2011/06/19 11:51:17 rhabarber1848 Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -49,11 +49,7 @@
 static void avia_gt_dmx_bh_task(void *tl_data);
 static void avia_gt_pcr_irq(unsigned short irq);
 
-#if __GNUC__ > 3
 int errno;
-#else
-static int errno;
-#endif
 static sAviaGtInfo *gt_info;
 static struct avia_gt_ucode_info *ucode_info;
 static struct avia_gt_dmx_queue *msgqueue;
@@ -1317,7 +1313,7 @@ int __init avia_gt_dmx_init(void)
 	u32 queue_addr;
 	u8 queue_nr;
 	
-	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.214 2011/06/19 11:49:27 rhabarber1848 Exp $\n");;
+	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.215 2011/06/19 11:51:17 rhabarber1848 Exp $\n");;
 
 	gt_info = avia_gt_get_info();
 	ucode_info = avia_gt_dmx_get_ucode_info();
