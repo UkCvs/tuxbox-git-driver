@@ -31,7 +31,13 @@ modules_install_misc: _modinst_misc_ $(patsubst %,_modinst_misc_%,$(MOD_DIRS))
 _modinst_misc_: dummy
 ifneq "$(strip $(ALL_MOBJS))" ""
 	mkdir -p $(MODLIB)/misc
-	cp $(sort $(ALL_MOBJS)) $(MODLIB)/misc
+	for f in $(ALL_MOBJS) ; do \
+		$(OBJCOPY) -R __ksymtab -R .comment -R .note -x \
+		`$(NM) $$f | cut -f3- -d' ' | sed -n \
+			-e 's/__module_parm_\(.*\)/-K \1/p' \
+			-e 's/__ks..tab_\(.*\)/-K \1/p'` \
+		$$f $(MODLIB)/misc/`basename $$f`; \
+	done
 endif
 
 ifneq "$(strip $(MOD_DIRS))" ""
