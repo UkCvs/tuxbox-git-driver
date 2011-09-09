@@ -401,6 +401,11 @@ static int fp_detect_client(struct i2c_adapter *adapter, int address, unsigned s
 	if (request_irq(FP_INTERRUPT, fp_interrupt, SA_ONESHOT, "fp", data) != 0)
 		panic("Could not allocate FP IRQ!");
 
+	/* initial poll of the frontprocessor to get e.g. SCART pin state correct,
+	 * http://www.dbox2-tuning.net/forum/viewtopic.php?t=49713
+	 * I'm not 100% sure this is correct, but users report it works */
+	fp_task(NULL);
+
 	return 0;
 }
 
