@@ -93,6 +93,7 @@ I2C_CLIENT_INSMOD;
 static int fp_id;
 static struct fp_data *defdata;
 
+static void fp_handle_vcr(struct fp_data *dev, int fpVCR);
 static void fp_task(void * arg);
 
 struct tq_struct fp_tasklet = {
@@ -320,6 +321,7 @@ static int fp_detect_client(struct i2c_adapter *adapter, int address, unsigned s
 	struct i2c_client *new_client;
 	struct fp_data *data;
 	const char *client_name = "DBox2 Frontprocessor client";
+	u8 status;
 
 	if (!(new_client = kmalloc(sizeof(struct i2c_client)+sizeof(struct fp_data), GFP_KERNEL)))
 		return -ENOMEM;
@@ -400,6 +402,11 @@ static int fp_detect_client(struct i2c_adapter *adapter, int address, unsigned s
 
 	if (request_irq(FP_INTERRUPT, fp_interrupt, SA_ONESHOT, "fp", data) != 0)
 		panic("Could not allocate FP IRQ!");
+
+	/* get SCART pin state */
+	fp_cmd(defdata->client, 0x23, &status, 1);
+	if (defdata->fpVCR != status)
+		fp_handle_vcr(defdata, status);
 
 	return 0;
 }
