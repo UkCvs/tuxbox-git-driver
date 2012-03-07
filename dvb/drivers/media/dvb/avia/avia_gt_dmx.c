@@ -1,5 +1,5 @@
 /*
- * $Id: avia_gt_dmx.c,v 1.215 2011/06/19 11:51:17 rhabarber1848 Exp $
+ * $Id: avia_gt_dmx.c,v 1.216 2012/03/07 18:31:52 rhabarber1848 Exp $
  *
  * AViA eNX/GTX dmx driver (dbox-II-project)
  *
@@ -55,7 +55,7 @@ static struct avia_gt_ucode_info *ucode_info;
 static struct avia_gt_dmx_queue *msgqueue;
 static int force_stc_reload;
 static sAviaGtDmxQueue queue_list[AVIA_GT_DMX_QUEUE_COUNT];
-int hw_sections = 1;
+int hw_sections = 0;
 
 /* video, audio, teletext can be mapped to one "interested" user queue */
 static int queue_client[AVIA_GT_DMX_QUEUE_USER_START] = { -1, -1, -1 };
@@ -1313,7 +1313,7 @@ int __init avia_gt_dmx_init(void)
 	u32 queue_addr;
 	u8 queue_nr;
 	
-	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.215 2011/06/19 11:51:17 rhabarber1848 Exp $\n");;
+	printk(KERN_INFO "avia_gt_dmx: $Id: avia_gt_dmx.c,v 1.216 2012/03/07 18:31:52 rhabarber1848 Exp $\n");;
 
 	gt_info = avia_gt_get_info();
 	ucode_info = avia_gt_dmx_get_ucode_info();
@@ -1457,7 +1457,7 @@ MODULE_LICENSE("GPL");
 MODULE_PARM(ucode, "s");
 MODULE_PARM_DESC(ucode, "path to risc microcode");
 MODULE_PARM(hw_sections, "i");
-MODULE_PARM_DESC(hw_sections, "hw_sections: 0=disabled, 1=enabled if possible (default)");
+MODULE_PARM_DESC(hw_sections, "hw_sections: 1=enabled if possible, 0=disabled (default)");
 
 EXPORT_SYMBOL(avia_gt_dmx_alloc_queue_audio);
 EXPORT_SYMBOL(avia_gt_dmx_alloc_queue_message);
