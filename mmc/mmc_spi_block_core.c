@@ -2,7 +2,7 @@
 #include <linux/timer.h>
 
 /*
- * $Id: mmc_spi_block_core.c,v 1.1.2.4 2008/06/14 19:04:55 seife Exp $
+ * $Id: mmc_spi_block_core.c,v 1.1.2.5 2012/06/09 18:50:01 rhabarber1848 Exp $
  *
  * Block device driver for a MMC/SD card in SPI mode using GPIOs
  * Gendisk routines
@@ -436,7 +436,7 @@ static int gendisk_fini(struct gendisk *gd)
 static int mmc_spi_probe(struct platform_device *pdev)
 {
 	int rc;
-	printk("$Id: mmc_spi_block_core.c,v 1.1.2.4 2008/06/14 19:04:55 seife Exp $\n");
+	printk("$Id: mmc_spi_block_core.c,v 1.1.2.5 2012/06/09 18:50:01 rhabarber1848 Exp $\n");
 
 	rc = mmc_spi_hardware_init();
 	if (rc != 0) {
@@ -506,7 +506,7 @@ static int mmc_spi_remove(struct platform_device *dev)
 }
 
 struct platform_driver mmc_spi_driver = {
-	.driver {
+	.driver = {
 		.name = "mmc_spi"
 	},
 	.probe = mmc_spi_probe,

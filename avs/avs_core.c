@@ -1,5 +1,5 @@
 /*
- * $Id: avs_core.c,v 1.27.2.8 2007/10/09 21:52:20 carjay Exp $
+ * $Id: avs_core.c,v 1.27.2.9 2012/06/09 18:50:00 rhabarber1848 Exp $
  * 
  * audio/video switch core driver (dbox-II-project)
  *
@@ -63,7 +63,7 @@
 
 TUXBOX_INFO(dbox2_mid);
 
-static int type = CXAAUTO;
+int type = CXAAUTO;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 static devfs_handle_t devfs_handle;
