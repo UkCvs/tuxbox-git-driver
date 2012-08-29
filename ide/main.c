@@ -1,5 +1,5 @@
 /*
- * $Id: main.c,v 1.4.2.8 2012/06/09 18:50:00 rhabarber1848 Exp $
+ * $Id: main.c,v 1.4.2.9 2012/08/29 17:59:57 rhabarber1848 Exp $
  *
  * Copyright (C) 2006 Uli Tessel <utessel@gmx.de>
  * Linux 2.6 port: Copyright (C) 2006 Carsten Juttner <carjay@gmx.net>
@@ -49,7 +49,7 @@ static struct platform_device *ide_dev;
 #else
 static int ideindex = -1;
 #endif
-static int irq6 = 0;
+static int irq6;
 
 /* address-offsets of features in the CPLD 
   (we can't call them registers...) */
@@ -1164,7 +1164,7 @@ static int __init dboxide_init(void)
 	/* register driver will call the scan function above, maybe immediately 
 	   when we are a module, or later when it thinks it is time to do so */
 	printk(KERN_INFO
-	       "%s $Id: main.c,v 1.4.2.8 2012/06/09 18:50:00 rhabarber1848 Exp $\n", modname);
+	       "%s $Id: main.c,v 1.4.2.9 2012/08/29 17:59:57 rhabarber1848 Exp $\n", modname);
 
 	ide_register_driver(dboxide_scan);
 
@@ -1253,7 +1253,7 @@ static int __init dboxide_init(void) {
 	int ret;
 
 	printk(KERN_INFO
-	       "%s $Id: main.c,v 1.4.2.8 2012/06/09 18:50:00 rhabarber1848 Exp $\n", modname);
+	       "%s $Id: main.c,v 1.4.2.9 2012/08/29 17:59:57 rhabarber1848 Exp $\n", modname);
 
 	ret = setup_cpld();
 	if (ret < 0)
